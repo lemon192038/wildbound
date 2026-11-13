@@ -24,7 +24,7 @@ export async function createTown(game) {
   // ---- light, sky, fog ----
   const sunDir = tod === 'dusk' ? new THREE.Vector3(0.62, 0.14, 0.77).normalize() : new THREE.Vector3(0.42, 0.58, 0.7).normalize();
   installFog(THREE, sunDir, -2.0, 0.035);
-  scene.fog = new THREE.FogExp2(0xffffff, tod === 'dusk' ? 0.0009 : 0.00055);
+  scene.fog = new THREE.FogExp2(0xffffff, tod === 'dusk' ? 0.0006 : 0.00055);
   scene.background = new THREE.Color(0x8aa0b8);
   renderer.shadowMap.enabled = true; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = tod === 'dusk' ? 1.05 : 1.0;
   const sky = add(createSkyDome(THREE, sunDir));
@@ -65,10 +65,10 @@ export async function createTown(game) {
     const x = -70 + rnd() * 140, z = -30 + rnd() * 110, y = terrainY(x, z);
     if (y < 3 || PRIMS.some((p) => inPrim(p, x, z, 2.5)) || BLOCKS.some((b) => (Array.isArray(b) ? x > b[0] - 2 && x < b[1] + 2 && z > b[2] - 2 && z < b[3] + 2 : Math.hypot(x - b.c[0], z - b.c[1]) < b.r + 2))) continue;
     if (Math.abs(terrainY(x + 1.5, z) - terrainY(x - 1.5, z)) > 2.2 || Math.abs(terrainY(x, z + 1.5) - terrainY(x, z - 1.5)) > 2.2) continue;
-    B.tree(x, y - 0.2, z, 0.9 + rnd() * 0.5); n++; } }
+    B.tree(x, y - 0.2, z, 0.9 + rnd() * 0.5, false, true); n++; } }
 
   // embankment greenery: instanced shrubs + boulders
-  { const sh = new Bucket('shrub', { s: 1.5 }); const ig = new THREE.IcosahedronGeometry(0.8, 1); const P = ig.attributes.position; for (let k = 0; k < P.count; k++) { const f = 1 + Math.sin(P.getX(k) * 5) * Math.cos(P.getZ(k) * 4) * 0.2; P.setXYZ(k, P.getX(k) * f, P.getY(k) * f * 0.7, P.getZ(k) * f); } ig.computeVertexNormals();
+  { const sh = new Bucket('shrub', { s: 1.5 }); const ig = new THREE.IcosahedronGeometry(0.8, 0); const P = ig.attributes.position; for (let k = 0; k < P.count; k++) { const f = 1 + Math.sin(P.getX(k) * 5) * Math.cos(P.getZ(k) * 4) * 0.2; P.setXYZ(k, P.getX(k) * f, P.getY(k) * f * 0.7, P.getZ(k) * f); } ig.computeVertexNormals();
     sh.add(ig, mat4(0, 0.35, 0), null, { colFn: (lx, ly) => col(0x3f7a2c).map((v) => v * (0.65 + 0.5 * (ly + 0.5))) });
     const rk = new Bucket('rock', { s: 2 }); const dg = new THREE.DodecahedronGeometry(0.9, 0); dg.scale(1.2, 0.7, 1); rk.add(dg, mat4(0, 0.2, 0), col(0x9a9284));
     const sm = [], rm = [];
@@ -78,7 +78,7 @@ export async function createTown(game) {
       const s = 0.6 + rnd() * 1.1, m = mat4(x, y - 0.15, z, rnd() * 6, 0, 0, s, s * (0.8 + rnd() * 0.5), s);
       (rnd() < 0.72 ? sm : rm).push(m);
     }
-    for (const [b, list, mat] of [[sh, sm, M.leaf], [rk, rm, M.stone]]) { const im = new THREE.InstancedMesh(b.geometry(), mat, list.length); list.forEach((m, i) => im.setMatrixAt(i, m)); im.castShadow = !low; im.receiveShadow = true; im.computeBoundingSphere(); add(im); } }
+    for (const [b, list, mat] of [[sh, sm, M.leaf], [rk, rm, M.stone]]) { const im = new THREE.InstancedMesh(b.geometry(), mat, list.length); list.forEach((m, i) => im.setMatrixAt(i, m)); im.castShadow = false; im.receiveShadow = true; im.computeBoundingSphere(); add(im); } }
 
   const mats = { stone: M.stone, cobble: M.cobble, wood: M.wood, roof: M.roof, plaster: M.plaster, cloth: M.cloth, metal: M.metal, leaf: M.leaf, glass: M.glass, glow: M.glow };
   for (const [k, b] of Object.entries(buckets)) if (b.count) add(b.mesh(mats[k], { shadow: k !== 'glow' && k !== 'glass' }));
@@ -103,7 +103,7 @@ export async function createTown(game) {
 
   // ---- terrain ----
   {
-    const R = 250, step = low ? 4 : 2.5, n = Math.round(2 * R / step);
+    const R = 250, step = low ? 4 : 3.2, n = Math.round(2 * R / step);
     const g = new THREE.PlaneGeometry(2 * R, 2 * R, n, n); g.rotateX(-Math.PI / 2);
     const P = g.attributes.position; for (let i = 0; i < P.count; i++) P.setY(i, terrainY(P.getX(i), P.getZ(i)));
     g.computeVertexNormals();
@@ -137,7 +137,7 @@ export async function createTown(game) {
         .replace('#include <normal_fragment_maps>', 'normal = normalize((viewMatrix * vec4(terN, 0.0)).xyz);');
     };
     tm.customProgramCacheKey = () => 'town-terrain';
-    const m = new THREE.Mesh(g, tm); m.receiveShadow = true; m.castShadow = !low; m.name = 'town-terrain'; add(m);
+    const m = new THREE.Mesh(g, tm); m.receiveShadow = true; m.castShadow = false; m.name = 'town-terrain'; add(m);
   }
   add(createMountains(THREE, 3331, TT));
   // ---- forest: instanced pines on the hills, headland and clifftops ----
@@ -146,7 +146,7 @@ export async function createTown(game) {
     b.add(new THREE.CylinderGeometry(0.15, 0.3, 3, 5), mat4(0, 1.5, 0), col(0x4a3426));
     [[2.4, 4.2, 2.6], [1.8, 3.4, 4.6], [1.1, 2.8, 6.4]].forEach(([r, h, y], i) => b.add(new THREE.ConeGeometry(r, h, 7, 1), mat4(0, y, 0, i), null, { colFn: (lx, ly) => col(0x24442a).map((v) => v * (0.75 + 0.35 * (ly / h + 0.5))) }));
     const geo = b.geometry(), ms = [], N2 = makeNoise2D(5);
-    const target = low ? 600 : 1500;
+    const target = low ? 600 : 950;
     for (let i = 0; i < target * 6 && ms.length < target; i++) {
       const a = rnd() * Math.PI * 2, r = 40 + Math.sqrt(rnd()) * 200, x = Math.cos(a) * r, z = Math.sin(a) * r;
       const y = terrainY(x, z); if (y < 4) continue;
@@ -155,7 +155,7 @@ export async function createTown(game) {
       if (N2.fbm(x * 0.02, z * 0.02, 3) < -0.15) continue;
       const s = 0.8 + rnd() * 0.9; ms.push(mat4(x, y - 0.4, z, rnd() * 6, (rnd() - 0.5) * 0.08, 0, s, s * (0.9 + rnd() * 0.3), s));
     }
-    const im = new THREE.InstancedMesh(geo, M.leaf, ms.length); ms.forEach((m, i) => im.setMatrixAt(i, m)); im.castShadow = !low; im.receiveShadow = true; im.computeBoundingSphere(); im.name = 'forest'; add(im);
+    const im = new THREE.InstancedMesh(geo, M.leaf, ms.length); ms.forEach((m, i) => im.setMatrixAt(i, m)); im.castShadow = false; im.receiveShadow = true; im.computeBoundingSphere(); im.name = 'forest'; add(im);
   }
 
   // ---- harbour ----

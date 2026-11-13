@@ -94,6 +94,7 @@ game.account = createAccount(game);            // server-side accounts & economy
 async function bootTown() {
   const [{ createTown }, { createTownHud }] = await Promise.all([import('./town/town.js'), import('./town/townHud.js')]);
   game.peaceful = true;                          // no weapon use in town
+  if (!game.params.has('ao')) game.params.set('ao', '0'); // GTAO veils the wide harbour vistas; the town ships its own contact shading
   game.world = await createTown(game);           // harbour city: buildings, NPCs, interactables, getHeight(x,z)
   engine.post = createPost(game);
   game.player = await createPlayer(game);

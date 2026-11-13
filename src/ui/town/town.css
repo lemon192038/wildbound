@@ -415,3 +415,6 @@
 .tw-weak > span { font: 700 0.75em var(--serif); letter-spacing: 0.2em; text-transform: uppercase; color: var(--parch-dim); }
 .tw-weak > span:not(:first-child) { margin-left: 0.8em; } .tw-weak i.tw-el { font-style: normal; opacity: 0.75; }
 .tw-bullet { font-style: normal; color: var(--gold); font-size: 0.7em; margin-top: 0.35em; flex: none; }
+.tw-touch .tw-menu-btn { display: none; } /* touch layout already has the MENU button from src/core/touch.js */
+.tw-win[data-panel="dock"] { height: auto; max-height: min(48em, calc(100vh - 32px)); }
+.tw-win[data-panel="dock"] .tw-win-body { padding-bottom: 1.4em; } .tw-win[data-panel="dock"] .tw-dock { height: auto; }

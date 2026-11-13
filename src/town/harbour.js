@@ -51,8 +51,8 @@ uniform float uTime; uniform sampler2D tWN; varying float vDepth; varying float 
   };
   mat.customProgramCacheKey = () => 'town-sea-v1';
   // polar grid centred on the harbour: dense near, geometric growth outwards
-  const cx = 5, cz = -30, AS = low ? 128 : 220, radii = [];
-  { let r = 0, dr = low ? 2.6 : 1.7; while (r < 2800) { radii.push(r); if (r > 150) dr *= 1.09; r += dr; } }
+  const cx = 5, cz = -30, AS = low ? 112 : 160, radii = [];
+  { let r = 0, dr = low ? 2.8 : 2.0; while (r < 2800) { radii.push(r); if (r > 150) dr *= 1.09; r += dr; } }
   const pos = [], dep = [], foam = [], idx = [];
   const stone = PRIMS.filter((p) => p.kind !== 'deck' && !p.axis);
   const edgeD = (x, z) => { let d = 1e9; for (const p of stone) { const dd = p.circle ? Math.abs(Math.hypot(x - p.cx, z - p.cz) - p.r) : Math.hypot(Math.max(p.x0 - x, 0, x - p.x1), Math.max(p.z0 - z, 0, z - p.z1)); d = Math.min(d, dd); } return d; };

@@ -130,7 +130,7 @@ export function createNpcs(game, ctx) {
   }
   // ambient: wanderers per district, chatting pairs, guards, dock workers, fishers, kids
   const zones = { plaza: [0, 0, 14], market: [40, -14, 12], quay: [-10, -37, 26], dockyard: [-34, -18, 8], r1: [34, 40, 14], r2: [-36, 38, 13], forge: [24, 9, 5], alch: [-28, 4, 3.5], pier: [0, -62, 14] };
-  const ambient = low ? 16 : 30;
+  const ambient = low ? 16 : 25;
   const plan = [['plaza', 6], ['market', 4], ['quay', 5], ['r1', 3], ['r2', 3], ['dockyard', 1], ['pier', 2], ['forge', 1], ['alch', 1]];
   for (const [zn, n] of plan) for (let i = 0; i < Math.round(n * ambient / 26); i++) {
     const r = rnd(); const kid = r < 0.12;
@@ -143,9 +143,9 @@ export function createNpcs(game, ctx) {
     mk({ x: bx, z: bz, ry: ry + Math.PI, fixed: true, state: 'work', mode: 4, bits: rnd() < 0.5 ? B('robe') : 0, tt: 3 });
   }
   for (const [x, z, ry] of [[-35, -79, Math.PI], [26.5, -71, Math.PI], [9, -87, Math.PI]].slice(0, low ? 1 : 3)) mk({ x, z, ry, fixed: true, state: 'work', mode: 5, bits: B('hat', 'spear'), c3: L(0x8a7a50) });
-  const guardRoutes = [[[0, -12], [0, -30], [-22, -36], [-40, -30], [-22, -36], [0, -30]], [[-14, 0], [-24, 4], [-30, 8], [-31, 18], [-36, 30], [-31, 18], [-30, 8], [-24, 4]], [[14, -8], [22, -8.5], [30, -10], [33, -22], [33, -32], [33, -22], [30, -10], [22, -8.5]]];
+  const guardRoutes = [[[0, -12], [0, -30], [-22, -36], [-40, -30], [-22, -36], [0, -30]], [[-14, 0], [-24, 4], [-30, 8], [-31, 18], [-36, 30], [-31, 18], [-30, 8], [-24, 4]], [[14, -8], [22, -8.5], [27, -12], [27, -22], [33, -22], [33, -32], [33, -22], [27, -22], [27, -12], [22, -8.5]]];
   for (const rt of guardRoutes.slice(0, low ? 1 : 3)) mk({ route: rt, ri: 0, x: rt[0][0], z: rt[0][1], bits: B('helmet', 'spear', 'cape'), c1: L(0x2a3a5a), c2: L(0x2a2a30), c3: L(0x1f3f78), speed: 1.15, scale: 1.04 });
-  const workRoutes = [[[1.5, -58], [1.5, -47], [-6, -37], [-30, -37], [-37, -27]], [[26.5, -60], [26.5, -47], [10, -40], [-10, -40], [-30, -33], [-38, -22]]];
+  const workRoutes = [[[1.5, -58], [1.5, -47], [-6, -37], [-30, -37], [-37, -27]], [[26.5, -60], [26.5, -47], [22, -38], [10, -37], [-10, -37], [-30, -33], [-38, -22]]];
   for (const rt of workRoutes.slice(0, low ? 1 : 2)) mk({ route: rt, ri: 0, pick: rt[0], x: rt[0][0], z: rt[0][1], carrier: true, bits: B('cap'), c1: L(0x8a7a5a), speed: 1.0 });
   // route sanity (dev aid): every segment must be walkable with clearance
   const clear = (ax, az, bx, bz) => { const d = Math.hypot(bx - ax, bz - az), n = Math.ceil(d / 0.5); for (let i = 0; i <= n; i++) { const t = i / n, x = ax + (bx - ax) * t, z = az + (bz - az) * t; if (!walkable(x, z)) return false; } return true; };

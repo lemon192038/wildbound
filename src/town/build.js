@@ -7,7 +7,7 @@ import { PRIMS, primY, inPrim, SPOTS, STALLS, HOUSES_R1, HOUSES_R2, BLOCKS } fro
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const PI = Math.PI;
-const ROOFS = [0x18b09a, 0x13a0a0, 0x2cba8c, 0x16929a, 0x22a8b0, 0x1cb8a6];
+const ROOFS = [0x1cb08a, 0x179c8c, 0x2cbc7c, 0x15928a, 0x22a89c, 0x20b892];
 const WALLS = [0xf0e6d0, 0xe8d8bc, 0xddcbad, 0xf3ece0, 0xe4d2b8, 0xd5d9d2, 0xeadfc6];
 const SHUT = [0x2f7480, 0x7c3a2c, 0x3d6640, 0x2c4d74, 0x8a6a2a];
 
@@ -460,7 +460,7 @@ export function buildCity(B, ctx) {
     }
     tower(Frame.at(50.5, y, -23, 0), { r: 3.2, h: 13, flag: 0xb83a30 });
     for (const [x, z] of [[27.5, -3], [52.5, -3.5], [27.5, -25], [44, -25]]) lamp(x, z, y);
-    pile(52, y, -11, 6); pile(28, y, -14, 4);
+    pile(52, y, -11, 6); pile(28.5, y, -23.5, 4);
     // market-side houses (non-walkable, along the east edge above the inlet)
   }
 
@@ -535,7 +535,7 @@ export function buildCity(B, ctx) {
       if (Math.hypot(x, z - 33) < 22 || Math.hypot(x - 40, z - 9) < 13 || Math.hypot(x + 39, z - 4) < 12 || Math.hypot(x + 52, z + 18) < 11) return false;
       return true;
     };
-    const target = low ? 60 : 110; let placed = 0;
+    const target = low ? 55 : 85; let placed = 0;
     for (let i = 0; i < 4000 && placed < target; i++) {
       const x = -95 + rnd() * 190, z = -60 + Math.pow(rnd(), 1.6) * 150;
       if (z < -20 && x > -60) continue;
@@ -555,12 +555,12 @@ export function buildCity(B, ctx) {
   swap(); simple = false;
 
   // ---------------- trees ----------------
-  function tree(x, y, z, s = 1, potted = false) {
+  function tree(x, y, z, s = 1, potted = false, cheap = false) {
     const tc = col(0x5a4030, 0.1, rnd); B.extraCol.push({ x, z, r: potted ? 0.5 : 0.3 * s });
     B.wood.add(new THREE.CylinderGeometry(0.12 * s, 0.22 * s, 2.6 * s, 6), mat4(x, y + 1.3 * s, z, 0, (rnd() - 0.5) * 0.1, (rnd() - 0.5) * 0.1), tc);
     const n = potted ? 2 : 4;
     for (let i = 0; i < n; i++) {
-      const g = new THREE.IcosahedronGeometry((1.1 + rnd() * 0.5) * s, low ? 0 : 1); const P = g.attributes.position;
+      const g = new THREE.IcosahedronGeometry((1.1 + rnd() * 0.5) * s, low || cheap ? 0 : 1); const P = g.attributes.position;
       for (let k = 0; k < P.count; k++) { const f = 1 + (Math.sin(P.getX(k) * 4.1 + i) * Math.cos(P.getZ(k) * 3.7) * 0.18); P.setXYZ(k, P.getX(k) * f, P.getY(k) * f * 0.85, P.getZ(k) * f); }
       g.computeVertexNormals();
       const a = rnd() * 6.28, r = i ? 0.8 * s : 0;
