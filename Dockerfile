@@ -19,4 +19,4 @@ COPY src/shared ./src/shared
 COPY --from=build /app/dist ./dist
 EXPOSE 8080
 USER node
-CMD ["node", "server/server.js"]
+CMD ["node", "--experimental-sqlite", "server/server.js"]

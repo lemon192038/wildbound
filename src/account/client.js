@@ -59,7 +59,14 @@ export function createAccount(game) {
       };
       busy = busy.then(run, run); return busy;
     },
-    async probe() { try { const r = await fetch(base + '/healthz', { cache: 'no-store' }); return r.ok; } catch { return false; } },
+    // Liveness check (CORS-enabled). Free-tier hosts may take ~1 min to wake, so keep trying for a while.
+    async probe() {
+      for (let i = 0; i < 6; i++) {
+        try { const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 25000); const r = await fetch(base + '/api/health', { cache: 'no-store', signal: ctl.signal }); clearTimeout(tm); if (r.ok) return true; } catch { /* retry */ }
+        emit('account:waking', { attempt: i + 1 }); await sleep(4000);
+      }
+      return false;
+    },
   };
   async function auth(path, name, password) {
     const r = await request(path, { name, password }, { retries: 1 });

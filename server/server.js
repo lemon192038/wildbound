@@ -159,7 +159,9 @@ export function startServer({ port = Number(process.env.PORT ?? 8080), host = pr
     try { pathname = decodeURIComponent(new URL(req.url, 'http://x').pathname); } catch { res.writeHead(400); return res.end(); }
     if (pathname === '/healthz') {
       const body = JSON.stringify({ ok: true, app: 'wildbound', players: clients.size, rooms: rooms.size });
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      // CORS: the GitHub Pages build probes this cross-origin before logging in.
+      const o = req.headers.origin; const cors = o && (allowAnyOrigin || allowedOrigins.includes(o)) ? { 'Access-Control-Allow-Origin': o, Vary: 'Origin' } : {};
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...cors });
       return res.end(req.method === 'HEAD' ? undefined : body);
     }
     if (pathname.includes('\0')) { res.writeHead(400); return res.end(); }

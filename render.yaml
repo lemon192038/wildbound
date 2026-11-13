@@ -6,7 +6,7 @@ services:
     runtime: node
     plan: free
     buildCommand: npm ci --include=dev && npx vite build
-    startCommand: node server/server.js
+    startCommand: node --experimental-sqlite server/server.js
     healthCheckPath: /healthz
     envVars:
       - key: NODE_VERSION

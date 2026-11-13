@@ -74,6 +74,7 @@ export function createApi(store, { allowedOrigins = [], log = console.log, now =
     const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || '?';
     if (!cors(req, res)) return err(res, 403, 'origin', 'Origin not allowed');
     if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
+    if (pathname === '/api/health') return send(res, 200, { ok: true, app: 'wildbound', store: store.kind });
     try {
       if (pathname === '/api/register' || pathname === '/api/login') {
         if (req.method !== 'POST') return err(res, 405, 'method');
