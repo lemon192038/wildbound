@@ -40,6 +40,8 @@ Choose on the title screen, or use the URL: `?hunt=wyvern`.
   - **Re-rigging a new export:** `node tools/rig-wyvern.mjs <source.glb> public/models/wyvern.glb`
 - **Co-op:** rooms are matched per quarry.
 
+**Quest loop:** slaying the boss shows QUEST COMPLETE with spoils and a countdown. After 30 s (set with `?respawn=N` seconds) a fresh boss of the same quarry appears and the quest restarts. The hunter is restored: HP, stamina, sharpness, 10 potions. A timed-out quest (QUEST FAILED) restarts the same way. In co-op the host decides when the respawn happens; snapshots carry a quest generation, so every client switches over together (`src/core/quest.js`).
+
 ## Structure
 
 See `CONTRACTS.md`. `src/world` (terrain, foliage, sky, water, post), `src/monster` (Varkhul: rig, AI, attacks, part breaks), `src/player` (hunter, combat, camera), `src/ui`, `src/audio`, `src/net` + `server/` (WebSocket rooms, host-authoritative monster and damage validation).

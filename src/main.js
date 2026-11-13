@@ -12,6 +12,7 @@ import { createNet } from './net/client.js';
 import { createUI } from './ui/ui.js';
 import { createAudio } from './audio/audio.js';
 import { TouchControls, isTouchDevice } from './core/touch.js';
+import { createQuest } from './core/quest.js';
 
 // The shared `game` context. Every module receives it; see CONTRACTS.md.
 const engine = new Engine();
@@ -39,10 +40,13 @@ async function boot() {
   game.cameraRig = createCameraRig(game);        // third-person orbit cam, lock-on, shake
   // Quest target: ?hunt=wyvern → Cindral (flying, user-made mesh), default → Varkhul.
   game.hunt = game.params.get('hunt') === 'wyvern' ? 'wyvern' : 'varkhul';
-  game.monsters.push(await (game.hunt === 'wyvern' ? createWyvern : createMonster)(game)); // boss monster: model, AI, hitzones
+  const makeMonster = (g) => (g.hunt === 'wyvern' ? createWyvern : createMonster)(g);
+  game.monsters.push(await makeMonster(game)); // boss monster: model, AI, hitzones
   game.audio = createAudio(game);                // procedural WebAudio sfx + music
   game.ui = createUI(game);                      // HUD, damage numbers, menus
   game.net = createNet(game);                    // co-op sync via websocket (optional)
+  const quest = createQuest(game, makeMonster);   // complete → respawn loop (src/core/quest.js)
+  game.addUpdater((dt) => quest.update(dt));
   if (game.input.touch) {
     if (game.params.get('shot') === '1') game.input.touch.show();
     else game.events.on('ui:start', () => game.input.touch.show());

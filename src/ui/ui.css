@@ -380,3 +380,8 @@
 .wb-quest span { font-family: var(--sans, sans-serif); font-size: 0.72em; letter-spacing: 0.08em; opacity: 0.75; }
 .wb-quest:hover { border-color: rgba(246, 226, 170, 0.9); }
 .wb-quest.wb-on { border-color: var(--gold-hi, #f6e2aa); background: rgba(70, 40, 14, 0.6); box-shadow: 0 0 1.2em rgba(246, 180, 90, 0.25), inset 0 0 0 1px rgba(246, 226, 170, 0.25); transform: scale(1.04); }
+
+/* respawn countdown under the quest result */
+.wb-next { position: absolute; left: 50%; bottom: 9%; transform: translateX(-50%); font-family: var(--serif); letter-spacing: 0.3em; font-size: 0.95em; color: var(--parch); text-shadow: 0 0.1em 0.4em #000; opacity: 0; animation: wbFadeIn 0.8s 2.2s forwards; }
+.wb-next b { color: var(--gold-hi); margin-left: 0.4em; letter-spacing: 0.08em; }
+@keyframes wbFadeIn { to { opacity: 1; } }

@@ -139,7 +139,7 @@ export function createAudio(game) {
     ev.on('hitstop', (e = {}) => duck(e.duration ?? 0.08));
     ev.on('ui:click', () => play('click'));
     ev.on('monster:state', (e = {}) => { if (e.monster && ctx.state === 'running') telegraph(e.monster); });
-    ev.on('quest:complete', () => play('fanfare', null, 0.9));
+    // 'quest:complete' is silent here: the victory fanfare already plays in onMonsterDied's sequence.
   }
   function onMonsterDied(m) {
     if (m && victoryDone.has(m)) return; if (m) victoryDone.add(m);

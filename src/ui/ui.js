@@ -220,8 +220,9 @@ export function createUI(game) {
   }
   function hideFaint() { if (!faint) return; faint.remove(); faint = null; if (!questOver) hud.classList.remove('wb-dim'); }
 
-  let questTime = 50 * 60, questOver = false;
+  let questTime = 50 * 60, questOver = false, questOv = null, nextEl = null;
   const brokenParts = [];
+  const nextLine = () => `<div class="wb-next">NEXT HUNT IN <b class="wb-num">--</b></div>`;
   function showComplete(mon) {
     if (questOver) return; questOver = true; hud.classList.add('wb-dim'); hideFaint();
     const used = 50 * 60 - questTime;
@@ -230,12 +231,15 @@ export function createUI(game) {
     const ov = el('div', 'wb-overlay wb-complete', `<div class="wb-banner"><h1>QUEST COMPLETE</h1>
       <div class="wb-sub">${esc(name.toUpperCase())} SLAIN · <b class="wb-num">${fmtTime(used)}</b></div></div><div class="wb-rule"></div>
       <div class="wb-frame wb-rewards"><h3>SPOILS OF THE HUNT</h3>${rew.items.map((r, i) => `<div class="wb-reward r${r.rarity}" style="animation-delay:${0.9 + i * 0.12}s"><i></i><span>${esc(r.name)}</span><b class="wb-num">×${r.qty}</b></div>`).join('')}
-      <div class="wb-bounty">Bounty <b class="wb-num">${rew.bounty.toLocaleString()}</b> marks</div></div>`, root);
+      <div class="wb-bounty">Bounty <b class="wb-num">${rew.bounty.toLocaleString()}</b> marks</div></div>${nextLine()}`, root);
+    questOv = ov; nextEl = ov.querySelector('.wb-next b');
     return ov;
   }
   function showFailed() {
     if (questOver) return; questOver = true; hud.classList.add('wb-dim');
-    el('div', 'wb-overlay wb-complete', `<div class="wb-banner"><h1 style="filter:grayscale(.7) drop-shadow(0 .05em .05em #000)">QUEST FAILED</h1><div class="wb-sub">THE TRAIL HAS GONE COLD</div></div>`, root);
+    questOv = el('div', 'wb-overlay wb-complete', `<div class="wb-banner"><h1 style="filter:grayscale(.7) drop-shadow(0 .05em .05em #000)">QUEST FAILED</h1><div class="wb-sub">THE TRAIL HAS GONE COLD</div></div>${nextLine()}`, root);
+    nextEl = questOv.querySelector('.wb-next b');
+    events.emit('quest:failed', {});
   }
 
   // ---------------------------------------------------------------- monster name card
@@ -402,6 +406,12 @@ export function createUI(game) {
     setTimeout(nextBreak, breakQueue.length ? 1600 : 2700);
   }
   events.on('monster:died', (e) => setTimeout(() => showComplete(e?.monster || M()), shot ? 0 : 1500));
+  // New hunt (boss respawned by src/core/quest.js): clear the result screen and reset quest state.
+  events.on('quest:start', () => {
+    questOv?.remove(); questOv = nextEl = null; questOver = false; questTime = 50 * 60; brokenParts.length = 0; cardShown = false;
+    for (const k in warned) delete warned[k];
+    hud.classList.remove('wb-dim'); toast('A new quarry stirs. The hunt begins anew.');
+  });
   events.on('net:chat', (m) => { if (!m) return; addChat(m.name || m.from || 'Hunter', m.text ?? m.message ?? ''); });
   events.on('net:join', (m) => { if (!m?.self) addChat(null, `${m?.name || 'A hunter'} joined the hunt.`, true); });
   events.on('net:status', (st) => {
@@ -465,6 +475,7 @@ export function createUI(game) {
 
     // quest timer (gameplay time; frozen until the hunt starts and while paused)
     if (started && !questOver && !pause) questTime -= dt;
+    if (nextEl && game.quest?.respawnAt != null) set('qn', fmtTime(Math.max(0, game.quest.respawnAt - (game.quest.clock || 0))), (v) => { if (nextEl) nextEl.textContent = v; });
     set('qt', fmtTime(questTime), (v) => (timerVal.textContent = v));
     set('qw', questTime < 300, (v) => timer.classList.toggle('wb-warn', v));
     for (const mins of [10, 5, 1]) if (questTime < mins * 60 && !warned[mins] && started) { warned[mins] = 1; toast(`${mins} minute${mins > 1 ? 's' : ''} remain`); }
