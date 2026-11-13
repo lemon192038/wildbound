@@ -115,7 +115,9 @@ export function createUI(game) {
   const partyRows = new Map();
 
   // ---------------------------------------------------------------- item slot
-  const ITEMS = [
+  // Quest hunts: the bar shows what you actually carried (game.fieldItems from src/field/questRuntime.js).
+  const iconFor = (id) => (id === 'whetstone' ? SVG.whet : id === 'flashPod' ? SVG.flash : id === 'snareCoil' || id === 'tranqBomb' ? SVG.trap : SVG.potion);
+  const ITEMS = game.fieldItems ? game.fieldItems.list().map((it) => ({ ...it, icon: iconFor(it.id) })) : [
     { id: 'potion', name: 'Verdant Draught', desc: 'Restores vigor', icon: SVG.potion },
     { id: 'whetstone', name: 'Whetstone', desc: 'Restores the edge', icon: SVG.whet },
     { id: 'flash', name: 'Glare Pod', desc: 'None in pouch', icon: SVG.flash, stub: true },
@@ -124,7 +126,7 @@ export function createUI(game) {
   let sel = Math.max(0, Math.min(ITEMS.length - 1, lsGet('item', 0) | 0));
   const item = el('div', 'wb-items', `<div class="wb-item-name"><b></b><span></span></div><div class="wb-item-row"></div>`, hud);
   const itemName = item.querySelector('.wb-item-name b'), itemDesc = item.querySelector('.wb-item-name span');
-  const slots = ITEMS.map((it, i) => { const e = el('div', 'wb-slot' + (it.stub ? ' wb-stub' : ''), `${it.icon}<span class="wb-slot-n">${i + 1}</span><span class="wb-slot-c wb-num">${it.stub ? '0' : it.id === 'whetstone' ? '∞' : ''}</span>`, item.lastChild); return { e, c: e.querySelector('.wb-slot-c') }; });
+  const slots = ITEMS.map((it, i) => { const e = el('div', 'wb-slot' + (it.stub ? ' wb-stub' : ''), `${it.icon}<span class="wb-slot-n">${i < 9 ? i + 1 : ''}</span><span class="wb-slot-c wb-num">${it.stub ? '0' : it.id === 'whetstone' ? '∞' : ''}</span>`, item.lastChild); return { e, c: e.querySelector('.wb-slot-c') }; });
   el('span', 'wb-item-key', 'R', item.lastChild);
   const itemCount = slots[0].c;
   function selectItem(i, quiet) {
@@ -136,6 +138,11 @@ export function createUI(game) {
   selectItem(sel, true);
   function useSelected() {
     const it = ITEMS[sel], p = P();
+    if (game.fieldItems) {
+      const okUse = it.id !== 'whetstone' && game.fieldItems.count(it.id) <= 0 ? false : game.fieldItems.use(it.id);
+      if (!okUse) { slots[sel].e.classList.remove('wb-deny'); void slots[sel].e.offsetWidth; slots[sel].e.classList.add('wb-deny'); }
+      return false;
+    }
     if (it.stub) { toast(`No ${it.name}s in your pouch`); slots[sel].e.classList.remove('wb-deny'); void slots[sel].e.offsetWidth; slots[sel].e.classList.add('wb-deny'); return false; }
     if (it.id === 'potion' && num(p.potions, 1) <= 0) { slots[sel].e.classList.remove('wb-deny'); void slots[sel].e.offsetWidth; slots[sel].e.classList.add('wb-deny'); return false; }
     if (typeof p.useItem === 'function' && !p.dead) { try { p.useItem(it.id); } catch (e) { console.warn(e); } return false; }
@@ -224,10 +231,11 @@ export function createUI(game) {
   }
   function hideFaint() { if (!faint) return; faint.remove(); faint = null; if (!questOver) hud.classList.remove('wb-dim'); }
 
-  let questTime = 50 * 60, questOver = false, questOv = null, nextEl = null;
+  let questTime = game.questTimeLimit || 50 * 60, questOver = false, questOv = null, nextEl = null;
   const brokenParts = [];
   const nextLine = () => `<div class="wb-next">NEXT HUNT IN <b class="wb-num">--</b></div>`;
   function showComplete(mon) {
+    if (game.questRuntime) return; // real quests: the quest runtime shows server-granted rewards instead
     if (questOver) return; questOver = true; hud.classList.add('wb-dim'); hideFaint();
     const used = 50 * 60 - questTime;
     const name = parseName(mon?.name).name;
@@ -240,7 +248,9 @@ export function createUI(game) {
     return ov;
   }
   function showFailed() {
-    if (questOver) return; questOver = true; hud.classList.add('wb-dim');
+    if (questOver) return; questOver = true;
+    if (game.questRuntime) { events.emit('quest:failed', { reason: 'Time expired' }); return; } // runtime shows the result
+    hud.classList.add('wb-dim');
     questOv = el('div', 'wb-overlay wb-complete', `<div class="wb-banner"><h1 style="filter:grayscale(.7) drop-shadow(0 .05em .05em #000)">QUEST FAILED</h1><div class="wb-sub">THE TRAIL HAS GONE COLD</div></div>${nextLine()}`, root);
     nextEl = questOv.querySelector('.wb-next b');
     events.emit('quest:failed', {});
@@ -312,7 +322,7 @@ export function createUI(game) {
       <div class="wb-set"><label>Look sensitivity</label><input type="range" min="0.2" max="3" step="0.05" data-k="sens"><output class="wb-num"></output></div>
       <div class="wb-set"><label>Master volume</label><input type="range" min="0" max="1" step="0.01" data-k="vol"><output class="wb-num"></output></div>
       <div class="wb-set"><label>Graphics</label><div class="wb-seg"><button class="wb-btn" data-q="high">HIGH</button><button class="wb-btn" data-q="low">LOW</button></div></div>
-      <div class="wb-actions"><button class="wb-btn wb-primary" data-a="resume">RESUME HUNT</button></div>
+      <div class="wb-actions"><button class="wb-btn wb-primary" data-a="resume">RESUME HUNT</button>${game.questRuntime ? '<button class="wb-btn" data-a="abandon">ABANDON QUEST</button>' : ''}</div>
       <div class="wb-pause-hint">${game.net?.connected ? 'The world keeps moving while you rest.' : 'Time stands still while you rest.'}</div>
       <div class="wb-keys">${CONTROLS.map(([k, v]) => `<span><span class="wb-kbd">${k}</span>${v}</span>`).join('')}</div></div>`, root);
     pause.querySelectorAll('input[type=range]').forEach((inp) => {
@@ -329,6 +339,7 @@ export function createUI(game) {
       });
     });
     pause.querySelector('[data-a=resume]').addEventListener('click', closePause);
+    pause.querySelector('[data-a=abandon]')?.addEventListener('click', () => { if (confirm('Abandon this quest and return to port? Unused items come back with you.')) { closePause(); game.questRuntime?.abandon(); } });
     pause.addEventListener('mousedown', (e) => { if (e.target === pause) closePause(); });
     if (!game.net?.connected && game.engine) { savedScale = game.engine.timeScale || 1; game.engine.timeScale = 0; }
   }
@@ -341,7 +352,7 @@ export function createUI(game) {
     if (title || typing) return;
     if (e.code === 'Escape') { pause ? closePause() : openPause(); }
     else if (e.code === 'Enter' && !pause && started) { openChat(); e.preventDefault(); }
-    else if (!pause && started && /^Digit[1-4]$/.test(e.code)) selectItem(+e.code.slice(5) - 1);
+    else if (!pause && started && /^Digit[1-9]$/.test(e.code) && +e.code.slice(5) <= ITEMS.length) selectItem(+e.code.slice(5) - 1);
   });
   let lockedOnce = false;
   document.addEventListener('pointerlockchange', () => {
@@ -472,9 +483,12 @@ export function createUI(game) {
     set('shT', tier[1], () => { bladeFill.style.color = tier[2]; bladeTier.style.color = tier[2]; bladeTier.textContent = tier[1]; crest.style.color = tier[2]; });
 
     // item
+    if (game.fieldItems) { // live counts for every carried item
+      ITEMS.forEach((it, k) => { if (it.id === 'whetstone') return; const c = game.fieldItems.count(it.id); set('fi' + k, c, (v) => { slots[k].c.textContent = v; slots[k].e.classList.toggle('wb-empty', v <= 0); }); });
+    }
     const pot = num(p.potions ?? p.healItems ?? p.items?.potion ?? p.inventory?.potion, localPotions);
     const prevPot = last.pot;
-    set('pot', pot, (v) => { if (prevPot != null && v < prevPot) flashItem(0); itemCount.textContent = v; slots[0].e.classList.toggle('wb-empty', v <= 0); });
+    if (!game.fieldItems) set('pot', pot, (v) => { if (prevPot != null && v < prevPot) flashItem(0); itemCount.textContent = v; slots[0].e.classList.toggle('wb-empty', v <= 0); });
     const shState = p.state === 'whetstone';
     set('whet', shState, (v) => { if (v) flashItem(1); });
 

@@ -30,3 +30,12 @@ Performance target: 60fps at 1080p on a mid-range GPU; headless Chromium (SwiftS
 
 ## Debug hooks (keep working)
 `window.__game`, `window.__ready`. URL params: `?shot=1` (skip intro, deterministic), `?cam=x,y,z,tx,ty,tz` (fixed camera for screenshots), `?online=1`.
+
+## Town (hub) mode — added for the city update
+`?mode=town` (default when no quest/hunt param). main.js `bootTown()` loads `src/town/town.js` and `src/town/townHud.js`.
+`createTown(game) -> Promise<{ update(dt,rawDt), getHeight(x,z), getNormal(x,z), bounds:{radius}, sun, colliders:[{x,z,r}],
+  spawn:{player:Vector3, monster:Vector3}, spawnDust(pos,amount), spawnSplash(pos), dispose(),
+  interactables:[{ id:'quest'|'smith'|'alchemy'|'shop'|'storage'|'dock', name, npc, position:Vector3 (where the player stands to talk), radius, npcObject?:Object3D }] }>`
+- Same world interface the existing player/camera already use (getHeight drives the hunter's feet; colliders are circles).
+- `game.peaceful = true` in town; the HUD/panels (src/town/townHud.js, src/ui/panels/) belong to the main developer.
+- Owner of src/town/ (except townHud.js): Town builder agent.

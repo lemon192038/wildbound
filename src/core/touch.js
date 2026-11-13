@@ -66,6 +66,11 @@ export class TouchControls {
       el.addEventListener('touchend', up, { passive: false });
       el.addEventListener('touchcancel', up, { passive: false });
     }
+    // Context action (TALK / GATHER / CARVE…): hidden until setAction(label) is called.
+    const actBtn = (this.actBtn = document.createElement('div')); actBtn.className = 'tc-btn tc-act'; actBtn.style.display = 'none';
+    Object.assign(actBtn.style, { right: '210px', bottom: '270px', width: '78px', height: '78px', borderColor: 'rgba(246,226,170,.95)' }); root.appendChild(actBtn);
+    actBtn.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); actBtn.classList.add('tc-down'); this.pressed.add('interact'); }, { passive: false });
+    actBtn.addEventListener('touchend', (e) => { e.preventDefault(); actBtn.classList.remove('tc-down'); }, { passive: false });
     const menu = document.createElement('div'); menu.className = 'tc-btn tc-menu'; menu.textContent = 'MENU'; root.appendChild(menu);
     menu.addEventListener('touchstart', (e) => { e.preventDefault(); dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', key: 'Escape' })); }, { passive: false });
 
@@ -111,6 +116,11 @@ export class TouchControls {
     for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
   }
   show() { this.enabled = true; this.root.classList.add('tc-on'); }
+  hide() { this.enabled = false; this.root.classList.remove('tc-on'); }
+  // Contextual action button; pass null to hide it.
+  setAction(label) { if (this._act === label) return; this._act = label; this.actBtn.style.display = label ? 'flex' : 'none'; if (label) this.actBtn.textContent = label; }
+  // Town mode: hide combat buttons (keeps stick, look, MENU and the context action).
+  setPeaceful(on) { for (const b of this.root.querySelectorAll('.tc-btn:not(.tc-menu):not(.tc-act)')) b.style.display = on ? 'none' : 'flex'; }
   // Merge into the Input action state (called from Input.poll).
   apply(s) {
     if (!this.enabled) return;
@@ -120,7 +130,7 @@ export class TouchControls {
     s.sprint ||= t.sprint; s.guard ||= t.guard; s.heavyHeld ||= t.heavyHeld;
     const p = this.pressed;
     s.lightAttack ||= p.has('light'); s.heavyAttack ||= p.has('heavy'); s.dodge ||= p.has('dodge');
-    s.item ||= p.has('item'); s.lockOn ||= p.has('lockOn');
+    s.item ||= p.has('item'); s.lockOn ||= p.has('lockOn'); s.interact ||= p.has('interact');
     p.clear();
   }
 }

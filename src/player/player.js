@@ -56,7 +56,16 @@ export async function createPlayer(game) {
   const turnToward = (dir, rate, dt) => { if (dir.lengthSq() < 1e-4) return; const want = Math.atan2(dir.x, dir.z); P.facing = wrap(P.facing + clamp(wrap(want - P.facing), -rate * dt, rate * dt)); };
   const targetDir = () => { const m = P.lockTarget; if (!m) return null; return new THREE.Vector3(m.position.x - P.position.x, 0, m.position.z - P.position.z).normalize(); };
   const aimDir = () => (wish.lengthSq() > 0.01 ? wish : targetDir() || new THREE.Vector3());
-  const useStamina = (n) => { if (P.stamina < n * 0.5) return false; P.stamina = Math.max(0, P.stamina - n); stamDelay = 0.7; return true; };
+  // Equipment & buffs (set by the field quest runtime from the server-side loadout; defaults = free hunt).
+  P.gear = { atk: 1, affinity: 12, element: null, sharp: 1, defense: 0, res: { fire: 0, water: 0, thunder: 0, ice: 0, dragon: 0 }, skills: {}, buffAtk: 1, buffDef: 1, stamMul: 1 };
+  P.setGear = (st) => {
+    const sk = st.skills || {}; const g = P.gear;
+    g.atk = (st.attack || 480) / 480 * (1 + 0.03 * (sk.attackBoost || 0)); g.affinity = (st.affinity || 0) + 5 * (sk.critEye || 0) + 5;
+    g.element = st.element || null; g.sharp = st.sharp || 1; g.defense = st.defense || 0; g.res = { ...g.res, ...(st.res || {}) }; g.skills = sk;
+    g.stamMul = 1 - 0.12 * (sk.constitution || 0);
+    const hpMax = 150 + 15 * (sk.healthBoost || 0); const f = P.hp / P.maxHp; P.maxHp = hpMax; P.hp = Math.round(hpMax * f); P.redHp = Math.max(P.redHp, P.hp);
+  };
+  const useStamina = (n) => { n *= P.gear.stamMul; if (P.stamina < n * 0.5) return false; P.stamina = Math.max(0, P.stamina - n); stamDelay = 0.7; return true; };
 
   function startAttack(kind) {
     if (!P.weaponDrawn) { queued = kind; setState('draw'); return; }
@@ -68,10 +77,13 @@ export async function createPlayer(game) {
     const d = wish.lengthSq() > 0.01 ? wish.clone() : fwd(new THREE.Vector3());
     P.facing = Math.atan2(d.x, d.z); setState('dodge', 0.06); events.emit('sfx', { name: 'dodge', position: P.position.clone(), volume: 0.7 }); return true;
   }
-  function startItem(kind) {
-    if (P.weaponDrawn) { queued = 'item:' + kind; setState('sheathe'); return; }
-    if (kind === 'potion' && P.potions <= 0) return;
-    itemKind = kind; setState(kind === 'potion' ? 'item' : 'whetstone', 0.15);
+  // useItem('potion' | 'whetstone', opts?) — opts { id, heal, onUse() } lets the quest runtime drive any
+  // consumable through the drinking animation (onUse fires at the swallow frame; the runtime owns counts).
+  let itemOpts = null, queuedOpts = null;
+  function startItem(kind, opts = null) {
+    if (P.weaponDrawn) { queued = 'item:' + kind; queuedOpts = opts; setState('sheathe'); return; }
+    if (kind === 'potion' && !opts && P.potions <= 0) return;
+    itemKind = kind; itemOpts = opts; setState(kind === 'potion' ? 'item' : 'whetstone', 0.15);
   }
   P.useItem = startItem;
 
@@ -119,13 +131,15 @@ export async function createPlayer(game) {
         if (!hitP) continue;
         set.add(hb.part);
         _n.subVectors(hitP, sc).normalize(); const point = sc.clone().addScaledVector(_n, hb.sphere.radius);
-        const isCrit = Math.random() < 0.12;
-        const damage = mv * ATTACK_POWER * sharpMult(P.sharpness) * (isCrit ? 1.25 : 1);
-        const res = m.receiveHit({ damage, part: hb.part, point, normal: _n.clone(), attackerId: 'local', isCrit });
+        const G = P.gear, roll = Math.random();
+        const isCrit = G.affinity > 0 && roll < G.affinity / 100, weakHit = G.affinity < 0 && roll < -G.affinity / 100;
+        let damage = mv * ATTACK_POWER * G.atk * G.buffAtk * sharpMult(P.sharpness) * G.sharp * (isCrit ? 1.25 : weakHit ? 0.75 : 1);
+        const el = G.element; if (el && el.type !== 'blast') damage += el.value * 0.05 * (m.weakness?.[el.type] ?? 1) * Math.min(1.5, mv / 0.4 + 0.3);
+        const res = m.receiveHit({ damage, part: hb.part, point, normal: _n.clone(), attackerId: 'local', isCrit, element: el?.type, elementValue: el?.value || 0, mv });
         const hz = m.parts?.find((p) => p.name === hb.part)?.hitzone ?? 1;
         const dealt = res && typeof res === 'object' && res.damage != null ? res.damage : typeof res === 'number' ? res : Math.round(damage * hz);
         events.emit('hit', { attacker: 'local', target: m, damage: dealt, part: hb.part, point, normal: _n.clone(), isCrit, weak: hz >= 1.2, motion: P.state, level: lvl });
-        P.sharpness = Math.max(0, P.sharpness - 0.011);
+        P.sharpness = Math.max(0, P.sharpness - 0.011 * (1 - 0.25 * (P.gear.skills.sharpEdge || 0)));
         const pw = Array.isArray(atk.stop) ? atk.stop[lvl] : atk.stop, sh = Array.isArray(atk.shake) ? atk.shake[lvl] : atk.shake;
         sparks.burst(point, _n, 18 + Math.round(pw * 160), 0.6 + pw * 4);
         const big = lvl === 3 && (P.state === 'heavy' || P.state === 'trueslash') && (hz >= 1.2 || res?.weak);
@@ -163,6 +177,11 @@ export async function createPlayer(game) {
   // ---------------- damage intake ----------------
   P.receiveHit = ({ damage = 0, knockback = 0, from, kind, stun } = {}) => {
     if (P.dead || iframe > 0 || invuln > 0 || frozen) return false;
+    { // armour: defence curve, buffs, fire resistance + Heatward; Steadfast shortens stuns
+      const G = P.gear; damage *= (1 - G.defense / (G.defense + 500)) * G.buffDef;
+      if (kind === 'fire') damage *= Math.max(0.4, 1 - (G.res.fire || 0) * 0.03 - (G.skills.heatward || 0) * 0.05);
+      if (stun) stun *= Math.max(0.1, 1 - 0.3 * (G.skills.steadfast || 0));
+    }
     const src = from ? new THREE.Vector3(from.x, 0, from.z) : P.position.clone().add(fwd(new THREE.Vector3()));
     const away = new THREE.Vector3(P.position.x - src.x, 0, P.position.z - src.z); if (away.lengthSq() < 1e-4) away.copy(fwd()).negate(); away.normalize();
     const kb = typeof knockback === 'number' ? knockback : knockback?.length?.() ?? 0;
@@ -246,7 +265,7 @@ export async function createPlayer(game) {
       else {
         maxSpeed = P.weaponDrawn ? 2.7 * wishLen : (sprinting ? 7.2 : 4.7 * wishLen);
         accel = P.weaponDrawn ? 9 : 14; turnRate = P.weaponDrawn ? 7 : 11;
-        if (sprinting) { P.stamina = Math.max(0, P.stamina - 20 * dt); stamDelay = 0.6; if (P.stamina <= 0) P.exhausted = true; }
+        if (sprinting) { P.stamina = Math.max(0, P.stamina - 20 * dt * P.gear.stamMul); stamDelay = 0.6; if (P.stamina <= 0) P.exhausted = true; }
         const ns = speedNow < 0.15 ? 'idle' : sprinting ? 'sprint' : speedNow > 3.2 ? 'run' : 'walk';
         if (ns !== P.state) P.state = ns;
       }
@@ -258,7 +277,7 @@ export async function createPlayer(game) {
       if (t >= CLIPS[s].dur) {
         P.weaponDrawn = s === 'draw';
         const q = queued; queued = null; setState(P.weaponDrawn ? 'idle' : 'idle', 0.15);
-        if (q === 'light' || q === 'heavy') startAttack(q); else if (q === 'guard') setState('guard'); else if (q?.startsWith('item:')) startItem(q.slice(5));
+        if (q === 'light' || q === 'heavy') startAttack(q); else if (q === 'guard') setState('guard'); else if (q?.startsWith('item:')) { const o = queuedOpts; queuedOpts = null; startItem(q.slice(5), o); }
       }
     } else if (atk) {
       if (t < atk.turn) { const d = aimDir(); turnToward(d, 7, dt); }
@@ -316,9 +335,9 @@ export async function createPlayer(game) {
     } else if (s === 'item' || s === 'whetstone') {
       maxSpeed = s === 'item' ? 1.0 * wishLen : 0; turnRate = 3; accel = 6;
       view.rig.flask.visible = s === 'item' && t > 0.15 && t < 1.25; view.rig.whet.visible = s === 'whetstone' && t > 0.25 && t < 1.55;
-      if (s === 'item' && t >= 0.75 && t - dt < 0.75) { P.potions--; healLeft = 50; events.emit('item:used', { kind: 'potion' }); events.emit('sfx', { name: 'drink', position: P.position.clone() }); }
+      if (s === 'item' && t >= 0.75 && t - dt < 0.75) { if (itemOpts) { healLeft = itemOpts.heal || 0; try { itemOpts.onUse?.(); } catch (e) { console.warn(e); } } else { P.potions--; healLeft = 50; } events.emit('item:used', { kind: itemOpts?.id || 'potion' }); events.emit('sfx', { name: 'drink', position: P.position.clone() }); }
       if (s === 'whetstone' && t > 0.4 && t < 1.4 && Math.floor(t * 4) !== Math.floor((t - dt) * 4)) { events.emit('sfx', { name: 'whetstone', position: P.position.clone(), volume: 0.6 }); sparks.burst(view.rig.whet.getWorldPosition(new THREE.Vector3()), new THREE.Vector3(0, 1, 0), 5, 0.3, 1); }
-      if (s === 'whetstone' && t >= 1.4 && t - dt < 1.4) { P.sharpness = 1; events.emit('player:sharpened', {}); }
+      if (s === 'whetstone' && t >= 1.4 && t - dt < 1.4) { P.sharpness = 1; itemOpts?.onUse?.(); events.emit('player:sharpened', {}); }
       if (t >= CLIPS[STATE_CLIP[s]].dur) { view.rig.flask.visible = view.rig.whet.visible = false; setState('idle', 0.2); }
       if (take('dodge') && t > 0.3) { view.rig.flask.visible = view.rig.whet.visible = false; startDodge(); }
     }

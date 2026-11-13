@@ -1,3 +1,4 @@
+process.env.DB_PATH ??= ':memory:';
 // Self-contained server test: `node server/test.mjs`. Starts the server on a random port
 // (in-process), drives raw ws clients, exits non-zero on failure.
 import http from 'node:http';
@@ -6,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import WebSocket from 'ws';
 import { startServer } from './server.js';
-import { createHitValidator, motionValue, ATTACK_POWER, DPS_BURST } from '../src/net/hitcheck.js';
+import { createHitValidator, motionValue, ATTACK_POWER, DPS_BURST, DPS_RATE } from '../src/net/hitcheck.js';
 
 // throwaway dist dir so static tests don't depend on a build
 const dist = fs.mkdtempSync(path.join(os.tmpdir(), 'wb-dist-'));
@@ -202,7 +203,7 @@ try {
       if (res.ok) { accepted++; dmg += res.damage; }
     }
     const dps = dmg / 10, legit = motionValue('heavy', 3) * ATTACK_POWER * 1.2;
-    ok(dps <= 400 + DPS_BURST / 10 + 1, `per-player DPS capped: ${accepted}/100 spoofed heavies accepted, ${dps.toFixed(0)} dmg/s (uncapped would be ${(legit * 10).toFixed(0)})`);
+    ok(dps <= DPS_RATE + DPS_BURST / 10 + 1, `per-player DPS capped: ${accepted}/100 spoofed heavies accepted, ${dps.toFixed(0)} dmg/s (uncapped would be ${(legit * 10).toFixed(0)})`);
   }
 
   console.log('shutdown');
