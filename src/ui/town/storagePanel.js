@@ -66,7 +66,7 @@ export function createStoragePanel(ctx) {
       const pieces = ARMOR_SLOTS.map((sl) => s.equip.find((e) => e.uid === lo[sl])).filter(Boolean);
       return `<div class="tw-setcard tw-frame ${set ? '' : 'empty'}"><div class="tw-setcard-h"><span class="tw-set-n">${i + 1}</span><input class="tw-input sm" maxlength="20" data-setname="${i}" value="${esc(set?.name || '')}" placeholder="Set ${i + 1}" aria-label="Set name"></div>
         ${set ? `<div class="tw-set-icons">${wpn ? equipIcon('weapon', equipRarity(wpn), { size: 'sm' }) : ''}${pieces.map((e) => equipIcon(equipKind(e), equipRarity(e), { size: 'sm' })).join('')}</div><p class="tw-dim">${wpn ? esc(equipName(wpn)) : 'No weapon'} · ${pieces.length}/5 armour</p>` : '<p class="tw-dim">Empty slot — save your current loadout here.</p>'}
-        <div class="tw-actrow">${btn('Save current', 'saveSet', { cls: 'tw-ghost', data: `data-i="${i}"` })}${btn('Load', 'loadSet', { cls: 'tw-primary', dis: !set || !!s.quests.expedition, data: `data-i="${i}"` })}</div></div>`; }).join('')}</div>
+        <div class="tw-actrow">${btn('Save', 'saveSet', { cls: 'tw-ghost', data: `data-i="${i}"` })}${btn('Load', 'loadSet', { cls: 'tw-primary', dis: !set || !!s.quests.expedition, data: `data-i="${i}"` })}</div></div>`; }).join('')}</div>
       <div class="tw-hint">${glyph('card')}<span>Sets remember which pieces you wear. Sold pieces are removed from saved sets automatically.</span></div>`;
   }
   return {

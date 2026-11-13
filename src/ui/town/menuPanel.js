@@ -36,7 +36,7 @@ export function createMenuPanel(ctx) {
       <h4>Keys</h4><div class="tw-keys">${[['WASD', 'Move'], ['Mouse', 'Look'], ['Shift', 'Sprint'], ['E', 'Talk'], ['Esc', 'Menu / close']].map(([k, v]) => `<span><kbd>${k}</kbd>${v}</span>`).join('')}</div></section></div>`;
   }
   return {
-    id: 'menu', title: "Hunter's Journal", icon: 'card', npc: 'Menu',
+    id: 'menu', title: "Hunter's Journal", icon: 'card', npc: 'Records, ledger & settings',
     tabs: [{ id: 'card', label: 'Hunter Card' }, { id: 'log', label: 'Logs & Ledger' }, { id: 'settings', label: 'Settings' }],
     get tab() { return tab; }, set tab(v) { tab = v; },
     render() { const s = st(); return tab === 'card' ? card(s) : tab === 'log' ? log(s) : settings(); },

@@ -65,7 +65,7 @@ export function createTownTextures(THREE, renderer, size = 512) {
   }
   // ---- cobbles: worley cells, domed stones, dark gritty joints ----
   {
-    const P = 9;
+    const P = 12;
     T.cobble = gen(THREE, S, aniso, 7, (x, y, o) => {
       const u = x / S * P, v = y / S * P;
       const wu = u + (fb(x, y, 4, 0) - 0.5) * 0.5, wv = v + (fb(x + 99, y, 4, 0) - 0.5) * 0.5;
@@ -74,9 +74,9 @@ export function createTownTextures(THREE, renderer, size = 512) {
       const st = smoothstep(0.04, 0.2, e);
       const tone = 0.7 + id * 0.45;
       const hue = (id * 7.3) % 1;
-      o[0] = lerp(0.3, 0.62 * tone * (1 + hue * 0.1), st) * (0.85 + 0.2 * n);
-      o[1] = lerp(0.29, 0.6 * tone, st) * (0.85 + 0.2 * n);
-      o[2] = lerp(0.25, 0.56 * tone * (1.05 - hue * 0.12), st) * (0.85 + 0.2 * n);
+      o[0] = lerp(0.36, 0.62 * tone * (1 + hue * 0.1), st) * (0.85 + 0.2 * n);
+      o[1] = lerp(0.35, 0.6 * tone, st) * (0.85 + 0.2 * n);
+      o[2] = lerp(0.31, 0.56 * tone * (1.05 - hue * 0.12), st) * (0.85 + 0.2 * n);
       o[3] = st * (0.6 + 0.4 * Math.sqrt(Math.min(1, e * 2.5))) + n * 0.12;
     });
   }

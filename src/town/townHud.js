@@ -152,7 +152,7 @@ export function createTownHud(game) {
   // ------------------------------------------------------------------ NPC dialogue
   const visits = {};
   function openDialogue(it) {
-    if (!state()) return; releasePointer();
+    if (!state()) return; closeDialogue(); releasePointer();
     const d = dialogueFor(it.id, state(), (visits[it.id] = (visits[it.id] || 0) + 1) - 1);
     const node = el('div', 'tw-dlg', `<div class="tw-dlg-box tw-frame"><div class="tw-dlg-plate"><span class="tw-dlg-ico">${glyph(it.id)}</span><div><b>${esc(it.npc)}</b><small>${esc(it.name || FAC[it.id])}</small></div></div>
       <p class="tw-dlg-text"></p><div class="tw-dlg-foot"><span class="tw-dlg-next">${touch ? 'Tap to continue' : '<kbd>E</kbd> Continue'}</span><div class="tw-dlg-choices"></div></div></div>`, root);

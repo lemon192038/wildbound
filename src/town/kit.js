@@ -106,7 +106,7 @@ export function createMaterials(T, shared, low) {
     stone: std({ map: T.stone.map, normalMap: T.stone.normalMap, normalScale: ns(1.0), roughness: 0.92 }),
     cobble: std({ map: T.cobble.map, normalMap: T.cobble.normalMap, normalScale: ns(1.1), roughness: 0.82 }),
     wood: std({ map: T.plank.map, normalMap: T.plank.normalMap, normalScale: ns(0.9), roughness: 0.8 }),
-    roof: std({ map: T.roof.map, normalMap: T.roof.normalMap, normalScale: ns(1.2), roughness: 0.42, metalness: 0.08, envMapIntensity: 1.1 }),
+    roof: std({ map: T.roof.map, normalMap: T.roof.normalMap, normalScale: ns(1.2), roughness: 0.6, metalness: 0.0, envMapIntensity: 0.8 }),
     plaster: std({ map: T.plaster.map, normalMap: T.plaster.normalMap, normalScale: ns(0.6), roughness: 0.95 }),
     cloth: std({ map: T.cloth.map, normalMap: T.cloth.normalMap, normalScale: ns(0.5), roughness: 0.9, side: THREE.DoubleSide }),
     metal: std({ roughness: 0.38, metalness: 0.85 }),

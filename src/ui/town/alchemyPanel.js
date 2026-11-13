@@ -15,7 +15,7 @@ export function createAlchemyPanel(ctx) {
     return `<button class="tw-row ${sel === id ? 'sel' : ''} ${known ? '' : 'locked'}" data-a="sel" data-id="${id}">${itemIcon(r.out[0])}
       <span class="tw-row-m"><b style="color:${known ? rarityColor(out.rarity) : ''}">${esc(out.name)}${r.out[1] > 1 ? ` ×${r.out[1]}` : ''}</b>
       <small>${known ? Object.entries(r.in).map(([m, q]) => `${q} ${esc(itemName(m))}`).join(' + ') : '🔒 ' + esc(unlockText(r.unlock))}</small></span>
-      <span class="tw-row-r">${known ? (max ? `<i class="tw-pill ok">×${max}</i>` : '<i class="tw-pill dim">—</i>') : ''}</span></button>`;
+      <span class="tw-row-r">${known ? (max ? `<i class="tw-pill ok">Can brew ×${max}</i>` : '') : ''}</span></button>`;
   }
   function detail(s) {
     const r = RECIPES[sel]; if (!r) return empty('Choose a recipe.'); const out = ITEMS[r.out[0]]; const known = s.recipes[sel];

@@ -78,7 +78,7 @@ const inBlock = (b, x, z) => Array.isArray(b) ? x >= b[0] && x <= b[1] && z >= b
 
 // ---------------- natural terrain ----------------
 const N = makeNoise2D(4711);
-export const RIVER_Z = -28, CLIFF_X = 66.5, CLIFF_TOP = 44;
+export const RIVER_Z = -30, CLIFF_X = 75, CLIFF_TOP = 32;
 export function natural(x, z) {
   const n1 = N.fbm(x * 0.018, z * 0.018, 4), n2 = N.fbm(x * 0.05 + 7, z * 0.05 - 3, 4), n3 = N.fbm(x * 0.008 - 5, z * 0.008, 3);
   const zc = -29 + n1 * 4;
@@ -90,8 +90,8 @@ export function natural(x, z) {
   const wm = (1 - smoothstep(-68, -60, x + n1 * 5)) * smoothstep(-118, -104, z + n1 * 6);
   h = Math.max(h, lerp(-10, 20 + n2 * 4 + Math.max(0, z + 20) * 0.15, wm));
   // eastern cliff massif (waterfall lip at x≈66, z≈RIVER_Z)
-  const em = smoothstep(CLIFF_X - 1.5, CLIFF_X + 3, x + n1 * 1.5) * smoothstep(-84, -70, z + n1 * 5);
-  let eh = CLIFF_TOP + n2 * 4 + Math.max(0, z + 20) * 0.25 + Math.max(0, x - 90) * 0.3;
+  const em = smoothstep(CLIFF_X - 1.5, CLIFF_X + 3, x + n1 * 1.5) * smoothstep(-84, -70, z + n1 * 5) * (1 - smoothstep(-2, 30, z + n1 * 8));
+  let eh = CLIFF_TOP + n2 * 7 + N.ridged(x * 0.04, z * 0.04, 3) * 6 + Math.max(0, z + 20) * 0.25 + Math.max(0, x - 90) * 0.3;
   const ch = (1 - smoothstep(3, 7, Math.abs(z - RIVER_Z))) * smoothstep(CLIFF_X - 2, CLIFF_X + 6, x); eh -= ch * 5;
   h = Math.max(h, lerp(-10, eh, em));
   // southern hills and forest slopes rise towards the mountains
@@ -166,6 +166,14 @@ export function bakeTerrain() {
   for (let it = 0; it < 160; it++) for (let j = 1; j < n - 1; j++) for (let i = 1; i < n - 1; i++) {
     const k = j * n + i; if (fixed[k]) continue; G[k] = (G[k - 1] + G[k + 1] + G[k - n] + G[k + n]) * 0.25;
   }
+  // gaps between terraces sink to the lower level so the masonry retaining walls stand exposed
+  const G2 = G.slice();
+  for (let j = 1; j < n - 1; j++) for (let i = 1; i < n - 1; i++) {
+    const k = j * n + i; if (fixed[k]) continue; const x = X0 + i * R, z = X0 + j * R; let lo = 1e9, hi = -1e9;
+    for (const p of PRIMS) { if (p.kind === 'deck') continue; const dd = p.circle ? Math.hypot(x - p.cx, z - p.cz) - p.r : Math.hypot(Math.max(p.x0 - x, 0, x - p.x1), Math.max(p.z0 - z, 0, z - p.z1)); if (dd < 9) { lo = Math.min(lo, Math.min(primY(p, x, z), p.axis ? Math.min(p.y0, p.y1) : p.y)); hi = Math.max(hi, primTop(p)); } }
+    if (lo < 1e8 && G[k] < hi - 1.0) G2[k] = Math.min(G[k], lo + 0.5);
+  }
+  for (let k = 0; k < G.length; k++) G[k] = G2[k];
   const N2 = makeNoise2D(99);
   return function terrainY(x, z) {
     const fx = (x - X0) / R, fz = (z - X0) / R;

@@ -10,7 +10,7 @@ const pct = (v) => fmt(v) + '%';
 // Full-loadout comparison: what changes if `entry` (an equip-like {kind, def, lvl}) were worn.
 export function compareHtml(s, entry, title = 'If equipped') {
   const slot = entry.kind === 'weapon' ? 'weapon' : ARMOR[entry.def].slot;
-  const cur = s.stats; const fake = { uid: '__cmp', ...entry };
+  const cur = s.stats; const fake = { ...entry, uid: '__cmp' };
   const next = loadoutStats([...s.equip.filter((e) => e.uid !== entry.uid), fake], { ...s.loadout, [slot]: '__cmp' });
   if (s.loadout[slot] === entry.uid) return `<section class="tw-cmp"><h4>${title}</h4><p class="tw-dim">Currently equipped.</p></section>`;
   const rows = [];
@@ -86,7 +86,7 @@ export function createForgePanel(ctx) {
     if (!cost) return `${h}<section><h4>Current</h4>${statsBlock(e)}</section><div class="tw-hint">${'★'} This piece has reached its highest level.</div>`;
     const a = e.kind === 'weapon' ? weaponStats(e.def, e.lvl) : armorStats(e.def, e.lvl); const b = e.kind === 'weapon' ? weaponStats(e.def, e.lvl + 1) : armorStats(e.def, e.lvl + 1);
     const rows = e.kind === 'weapon'
-      ? [deltaRow('Attack', a.attack, b.attack), deltaRow('Affinity', a.affinity, b.affinity, { suffix: '%' }), deltaRow('Element', a.element?.value || 0, b.element?.value || 0, { fmtv: (v) => (a.element ? cap(a.element.type) + ' ' : '') + fmt(v) }), deltaRow('Sharpness', a.sharp, b.sharp, { dp: 2, fmtv: (v) => '×' + v.toFixed(2) })]
+      ? [deltaRow('Attack', a.attack, b.attack), deltaRow('Affinity', a.affinity, b.affinity, { suffix: '%' }), ...(a.element || b.element ? [deltaRow('Element', a.element?.value || 0, b.element?.value || 0, { fmtv: (v) => (b.element ? cap(b.element.type) + ' ' : '') + fmt(v) })] : []), deltaRow('Sharpness', a.sharp, b.sharp, { dp: 2, fmtv: (v) => '×' + v.toFixed(2) })]
       : [deltaRow('Defense', a.def, b.def)];
     const m = matsList(cost.mats, s.box); const c = costLine(cost.coins, s.coins);
     const why = !m.ok ? 'Missing materials.' : !c.ok ? `You need ${fmt(cost.coins - s.coins)} more coins.` : '';

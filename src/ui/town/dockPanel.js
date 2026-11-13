@@ -1,7 +1,7 @@
 // Departure dock: review the accepted quest, the pouch and loadout, then set sail (or resume a hunt).
 import { QUESTS, MONSTERS, ITEMS } from '../../shared/gamedata.js';
-import { esc, fmt, stars, coins, btn, empty, monName, equipName, equipRarity, elementTag, clock, ago } from './common.js';
-import { itemIcon, equipIcon, glyph } from './icons.js';
+import { esc, fmt, stars, coins, btn, empty, equipName, equipRarity, elementTag, clock, ago, cap } from './common.js';
+import { itemIcon, equipIcon, glyph, ELEMENT } from './icons.js';
 import { objectiveText } from './questPanel.js';
 
 export function fieldUrl(param, value) {
@@ -17,7 +17,9 @@ export function createDockPanel(ctx) {
     const q = QUESTS[qid]; const mon = MONSTERS[q.monster];
     return `<div class="tw-voyage tw-frame"><div class="tw-voyage-h"><small>${label}</small>${stars(q.stars)}</div><h2>${esc(q.name)}</h2>
       <p class="tw-qd-mon">${mon ? `${q.ambient ? 'Roaming threat' : 'Target'}: <b>${esc(mon.name)}</b>` : ''}</p>
-      <ul class="tw-obj">${q.objectives.map((o) => `<li>${glyph('check')}<span>${objectiveText(o, q, s.box)}</span></li>`).join('')}</ul>
+      <p class="tw-flavor">“${esc(q.desc)}”</p>
+      ${mon ? `<div class="tw-weak"><span>Weak to</span>${Object.entries(mon.weakness).filter(([, v]) => v > 1).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<b class="tw-el" style="--ec:${ELEMENT[k]}">${cap(k)}${v >= 1.25 ? ' ★' : ''}</b>`).join('')}<span>Resists</span>${Object.entries(mon.weakness).filter(([, v]) => v < 1).map(([k]) => `<i class="tw-el" style="--ec:${ELEMENT[k]}">${cap(k)}</i>`).join('')}</div>` : ''}
+      <ul class="tw-obj">${q.objectives.map((o) => `<li><i class="tw-bullet">◆</i><span>${objectiveText(o, q, s.box)}</span></li>`).join('')}</ul>
       <dl class="tw-kv"><dt>Time limit</dt><dd>${Math.round(q.timeLimit / 60)} min</dd><dt>Faint limit</dt><dd>${q.maxFaints}</dd><dt>Reward</dt><dd>${coins(q.coins, 'sm')} · ${fmt(q.xp)} XP</dd></dl></div>`;
   }
   function pouch(s, bag) {

@@ -7,7 +7,7 @@ import { PRIMS, primY, inPrim, SPOTS, STALLS, HOUSES_R1, HOUSES_R2, BLOCKS } fro
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const PI = Math.PI;
-const ROOFS = [0x2e9a94, 0x2a86a0, 0x3aa58e, 0x247994, 0x3a8cab, 0x31a3a0];
+const ROOFS = [0x18b09a, 0x13a0a0, 0x2cba8c, 0x16929a, 0x22a8b0, 0x1cb8a6];
 const WALLS = [0xf0e6d0, 0xe8d8bc, 0xddcbad, 0xf3ece0, 0xe4d2b8, 0xd5d9d2, 0xeadfc6];
 const SHUT = [0x2f7480, 0x7c3a2c, 0x3d6640, 0x2c4d74, 0x8a6a2a];
 
@@ -16,6 +16,7 @@ export function buildCity(B, ctx) {
   const rnd = mulberry32(2024);
   const pick = (a) => a[Math.floor(rnd() * a.length) % a.length];
   const roofC = () => { const r = rnd(); return col(r < 0.08 ? 0xa65a3c : r < 0.14 ? 0x4c5866 : pick(ROOFS), 0.08, rnd); };
+  let simple = false;
   B.emit = []; B.lights = []; B.inst = { crate: [], barrel: [], sack: [], lamp: [] }; B.ropes = []; B.paper = [];
   const stoneC = () => col(pick([0xc4bcae, 0xb6aea2, 0xcabfa8, 0xaea89f]), 0.07, rnd);
   const timberC = () => col(pick([0x6a4a32, 0x5a3d29, 0x765236]), 0.1, rnd);
@@ -29,13 +30,12 @@ export function buildCity(B, ctx) {
   // ---------------- windows / doors ----------------
   function windowAt(f, x, y, z, ry, w = 0.8, h = 1.15, opts = {}) {
     const g = f.sub(x, y, z, ry), tc = opts.tc || timberC();
-    g.box(B.glass, w, h, 0.06, 0, 0, 0.0, opts.glow ?? glowWin());
-    g.box(B.wood, w + 0.2, 0.12, 0.16, 0, h / 2 + 0.04, 0.04, tc); g.box(B.wood, w + 0.3, 0.1, 0.3, 0, -h / 2 - 0.05, 0.08, tc);
-    if (!low) {
-      g.box(B.wood, 0.1, h, 0.14, -w / 2 - 0.03, 0, 0.04, tc); g.box(B.wood, 0.1, h, 0.14, w / 2 + 0.03, 0, 0.04, tc);
-      g.box(B.wood, 0.05, h, 0.08, 0, 0, 0.04, tc); g.box(B.wood, w, 0.05, 0.08, 0, 0.1, 0.04, tc);
-      if (opts.shutters !== false && rnd() < 0.7) { const sc = col(pick(SHUT), 0.1, rnd); g.box(B.wood, w * 0.52, h, 0.05, -w * 0.78, 0, 0.12, sc, undefined, 0.35); g.box(B.wood, w * 0.52, h, 0.05, w * 0.78, 0, 0.12, sc, undefined, -0.35); }
-      if (opts.flowers !== false && rnd() < 0.35) { g.box(B.wood, w + 0.1, 0.25, 0.3, 0, -h / 2 - 0.22, 0.2, tc); for (let i = 0; i < 4; i++) g.box(B.leaf, 0.22, 0.22, 0.22, -w / 2 + 0.12 + i * (w - 0.24) / 3, -h / 2 - 0.02, 0.22, col(pick([0xd04050, 0xe0a030, 0xf0f0f0, 0x9050c0, 0x40a040]), 0.1, rnd)); }
+    g.box(B.glass, w, h, 0.06, 0, 0, 0.03, opts.glow ?? glowWin());
+    g.box(B.wood, w + 0.22, h + 0.2, 0.06, 0, 0.02, 0.0, tc); g.box(B.wood, w + 0.3, 0.1, 0.26, 0, -h / 2 - 0.08, 0.08, tc);
+    if (!low && !simple) {
+      g.box(B.wood, 0.05, h, 0.05, 0, 0, 0.07, tc); g.box(B.wood, w, 0.05, 0.05, 0, 0.1, 0.07, tc);
+      if (opts.shutters !== false && rnd() < 0.55) { const sc = col(pick(SHUT), 0.1, rnd); g.box(B.wood, w * 0.52, h, 0.05, -w * 0.8, 0, 0.1, sc, undefined, 0.35); g.box(B.wood, w * 0.52, h, 0.05, w * 0.8, 0, 0.1, sc, undefined, -0.35); }
+      if (opts.flowers !== false && rnd() < 0.3) { g.box(B.wood, w + 0.1, 0.22, 0.28, 0, -h / 2 - 0.2, 0.18, tc); const fl = new THREE.IcosahedronGeometry(0.2, 0); for (let i = 0; i < 3; i++) g.put(B.leaf, fl, -w / 2 + 0.15 + i * (w - 0.3) / 2, -h / 2 + 0.0, 0.2, col(pick([0xd04050, 0xe0a030, 0xf0f0f0, 0x9050c0, 0x40a040]), 0.1, rnd)); fl.dispose(); }
     }
   }
   function door(f, x, y, z, ry, w = 1.2, h = 2.2, c) {
@@ -46,10 +46,10 @@ export function buildCity(B, ctx) {
   }
   // timber framing over a plaster face (local face frame: x along wall, y up from floor, +z outward)
   function timber(g, W, fh, tc, dense = true) {
-    const n = Math.max(2, Math.round(W / (dense && !low ? 1.25 : 2.2)));
+    const n = simple ? 2 : Math.max(2, Math.round(W / (dense && !low ? 1.6 : 2.4)));
     for (let i = 0; i <= n; i++) g.box(B.wood, 0.16, fh, 0.1, -W / 2 + (i * W) / n, fh / 2, 0.04, tc);
     g.box(B.wood, W + 0.1, 0.18, 0.12, 0, 0.09, 0.05, tc); g.box(B.wood, W + 0.1, 0.18, 0.12, 0, fh - 0.09, 0.05, tc);
-    if (!low) { g.box(B.wood, W, 0.12, 0.1, 0, fh * 0.32, 0.04, tc); const s = W / n;
+    if (!low && !simple) { g.box(B.wood, W, 0.12, 0.1, 0, fh * 0.32, 0.04, tc); const s = W / n;
       beam(B.wood, g.world(-W / 2, 0.1, 0.05), g.world(-W / 2 + s, fh - 0.1, 0.05), 0.13, tc); beam(B.wood, g.world(W / 2, 0.1, 0.05), g.world(W / 2 - s, fh - 0.1, 0.05), 0.13, tc); }
   }
   // ---------------- house ----------------
@@ -64,6 +64,7 @@ export function buildCity(B, ctx) {
       f.box(stone ? B.stone : B.plaster, ww, fh, dd, 0, y + fh / 2, 0, stone ? sc : wc);
       const faces = [[0, dd / 2, 0, ww], [0, -dd / 2, PI, ww], [ww / 2, 0, PI / 2, dd], [-ww / 2, 0, -PI / 2, dd]];
       for (const [fx, fz, ry, FW] of faces) {
+        if (simple && Math.abs(ry - PI / 2) < 0.1 && FW < 7.5) continue;
         const g = f.sub(fx, y, fz, ry);
         if (!stone) timber(g, FW, fh, tc, i > 0);
         const nw = Math.max(1, Math.floor(FW / 2.3));
@@ -152,7 +153,7 @@ export function buildCity(B, ctx) {
       }
       const w = p.x1 - p.x0, d = p.z1 - p.z0, cx = (p.x0 + p.x1) / 2, cz = (p.z0 + p.z1) / 2;
       B.stone.add(new THREE.BoxGeometry(w, p.y + 12, d), mat4(cx, (p.y - 12) / 2 - 0.01, cz), sc);
-      B.cobble.add(new THREE.PlaneGeometry(w, d).rotateX(-PI / 2), mat4(cx, p.y + 0.01, cz), p.kind === 'plaza' ? col(0xe0d6c6) : col(0xcfc6b6, 0.05, rnd), { s: p.kind === 'plaza' ? 4.5 : 4 });
+      B.cobble.add(new THREE.PlaneGeometry(w, d).rotateX(-PI / 2), mat4(cx, p.y + 0.01, cz), p.kind === 'plaza' ? col(0xe0d6c6) : col(0xcfc6b6, 0.05, rnd), { s: p.kind === 'plaza' ? 2.4 : 2.2 });
       // edges: kerb band, parapets where the drop is real
       const edges = [[p.x0, p.z0, p.x1, p.z0, 0, -1], [p.x1, p.z0, p.x1, p.z1, 1, 0], [p.x1, p.z1, p.x0, p.z1, 0, 1], [p.x0, p.z1, p.x0, p.z0, -1, 0]];
       const sea = p.id === 'quay' || p.id === 'dockyard';
@@ -261,6 +262,14 @@ export function buildCity(B, ctx) {
   // plaza notice boards + benches + planters
   {
     const y = 8;
+    for (let k = 0; k < 4; k++) { const a = k * PI / 2; const L = k % 2 ? 9 : 6.5, r0 = 9.2; B.stone.add(new THREE.PlaneGeometry(2.2, L).rotateX(-PI / 2), mat4(Math.sin(a) * (r0 + L / 2), y + 0.03, 1 + Math.cos(a) * (r0 + L / 2), a), col(0x8a847a), { s: 1.6 }); }
+    B.stone.add(new THREE.RingGeometry(9.2, 9.9, 48, 1).rotateX(-PI / 2), mat4(0, y + 0.03, 1), col(0x6e6a64));
+    for (const [x, z, c] of [[-17, -13, 0x1f3f78], [17, -13, 0xb83a30], [-17, 15.2, 0xb83a30], [17, 15.2, 0x1f3f78]]) {
+      B.metal.add(new THREE.CylinderGeometry(0.08, 0.12, 9, 6), mat4(x, y + 4.5, z), col(0x3a3530)); B.metal.add(new THREE.SphereGeometry(0.18, 6, 4), mat4(x, y + 9.1, z), col(0xb08840));
+      const g = new THREE.PlaneGeometry(1.1, 4.2, 2, 6); g.translate(0.62, -2.1, 0); B.cloth.add(g, mat4(x, y + 8.6, z, x < 0 ? -0.6 : PI + 0.6), col(c), { uv: 'keep', wave: (q) => -q.y / 4.2 * 0.9 }); g.dispose();
+      B.extraCol.push({ x, z, r: 0.2 });
+    }
+    for (const [x, z, ry] of [[-6, -12, 0.3], [9, 14.5, 2.0]]) { const f = Frame.at(x, y, z, ry), tc = timberC(); f.box(B.wood, 1.4, 0.5, 2.2, 0, 0.75, 0, tc); for (const s of [-1, 1]) { const w = new THREE.CylinderGeometry(0.45, 0.45, 0.1, 10); w.rotateZ(PI / 2); f.put(B.wood, w, s * 0.75, 0.45, 0, col(0x4a3426)); w.dispose(); } f.box(B.wood, 0.08, 0.08, 1.6, 0, 0.6, 1.8, tc, undefined, 0, -0.3); for (let i = 0; i < 3; i++) f.box(B.plaster, 0.4, 0.35, 0.4, -0.35 + i * 0.35, 1.15, (rnd() - 0.5) * 1.2, col(pick([0xc8b48a, 0xa04030, 0x6a8a3a]))); BLOCKS.push({ c: [x, z], r: 1.3 }); }
     for (const [x, z, ry] of [[-15.5, -6, PI / 2], [15.5, 9, -PI / 2]]) {
       const f = Frame.at(x, y, z, ry), tc = timberC();
       f.box(B.wood, 0.18, 2.6, 0.18, -1.3, 1.3, 0, tc); f.box(B.wood, 0.18, 2.6, 0.18, 1.3, 1.3, 0, tc);
@@ -286,7 +295,7 @@ export function buildCity(B, ctx) {
     for (const [fx, fz, ry, FW] of [[0, 9.3, 0, 26.6], [0, -9.3, PI, 26.6], [13.3, 0, PI / 2, 18.6], [-13.3, 0, -PI / 2, 18.6]]) { const g = f.sub(fx, 5.6, fz, ry); timber(g, FW, 4.2, tc, true); for (let k = 0; k < 6; k++) windowAt(g, -FW / 2 + (k + 0.5) * FW / 6, 2.2, 0.05, 0, 0.9, 1.6, { tc, glow: col(0xffa860, 0.2, rnd) }); }
     // arcade arches on the front
     const fg = f.sub(0, 0.4, 9.02, 0);
-    for (let k = -3; k <= 3; k++) { if (k === 0) continue; fg.box(B.glass, 2.0, 3.2, 0.05, k * 3.4, 2.0, 0.02, col(0xffa860, 0.3, rnd)); fg.box(B.stone, 0.6, 4.4, 0.5, k * 3.4 - 1.5, 2.2, 0.2, sc.map((v) => v * 1.1)); fg.box(B.stone, 0.6, 4.4, 0.5, k * 3.4 + 1.5, 2.2, 0.2, sc.map((v) => v * 1.1)); const ar = new THREE.TorusGeometry(1.2, 0.28, 4, 10, PI); fg.put(B.stone, ar, k * 3.4, 3.6, 0.2, sc.map((v) => v * 1.15)); ar.dispose(); }
+    for (let k = -3; k <= 3; k++) { if (k === 0) continue; fg.box(B.glass, 2.0, 3.2, 0.05, k * 3.4, 2.0, 0.02, col(0xffa860, 0.3, rnd).map((v) => v * 3)); fg.box(B.stone, 0.6, 4.4, 0.5, k * 3.4 - 1.5, 2.2, 0.2, sc.map((v) => v * 1.1)); fg.box(B.stone, 0.6, 4.4, 0.5, k * 3.4 + 1.5, 2.2, 0.2, sc.map((v) => v * 1.1)); const ar = new THREE.TorusGeometry(1.2, 0.28, 4, 10, PI); fg.put(B.stone, ar, k * 3.4, 3.6, 0.2, sc.map((v) => v * 1.15)); ar.dispose(); }
     // entrance portal behind the counter
     fg.box(B.wood, 3.4, 4.2, 0.1, 0, 2.1, 0.02, col(0x4a3020)); fg.box(B.stone, 4.6, 0.8, 0.7, 0, 4.6, 0.3, sc.map((v) => v * 1.15));
     { const d = new THREE.CylinderGeometry(1.1, 1.1, 0.16, 20).rotateX(PI / 2); f.put(B.metal, d, 0, 8.3, 9.4, col(0xb08840)); d.dispose(); }
@@ -500,7 +509,11 @@ export function buildCity(B, ctx) {
     lamp(28, 41, 12); lamp(-38, 40, 14); lamp(-20, 37, 14); lamp(50, 40, 12);
     pile(54, 12, 54.5, 3); pile(-52, 14, 54, 3); pile(18, 12, 38, 3);
   }
-  // ---------------- lighthouse on the west headland ----------------
+  // ---------------- background (no shadow casting): lighthouse + filler rooftops ----------------
+  const KEYS = ['stone', 'cobble', 'wood', 'roof', 'plaster', 'cloth', 'metal', 'leaf', 'glass', 'glow'];
+  B.outerSet = {}; for (const k of KEYS) B.outerSet[k] = new (B[k].constructor)(k + '-far', { s: B[k].s, wave: !!B[k].W });
+  const swap = () => { for (const k of KEYS) [B[k], B.outerSet[k]] = [B.outerSet[k], B[k]]; };
+  swap(); simple = true;
   {
     const x = -84, z = -100, y = terrainY(x, z) - 1;
     const f = Frame.at(x, y, z, 0), sc = col(0xd8d0c4);
@@ -518,19 +531,19 @@ export function buildCity(B, ctx) {
     const ok = (x, z, r) => {
       for (const p of PRIMS) if (inPrim(p, x, z, r + 1.5)) return false;
       for (const b of BLOCKS) if (Array.isArray(b) ? x > b[0] - r && x < b[1] + r && z > b[2] - r && z < b[3] + r : Math.hypot(x - b.c[0], z - b.c[1]) < b.r + r) return false;
-      for (const [ox, oz, orr] of occupied) if (Math.hypot(x - ox, z - oz) < r + orr + 1.0) return false;
+      for (const [ox, oz, orr] of occupied) if (Math.hypot(x - ox, z - oz) < r + orr + 0.2) return false;
       if (Math.hypot(x, z - 33) < 22 || Math.hypot(x - 40, z - 9) < 13 || Math.hypot(x + 39, z - 4) < 12 || Math.hypot(x + 52, z + 18) < 11) return false;
       return true;
     };
-    const target = low ? 34 : 70; let placed = 0;
-    for (let i = 0; i < 1400 && placed < target; i++) {
-      const x = -95 + rnd() * 190, z = -60 + rnd() * 160;
+    const target = low ? 60 : 110; let placed = 0;
+    for (let i = 0; i < 4000 && placed < target; i++) {
+      const x = -95 + rnd() * 190, z = -60 + Math.pow(rnd(), 1.6) * 150;
       if (z < -20 && x > -60) continue;
       if (x > 62 && z < 20) continue;
       const w = 6 + rnd() * 4, d = 5 + rnd() * 3, r = Math.hypot(w, d) / 2;
       if (!ok(x, z, r)) continue;
       let ymin = 1e9, ymax = -1e9; for (const [dx, dz] of [[-w / 2, -d / 2], [w / 2, -d / 2], [-w / 2, d / 2], [w / 2, d / 2], [0, 0]]) { const h = terrainY(x + dx, z + dz); ymin = Math.min(ymin, h); ymax = Math.max(ymax, h); }
-      if (ymin < 3 || ymax - ymin > 5 || Math.hypot(x, z) > 118) continue;
+      if (ymin < 3 || ymax - ymin > 7 || Math.hypot(x, z) > 118) continue;
       occupied.push([x, z, r]); placed++;
       const face = Math.atan2(-x * 0.3, -z - 40) + (rnd() - 0.5) * 0.5; // roughly face the harbour
       const big = rnd() < 0.15;
@@ -539,6 +552,7 @@ export function buildCity(B, ctx) {
     }
     B.fillerCount = placed;
   }
+  swap(); simple = false;
 
   // ---------------- trees ----------------
   function tree(x, y, z, s = 1, potted = false) {

@@ -55,7 +55,7 @@ export function createQuestPanel(ctx) {
         <h2>${esc(q.name)}</h2>${mon ? `<p class="tw-qd-mon">${q.ambient ? 'Roaming threat' : 'Target'}: <b>${esc(mon.name)}</b></p>` : '<p class="tw-qd-mon">Turn-in at the guild counter</p>'}</header>
       <p class="tw-flavor">“${esc(q.desc)}”</p>
       <div class="tw-qd-grid">
-        <section><h4>Objectives</h4><ul class="tw-obj">${q.objectives.map((o) => `<li>${glyph('check')}<span>${objectiveText(o, q, s.box)}</span></li>`).join('')}</ul></section>
+        <section><h4>Objectives</h4><ul class="tw-obj">${q.objectives.map((o) => `<li><i class="tw-bullet">◆</i><span>${objectiveText(o, q, s.box)}</span></li>`).join('')}</ul></section>
         <section><h4>Conditions</h4><dl class="tw-kv">
           <dt>Time limit</dt><dd>${q.timeLimit ? Math.round(q.timeLimit / 60) + ' min' : '—'}</dd>
           <dt>Faint limit</dt><dd>${q.maxFaints ? q.maxFaints + (q.maxFaints === 1 ? ' (no faints)' : '') : '—'}</dd>
