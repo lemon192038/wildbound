@@ -103,7 +103,12 @@ async function bootTown() {
   game.net = { update() {}, connected: false, id: 'local', roomPlayers: [] };
   // Town input: weapons/items/lock-on are disabled; E / touch "TALK" is routed to the town HUD.
   const poll = game.input.poll.bind(game.input);
-  game.input.poll = () => { const s = poll(); game.townInteract = !!s.interact; s.lightAttack = s.heavyAttack = s.heavyHeld = s.item = s.lockOn = s.interact = s.guard = false; return s; };
+  // Town comfort: always run (auto-dash) whenever the stick/keys move the hunter, and stamina never runs out.
+  game.input.poll = () => {
+    const s = poll(); game.townInteract = !!s.interact; s.lightAttack = s.heavyAttack = s.heavyHeld = s.item = s.lockOn = s.interact = s.guard = false;
+    s.sprint = Math.hypot(s.move.x, s.move.y) > 0.25; return s;
+  };
+  game.addUpdater(() => { const P = game.player; if (P) { P.stamina = P.maxStamina; P.exhausted = false; } });
   game.ui = createTownHud(game);                 // coins, prompts, facility panels
   if (game.input.touch) { game.input.touch.show(); game.input.touch.setPeaceful(true); }
   startLoop((dt, rawDt, input) => {
