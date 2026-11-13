@@ -254,6 +254,11 @@ export default {
   },
   parts: { head: '頭部', forelegs: '前脚', back: '背中', tail: '尾', body: '胴体', wings: '翼', legs: '脚', fistL: '左拳', fistR: '右拳' },
   elements: { fire: '火', water: '水', thunder: '雷', ice: '氷', dragon: '龍', blast: '爆破' },
+  dests: {
+    ember_foothills: ['燼落の裾野', '霊峰カルドリスの開けた裾野。黒い溶岩原と噴気孔、古い玄武岩の尾根が燻る山頂の下に広がる。燼皮のヴァルクルが縄張りとする地。', '燼の大地シンダーリーチ'],
+    ashfang_wastes: ['灰牙の荒地', '火山灰に埋もれた荒れ地。溶岩の堀、倒れた岩柱、崩れた石橋が続き、燼翼のシンドラルが空から動くものすべてを爆撃する。', '燼の大地シンダーリーチ'],
+    cinderdeep_hollow: ['燼底の大空洞', '火山の地下に広がる巨大な空洞。溶岩の滝が照らし、蒸気が立ち込める。燼拳のゴルヴァスの足音が大地を揺らす。', '燼の大地シンダーリーチ'],
+  },
   npcs: { quest: 'ギルドマスター・イゾルデ', smith: '鍛冶頭ボリック', alchemy: '錬金術師ネリス', shop: '商人ペル', storage: '倉庫番イーヴァ', dock: 'マロ船長' },
   facilities: { quest: '狩人ギルド', smith: '鍛冶場', alchemy: '錬金工房', shop: '市場', storage: 'アイテムボックス', dock: '出航桟橋' },
 };
