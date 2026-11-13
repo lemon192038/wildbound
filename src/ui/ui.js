@@ -2,6 +2,7 @@
 // Reads game.player / game.monsters / game.net defensively (any may be stubs or late-bound).
 // Cheap per frame: DOM is written only when a quantised value changes; moving things use transforms.
 import './ui.css';
+import { t, monsterShort, monsterTitle, itemName, itemDesc, partName, langToggleHtml, bindLangToggle } from '../shared/i18n.js';
 
 const SVG = {
   weapon: `<svg viewBox="0 0 64 64" class="wb-weapon" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round">
@@ -32,9 +33,9 @@ const SVG = {
     <circle cx="60" cy="96" r="3" fill="url(#wbG)"/></svg>`,
 };
 
-const CONTROLS = [['WASD', 'Move'], ['Mouse', 'Look'], ['LMB', 'Light strike'], ['RMB', 'Heavy / charge'], ['Space', 'Dodge roll'], ['Shift', 'Sprint'], ['Q', 'Guard'], ['F / Tab', 'Lock on'], ['R', 'Drink draught'], ['E', 'Interact'], ['Enter', 'Chat'], ['Esc', 'Menu']];
+const CONTROLS = [['WASD', 'key.move'], ['key.mouse', 'key.look'], ['key.lmb', 'key.light'], ['key.rmb', 'key.heavy'], ['Space', 'key.dodge'], ['Shift', 'key.sprint'], ['Q', 'key.guard'], ['F / Tab', 'key.lock'], ['R', 'key.drink'], ['E', 'key.interact'], ['Enter', 'key.chat'], ['Esc', 'key.menu']].map(([k, v]) => [k.startsWith('key.') ? t(k) : k, t(v)]);
 const TIERS = [ // sharpness tiers (original naming/colours)
-  [0.85, 'Keen', '#9fe8ff'], [0.65, 'Honed', '#7fe08f'], [0.45, 'Worn', '#f2d65a'], [0.25, 'Dull', '#f39a3c'], [-1, 'Blunt', '#e2443a'],
+  [0.85, t('sh.keen'), '#9fe8ff'], [0.65, t('sh.honed'), '#7fe08f'], [0.45, t('sh.worn'), '#f2d65a'], [0.25, t('sh.dull'), '#f39a3c'], [-1, t('sh.blunt'), '#e2443a'],
 ];
 
 function el(tag, cls, html, parent) {
@@ -77,7 +78,7 @@ export function createUI(game) {
     <circle class="wb-ring-fg" cx="50" cy="50" r="46" stroke-width="3.2" fill="none" stroke="currentColor" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="0"/></svg>${SVG.weapon}`, vit);
   const ringFg = crest.querySelector('.wb-ring-fg');
   const bars = el('div', 'wb-bars', null, vit);
-  const nameRow = el('div', 'wb-name-row', `<span class="wb-name">HUNTER</span><span class="wb-hpnum wb-num"></span>`, bars);
+  const nameRow = el('div', 'wb-name-row', `<span class="wb-name">${t('f.hunter')}</span><span class="wb-hpnum wb-num"></span>`, bars);
   const nameEl = nameRow.firstChild, hpNum = nameRow.lastChild;
   const mkBar = (cls) => { const b = el('div', 'wb-bar ' + cls, `<div class="wb-bar-inner"><div class="wb-trail"></div><div class="wb-fill"></div><div class="wb-ticks"></div><div class="wb-sheen"></div></div>`, bars); return { b, fill: b.querySelector('.wb-fill'), trail: b.querySelector('.wb-trail') }; };
   const hpBar = mkBar('wb-hp'), stBar = mkBar('wb-stam');
@@ -86,7 +87,7 @@ export function createUI(game) {
   const bladeFill = blade.querySelector('.wb-blade-fill'), bladeTier = blade.querySelector('.wb-blade-tier');
   // Status ailments (src/core/status.js): chips under the bars, tinted HP bar.
   const ailRow = el('div', 'wb-ail-row', null, bars);
-  const AIL = { burn: { cls: 'wb-ail-burn', label: { small: 'BURNING', large: 'BLAZING' } }, poison: { cls: 'wb-ail-poison', label: { normal: 'POISONED', deadly: 'DEADLY POISON' } }, blast: { cls: 'wb-ail-blast', label: { normal: 'BLASTBLIGHT' } } };
+  const AIL = { burn: { cls: 'wb-ail-burn', label: { small: t('ail.burn'), large: t('ail.blaze') } }, poison: { cls: 'wb-ail-poison', label: { normal: t('ail.poison'), deadly: t('ail.deadly') } }, blast: { cls: 'wb-ail-blast', label: { normal: t('ail.blast') } } };
   const ailEls = {};
 
   // ---------------------------------------------------------------- nav: minimap, timer, limp
@@ -103,25 +104,25 @@ export function createUI(game) {
   { let s = ''; for (let i = 0; i < 72; i++) { const a = (i / 72) * Math.PI * 2, r1 = 97, r2 = i % 18 === 0 ? 0 : i % 6 === 0 ? 91 : 94; if (!r2) continue; s += `<line x1="${100 + Math.sin(a) * r1}" y1="${100 - Math.cos(a) * r1}" x2="${100 + Math.sin(a) * r2}" y2="${100 - Math.cos(a) * r2}" stroke="#d9b673" stroke-width=".8" opacity=".55"/>`; } ticksG.innerHTML = s; }
   const cards = ['N', 'E', 'S', 'W'].map((t) => { const g = document.createElementNS('http://www.w3.org/2000/svg', 'g'); g.innerHTML = `<circle r="8" fill="#120d0a" stroke="#d9b673" stroke-width=".8"/><text fill="${t === 'N' ? '#ff9a4d' : '#e9dcc0'}" font-size="${t === 'N' ? 11 : 9.5}">${t}</text>`; cardG.appendChild(g); return g; });
   const ctx = cvs.getContext('2d');
-  const timer = el('div', 'wb-frame wb-timer', `<span class="wb-t-label">QUEST</span><span class="wb-t-val wb-num">50:00</span>`, nav);
+  const timer = el('div', 'wb-frame wb-timer', `<span class="wb-t-label">${t('f.quest')}</span><span class="wb-t-val wb-num">50:00</span>`, nav);
   const timerVal = timer.lastChild;
   const status = el('div', 'wb-status', null, nav);
   const chip = (cls, icon, label) => el('div', `wb-frame wb-chip ${cls} wb-hidden`, `${icon}<span>${label}</span>`, status);
-  const chipRage = chip('wb-chip-rage', SVG.rage, 'ENRAGED'), chipTired = chip('wb-chip-tired', SVG.tired, 'EXHAUSTED'), limp = chip('wb-chip-limp', SVG.limp, 'LIMPING');
+  const chipRage = chip('wb-chip-rage', SVG.rage, t('chip.rage')), chipTired = chip('wb-chip-tired', SVG.tired, t('chip.tired')), limp = chip('wb-chip-limp', SVG.limp, t('chip.limp'));
   let monState = '';
   events.on('monster:state', (e) => { if (e?.state) monState = String(e.state); });
 
-  const party = el('div', 'wb-party wb-hidden', `<div class="wb-party-h">HUNTING PARTY</div>`, nav);
+  const party = el('div', 'wb-party wb-hidden', `<div class="wb-party-h">${t('f.party')}</div>`, nav);
   const partyRows = new Map();
 
   // ---------------------------------------------------------------- item slot
   // Quest hunts: the bar shows what you actually carried (game.fieldItems from src/field/questRuntime.js).
   const iconFor = (id) => (id === 'whetstone' ? SVG.whet : id === 'flashPod' ? SVG.flash : id === 'snareCoil' || id === 'tranqBomb' ? SVG.trap : SVG.potion);
   const ITEMS = game.fieldItems ? game.fieldItems.list().map((it) => ({ ...it, icon: iconFor(it.id) })) : [
-    { id: 'potion', name: 'Verdant Draught', desc: 'Restores vigor', icon: SVG.potion },
-    { id: 'whetstone', name: 'Whetstone', desc: 'Restores the edge', icon: SVG.whet },
-    { id: 'flash', name: 'Glare Pod', desc: 'None in pouch', icon: SVG.flash, stub: true },
-    { id: 'trap', name: 'Snare Coil', desc: 'None in pouch', icon: SVG.trap, stub: true },
+    { id: 'potion', name: itemName('potion'), desc: t('it.restoresVigor'), icon: SVG.potion },
+    { id: 'whetstone', name: t('it.whetstone'), desc: t('it.whetDesc'), icon: SVG.whet },
+    { id: 'flash', name: itemName('flashPod'), desc: t('it.noneInPouch'), icon: SVG.flash, stub: true },
+    { id: 'trap', name: itemName('snareCoil'), desc: t('it.noneInPouch'), icon: SVG.trap, stub: true },
   ];
   let sel = Math.max(0, Math.min(ITEMS.length - 1, lsGet('item', 0) | 0));
   const item = el('div', 'wb-items', `<div class="wb-item-name"><b></b><span></span></div><div class="wb-item-row"></div>`, hud);
@@ -143,7 +144,7 @@ export function createUI(game) {
       if (!okUse) { slots[sel].e.classList.remove('wb-deny'); void slots[sel].e.offsetWidth; slots[sel].e.classList.add('wb-deny'); }
       return false;
     }
-    if (it.stub) { toast(`No ${it.name}s in your pouch`); slots[sel].e.classList.remove('wb-deny'); void slots[sel].e.offsetWidth; slots[sel].e.classList.add('wb-deny'); return false; }
+    if (it.stub) { toast(t('it.noneOf', { item: it.name })); slots[sel].e.classList.remove('wb-deny'); void slots[sel].e.offsetWidth; slots[sel].e.classList.add('wb-deny'); return false; }
     if (it.id === 'potion' && num(p.potions, 1) <= 0) { slots[sel].e.classList.remove('wb-deny'); void slots[sel].e.offsetWidth; slots[sel].e.classList.add('wb-deny'); return false; }
     if (typeof p.useItem === 'function' && !p.dead) { try { p.useItem(it.id); } catch (e) { console.warn(e); } return false; }
     return true; // no player API: let the raw R input through
@@ -187,10 +188,10 @@ export function createUI(game) {
     if (show && E.name !== label) { E.name = label; E.lab.textContent = label; }
   }
   const toasts = el('div', 'wb-toasts', null, hud);
-  const card = el('div', 'wb-card', `<div class="wb-card-line"></div><div class="wb-card-kicker">LARGE QUARRY SIGHTED</div><div class="wb-card-name"></div><div class="wb-card-title"></div><div class="wb-card-line"></div>`, hud);
+  const card = el('div', 'wb-card', `<div class="wb-card-line"></div><div class="wb-card-kicker">${t('f.sighted')}</div><div class="wb-card-name"></div><div class="wb-card-title"></div><div class="wb-card-line"></div>`, hud);
 
   // ---------------------------------------------------------------- chat
-  const chat = el('div', 'wb-chat', `<div class="wb-chat-log"></div><div class="wb-frame wb-chat-input wb-hidden"><label>SAY</label><input maxlength="140" spellcheck="false"></div><div class="wb-chat-hint"><span class="wb-net"><i></i><span>Solo hunt</span></span><kbd>Enter</kbd> chat · <kbd>Esc</kbd> menu</div>`, hud);
+  const chat = el('div', 'wb-chat', `<div class="wb-chat-log"></div><div class="wb-frame wb-chat-input wb-hidden"><label>${t('chat.say')}</label><input maxlength="140" spellcheck="false" placeholder="${t('chat.ph')}"></div><div class="wb-chat-hint"><span class="wb-net"><i></i><span>${t('net.solo')}</span></span><kbd>Enter</kbd> ${t('chat.chat')} · <kbd>Esc</kbd> ${t('chat.menu')}</div>`, hud);
   const netPill = chat.querySelector('.wb-net'), netText = netPill.lastChild;
   const chatLog = chat.firstChild, chatBox = chat.children[1], chatInput = chatBox.querySelector('input'), chatHint = chat.lastChild;
   let typing = false;
@@ -206,8 +207,8 @@ export function createUI(game) {
   chatInput.addEventListener('keydown', (e) => {
     e.stopPropagation(); // keep gameplay Input from seeing typed keys
     if (e.key === 'Enter') {
-      const t = chatInput.value.trim();
-      if (t) { let sent = false; try { sent = !!(game.net?.connected && game.net.sendChat?.(t)); } catch (err) { console.warn(err); } if (!sent) addChat(P().name || 'You', t); }
+      const msg = chatInput.value.trim();
+      if (msg) { let sent = false; try { sent = !!(game.net?.connected && game.net.sendChat?.(msg)); } catch (err) { console.warn(err); } if (!sent) addChat(P().name || t('chat.you'), msg); }
       closeChat(); e.preventDefault();
     } else if (e.key === 'Escape') { closeChat(); e.preventDefault(); }
   });
@@ -226,24 +227,24 @@ export function createUI(game) {
   function showFaint() {
     if (faint) return;
     faintT = num(P().respawnTime, 0) > 0 ? P().respawnTime : 8;
-    faint = el('div', 'wb-overlay wb-faint', `<h2>YOU FAINTED</h2><p>Carried back to camp in <b class="wb-num">${Math.ceil(faintT)}</b></p>`, root);
+    faint = el('div', 'wb-overlay wb-faint', `<h2>${t('f.fainted')}</h2><p>${t('f.carried', { n: `<b class="wb-num">${Math.ceil(faintT)}</b>` })}</p>`, root);
     faintShownSec = -1; hud.classList.add('wb-dim');
   }
   function hideFaint() { if (!faint) return; faint.remove(); faint = null; if (!questOver) hud.classList.remove('wb-dim'); }
 
   let questTime = game.questTimeLimit || 50 * 60, questOver = false, questOv = null, nextEl = null;
   const brokenParts = [];
-  const nextLine = () => `<div class="wb-next">NEXT HUNT IN <b class="wb-num">--</b></div>`;
+  const nextLine = () => `<div class="wb-next">${t('f.nextHunt', { t: '<b class="wb-num">--</b>' })}</div>`;
   function showComplete(mon) {
     if (game.questRuntime) return; // real quests: the quest runtime shows server-granted rewards instead
     if (questOver) return; questOver = true; hud.classList.add('wb-dim'); hideFaint();
     const used = 50 * 60 - questTime;
     const name = parseName(mon?.name).name;
     const rew = makeRewards(name, brokenParts, (Math.floor(used) * 7919 + name.length * 131) >>> 0);
-    const ov = el('div', 'wb-overlay wb-complete', `<div class="wb-banner"><h1>QUEST COMPLETE</h1>
-      <div class="wb-sub">${esc(name.toUpperCase())} SLAIN · <b class="wb-num">${fmtTime(used)}</b></div></div><div class="wb-rule"></div>
-      <div class="wb-frame wb-rewards"><h3>SPOILS OF THE HUNT</h3>${rew.items.map((r, i) => `<div class="wb-reward r${r.rarity}" style="animation-delay:${0.9 + i * 0.12}s"><i></i><span>${esc(r.name)}</span><b class="wb-num">×${r.qty}</b></div>`).join('')}
-      <div class="wb-bounty">Bounty <b class="wb-num">${rew.bounty.toLocaleString()}</b> marks</div></div>${nextLine()}`, root);
+    const ov = el('div', 'wb-overlay wb-complete', `<div class="wb-banner"><h1>${t('f.questComplete')}</h1>
+      <div class="wb-sub">${t('f.slainSub', { m: esc(name.toUpperCase()) })} · <b class="wb-num">${fmtTime(used)}</b></div></div><div class="wb-rule"></div>
+      <div class="wb-frame wb-rewards"><h3>${t('f.spoils')}</h3>${rew.items.map((r, i) => `<div class="wb-reward r${r.rarity}" style="animation-delay:${0.9 + i * 0.12}s"><i></i><span>${esc(r.name)}</span><b class="wb-num">×${r.qty}</b></div>`).join('')}
+      <div class="wb-bounty">${t('f.bounty', { n: `<b class="wb-num">${rew.bounty.toLocaleString()}</b>` })}</div></div>${nextLine()}`, root);
     questOv = ov; nextEl = ov.querySelector('.wb-next b');
     return ov;
   }
@@ -251,21 +252,22 @@ export function createUI(game) {
     if (questOver) return; questOver = true;
     if (game.questRuntime) { events.emit('quest:failed', { reason: 'Time expired' }); return; } // runtime shows the result
     hud.classList.add('wb-dim');
-    questOv = el('div', 'wb-overlay wb-complete', `<div class="wb-banner"><h1 style="filter:grayscale(.7) drop-shadow(0 .05em .05em #000)">QUEST FAILED</h1><div class="wb-sub">THE TRAIL HAS GONE COLD</div></div>${nextLine()}`, root);
+    questOv = el('div', 'wb-overlay wb-complete', `<div class="wb-banner"><h1 style="filter:grayscale(.7) drop-shadow(0 .05em .05em #000)">${t('f.questFailed')}</h1><div class="wb-sub">${t('f.cold')}</div></div>${nextLine()}`, root);
     nextEl = questOv.querySelector('.wb-next b');
     events.emit('quest:failed', {});
   }
 
   // ---------------------------------------------------------------- monster name card
   let cardShown = false;
-  function parseName(raw) {
+  function parseName(raw, english) {
     raw = String(raw || 'Monster').trim();
     const m = M() || {};
+    if (!english && monsterTitle(raw)) return { name: monsterShort(raw), title: monsterTitle(raw) };
     let name = raw, title = '';
     const sp = raw.split(/\s*[·,—–:]\s*|\s+-\s+/);
     if (sp.length > 1) { name = sp[0]; title = sp.slice(1).join(' '); }
     else { const k = raw.search(/\s+the\s+/i); if (k > 0) { name = raw.slice(0, k); title = raw.slice(k).trim(); } }
-    if (!title) title = m.epithet || (m.title ? 'The ' + m.title : 'Apex of the Wilds');
+    if (!title) title = m.epithet || (m.title ? 'The ' + m.title : t('f.apex'));
     title = title.replace(/^the\b/i, 'The');
     return { name, title };
   }
@@ -273,7 +275,7 @@ export function createUI(game) {
     const mon = M(); if (cardShown || !mon) return; cardShown = true;
     const { name, title } = parseName(mon.name);
     card.querySelector('.wb-card-name').textContent = name.toUpperCase();
-    card.querySelector('.wb-card-title').textContent = title.replace(/^the\b/i, 'The');
+    card.querySelector('.wb-card-title').textContent = title.replace(/^the\b/i, 'The'); card.querySelector('.wb-card-kicker').textContent = t('f.sighted');
     card.classList.remove('wb-show'); void card.offsetWidth; card.classList.add('wb-show');
   }
 
@@ -281,13 +283,13 @@ export function createUI(game) {
   let title = null;
   if (!shot) {
     const controls = CONTROLS;
-    title = el('div', 'wb-title', `<div class="wb-embers"></div><div class="wb-logo">${SVG.emblem}<div class="wb-logo-word">WILDBOUND</div><div class="wb-logo-tag">HUNT · FORGE · ENDURE</div></div>
-      <div class="wb-quests"><div class="wb-quest-label">CHOOSE YOUR QUARRY</div><div class="wb-quest-row">
-        <button class="wb-quest${game.hunt !== 'wyvern' ? ' wb-on' : ''}" data-hunt="varkhul"><b>VARKHUL</b><span>The Emberhide · ground</span></button>
-        <button class="wb-quest${game.hunt === 'wyvern' ? ' wb-on' : ''}" data-hunt="wyvern"><b>CINDRAL</b><span>The Ashwing · sky</span></button>
-        <button class="wb-quest${game.hunt === 'brute' ? ' wb-on' : ''}" data-hunt="brute"><b>GORVATH</b><span>The Cinderfist · colossal</span></button></div></div>
-      <div class="wb-cta">CLICK TO BEGIN THE HUNT</div>
-      <div class="wb-frame wb-controls">${controls.map(([k, v]) => `<div><span class="wb-kbd">${k}</span>${v}</div>`).join('')}</div><div class="wb-ver">v0.1 · <span class="wb-ver-net">${params.get('online') === '1' ? 'CONNECTING…' : 'SOLO · OFFLINE'}</span></div>`, root);
+    title = el('div', 'wb-title', `<div class="wb-embers"></div><div class="wb-logo">${SVG.emblem}<div class="wb-logo-word">WILDBOUND</div><div class="wb-logo-tag">${t('title.tag')}</div></div>
+      <div class="wb-quests"><div class="wb-quest-label">${t('title.choose')}</div><div class="wb-quest-row">
+        ${[['varkhul', 'title.ground'], ['wyvern', 'title.sky'], ['brute', 'title.colossal']].map(([k, d]) => `<button class="wb-quest${(k === 'varkhul' ? game.hunt !== 'wyvern' && game.hunt !== 'brute' : game.hunt === k) ? ' wb-on' : ''}" data-hunt="${k}"><b>${esc(monsterShort(k).toUpperCase())}</b><span>${esc(monsterTitle(k))} · ${t(d)}</span></button>`).join('')}</div></div>
+      <div class="wb-cta">${t('title.cta')}</div>
+      <div class="wb-frame wb-controls">${controls.map(([k, v]) => `<div><span class="wb-kbd">${k}</span>${v}</div>`).join('')}</div><div class="wb-ver">v0.1 · <span class="wb-ver-net">${params.get('online') === '1' ? t('net.connecting') : t('net.soloOffline')}</span> ${langToggleHtml('wb-title-lang')}</div>`, root);
+    bindLangToggle(title);
+    title.querySelectorAll('[data-lang]').forEach((b) => b.addEventListener('mousedown', (e) => e.stopPropagation()));
     const emb = title.firstChild;
     for (let i = 0; i < 28; i++) { const e = el('i', null, null, emb); e.style.cssText = `left:${Math.random() * 100}%;animation-duration:${7 + Math.random() * 9}s;animation-delay:${-Math.random() * 14}s;--dx:${(Math.random() - 0.5) * 160}px;transform:scale(${0.5 + Math.random()})`; }
     hud.style.opacity = '0';
@@ -306,7 +308,7 @@ export function createUI(game) {
       title.classList.add('wb-leave'); hud.style.transition = 'opacity 1.2s 0.3s'; hud.style.opacity = '1';
       setTimeout(() => { title?.remove(); title = null; }, 950);
       started = true; events.emit('ui:start', {});
-      setTimeout(() => toast('Hunt the beast before the moon sets.'), 900);
+      setTimeout(() => toast(t('f.startToast')), 900);
     });
   }
   let started = shot || !title;
@@ -318,12 +320,13 @@ export function createUI(game) {
   function openPause() {
     if (pause || !started || questOver) return;
     if (typing) closeChat();
-    pause = el('div', 'wb-overlay wb-pause', `<div class="wb-frame wb-panel"><h2>RESPITE</h2><div class="wb-rule"></div>
-      <div class="wb-set"><label>Look sensitivity</label><input type="range" min="0.2" max="3" step="0.05" data-k="sens"><output class="wb-num"></output></div>
-      <div class="wb-set"><label>Master volume</label><input type="range" min="0" max="1" step="0.01" data-k="vol"><output class="wb-num"></output></div>
-      <div class="wb-set"><label>Graphics</label><div class="wb-seg"><button class="wb-btn" data-q="high">HIGH</button><button class="wb-btn" data-q="low">LOW</button></div></div>
-      <div class="wb-actions"><button class="wb-btn wb-primary" data-a="resume">RESUME HUNT</button>${game.questRuntime ? '<button class="wb-btn" data-a="abandon">ABANDON QUEST</button>' : ''}</div>
-      <div class="wb-pause-hint">${game.net?.connected ? 'The world keeps moving while you rest.' : 'Time stands still while you rest.'}</div>
+    pause = el('div', 'wb-overlay wb-pause', `<div class="wb-frame wb-panel"><h2>${t('pause.title')}</h2><div class="wb-rule"></div>
+      <div class="wb-set"><label>${t('set.sens')}</label><input type="range" min="0.2" max="3" step="0.05" data-k="sens"><output class="wb-num"></output></div>
+      <div class="wb-set"><label>${t('set.vol')}</label><input type="range" min="0" max="1" step="0.01" data-k="vol"><output class="wb-num"></output></div>
+      <div class="wb-set"><label>${t('set.gfx')}</label><div class="wb-seg"><button class="wb-btn" data-q="high">${t('set.high')}</button><button class="wb-btn" data-q="low">${t('set.low')}</button></div></div>
+      <div class="wb-set"><label>${t('set.lang')}</label>${langToggleHtml('wb-seg wb-lang-seg')}</div>
+      <div class="wb-actions"><button class="wb-btn wb-primary" data-a="resume">${t('pause.resume')}</button>${game.questRuntime ? `<button class="wb-btn" data-a="abandon">${t('pause.abandon')}</button>` : ''}</div>
+      <div class="wb-pause-hint">${game.net?.connected ? t('pause.online') : t('pause.offline')}</div>
       <div class="wb-keys">${CONTROLS.map(([k, v]) => `<span><span class="wb-kbd">${k}</span>${v}</span>`).join('')}</div></div>`, root);
     pause.querySelectorAll('input[type=range]').forEach((inp) => {
       const k = inp.dataset.k, out = inp.nextElementSibling;
@@ -339,7 +342,8 @@ export function createUI(game) {
       });
     });
     pause.querySelector('[data-a=resume]').addEventListener('click', closePause);
-    pause.querySelector('[data-a=abandon]')?.addEventListener('click', () => { if (confirm('Abandon this quest and return to port? Unused items come back with you.')) { closePause(); game.questRuntime?.abandon(); } });
+    bindLangToggle(pause);
+    pause.querySelector('[data-a=abandon]')?.addEventListener('click', () => { if (confirm(t('pause.abandonQ'))) { closePause(); game.questRuntime?.abandon(); } });
     pause.addEventListener('mousedown', (e) => { if (e.target === pause) closePause(); });
     if (!game.net?.connected && game.engine) { savedScale = game.engine.timeScale || 1; game.engine.timeScale = 0; }
   }
@@ -408,16 +412,16 @@ export function createUI(game) {
   events.on('monster:partBreak', (e) => {
     const part = e?.part; const nm = typeof part === 'string' ? part : part?.name || 'Part';
     brokenParts.push(nm);
-    breakQueue.push(nm.replace(/[_-]/g, ' ')); if (!breakBusy) nextBreak();
+    breakQueue.push(partName(nm)); if (!breakBusy) nextBreak();
   });
-  const breakEl = el('div', 'wb-break', `<div class="wb-break-burst"></div>${SVG.shard}<div class="wb-break-kicker">PART BROKEN</div><div class="wb-break-name"></div><div class="wb-break-sub">Bonus material earned</div>`, hud);
+  const breakEl = el('div', 'wb-break', `<div class="wb-break-burst"></div>${SVG.shard}<div class="wb-break-kicker">${t('f.partBroken')}</div><div class="wb-break-name"></div><div class="wb-break-sub">${t('f.bonus')}</div>`, hud);
   const breakQueue = []; let breakBusy = false;
   function nextBreak() {
     const nm = breakQueue.shift(); if (!nm) { breakBusy = false; return; }
     breakBusy = true;
     const mon = M(); const who = parseName(mon?.name).name;
     breakEl.querySelector('.wb-break-name').textContent = nm.toUpperCase();
-    breakEl.querySelector('.wb-break-sub').textContent = `${who}'s ${nm} shattered · bonus material`;
+    breakEl.querySelector('.wb-break-sub').textContent = t('f.shattered', { m: who, p: nm });
     breakEl.classList.remove('wb-show'); void breakEl.offsetWidth; breakEl.classList.add('wb-show');
     setTimeout(nextBreak, breakQueue.length ? 1600 : 2700);
   }
@@ -426,19 +430,19 @@ export function createUI(game) {
   events.on('quest:start', () => {
     questOv?.remove(); questOv = nextEl = null; questOver = false; questTime = 50 * 60; brokenParts.length = 0; cardShown = false;
     for (const k in warned) delete warned[k];
-    hud.classList.remove('wb-dim'); toast('A new quarry stirs. The hunt begins anew.');
+    hud.classList.remove('wb-dim'); toast(t('f.newQuarry'));
   });
-  events.on('net:chat', (m) => { if (!m) return; addChat(m.name || m.from || 'Hunter', m.text ?? m.message ?? ''); });
-  events.on('net:join', (m) => { if (!m?.self) addChat(null, `${m?.name || 'A hunter'} joined the hunt.`, true); });
+  events.on('net:chat', (m) => { if (!m) return; addChat(m.name || m.from || t('f.hunterName'), m.text ?? m.message ?? ''); });
+  events.on('net:join', (m) => { if (!m?.self) addChat(null, t('net.joined', { name: m?.name || t('net.aHunter') }), true); });
   events.on('net:status', (st) => {
     if (!st) return;
     const was = netState.connected;
     Object.assign(netState, st);
-    if (st.connected && !was) toast(st.isHost ? `Hosting hunt${st.room ? ' · ' + st.room : ''}` : `Joined hunt${st.room ? ' · ' + st.room : ''}`);
-    else if (!st.connected && was) toast('Connection lost — hunting solo');
+    if (st.connected && !was) toast((st.isHost ? t('net.hosting') : t('net.joinedHunt')) + (st.room ? ' · ' + st.room : ''));
+    else if (!st.connected && was) toast(t('net.lost'));
     last.net = null; refreshNet();
   });
-  events.on('net:leave', (m) => addChat(null, `${m?.name || 'A hunter'} left the hunt.`, true));
+  events.on('net:leave', (m) => addChat(null, t('net.left', { name: m?.name || t('net.aHunter') }), true));
   events.on('item:used', () => { localPotions = Math.max(0, localPotions - 1); });
   events.on('player:heal', () => flashItem(0));
   function flashItem(i = sel) { const e = slots[i]?.e; if (!e) return; e.classList.remove('wb-used'); void e.offsetWidth; e.classList.add('wb-used'); }
@@ -456,7 +460,7 @@ export function createUI(game) {
     const p = P(); const mon = M();
 
     // name & vitals
-    set('name', String(p.name || 'Hunter').toUpperCase(), (v) => (nameEl.textContent = v));
+    set('name', String(p.name || t('f.hunterName')).toUpperCase(), (v) => (nameEl.textContent = v));
     const maxHp = Math.max(1, num(p.maxHp, 150)), hp = Math.max(0, Math.min(maxHp, num(p.hp, maxHp)));
     const hpF = hp / maxHp;
     if (lastHp !== null && hp > lastHp && trail < hpF) trail = hpF;
@@ -511,7 +515,7 @@ export function createUI(game) {
     if (nextEl && game.quest?.respawnAt != null) set('qn', fmtTime(Math.max(0, game.quest.respawnAt - (game.quest.clock || 0))), (v) => { if (nextEl) nextEl.textContent = v; });
     set('qt', fmtTime(questTime), (v) => (timerVal.textContent = v));
     set('qw', questTime < 300, (v) => timer.classList.toggle('wb-warn', v));
-    for (const mins of [10, 5, 1]) if (questTime < mins * 60 && !warned[mins] && started) { warned[mins] = 1; toast(`${mins} minute${mins > 1 ? 's' : ''} remain`); }
+    for (const mins of [10, 5, 1]) if (questTime < mins * 60 && !warned[mins] && started) { warned[mins] = 1; toast(t('f.minsLeft', { n: mins, s: mins > 1 ? 's' : '' })); }
     if (questTime <= 0 && !questOver) showFailed();
 
     // monster: card trigger, limp, lock-on
@@ -522,9 +526,9 @@ export function createUI(game) {
     const mf = mon ? num(mon.hp, 1) / Math.max(1, num(mon.maxHp, 1)) : 1;
     const alive = !!mon && mf > 0 && mon.state !== 'dead';
     const mst = String(mon?.state || monState || '');
-    set('limp', alive && (mf < 0.25 || !!mon.limping), (v) => { limp.classList.toggle('wb-hidden', !v); if (v) toast('The quarry is limping — it may flee!'); });
-    set('rage', alive && !!(mon.enraged || mst === 'enraged' || mst === 'rage'), (v) => { chipRage.classList.toggle('wb-hidden', !v); if (v) toast('The quarry is enraged!'); });
-    set('tired', alive && !!(mon.exhausted || mon.tired || mst === 'exhausted' || monState === 'exhausted'), (v) => { chipTired.classList.toggle('wb-hidden', !v); if (v) toast('The quarry is exhausted — strike now!'); });
+    set('limp', alive && (mf < 0.25 || !!mon.limping), (v) => { limp.classList.toggle('wb-hidden', !v); if (v) toast(t('f.limping')); });
+    set('rage', alive && !!(mon.enraged || mst === 'enraged' || mst === 'rage'), (v) => { chipRage.classList.toggle('wb-hidden', !v); if (v) toast(t('f.enraged')); });
+    set('tired', alive && !!(mon.exhausted || mon.tired || mst === 'exhausted' || monState === 'exhausted'), (v) => { chipTired.classList.toggle('wb-hidden', !v); if (v) toast(t('f.exhausted')); });
 
     const lt = p.lockTarget;
     let lp = null;
@@ -541,9 +545,9 @@ export function createUI(game) {
     if (showRet) reticle.style.transform = `translate3d(${sp.x.toFixed(1)}px,${sp.y.toFixed(1)}px,0)`;
 
     // off-screen hunter indicators
-    edgeFor(0, !p.dead && started ? p.position : null, 'YOU');
+    edgeFor(0, !p.dead && started ? p.position : null, t('f.you'));
     let ei = 1;
-    game.remotePlayers?.forEach?.((rp, id) => { if (ei > 3) return; const pos = rp?.object3d?.position || rp?.position; const info = Array.isArray(game.net?.roomPlayers) ? game.net.roomPlayers.find((q) => q.id === id) : null; edgeFor(ei++, pos, String(info?.name || rp?.name || 'Ally').slice(0, 12)); });
+    game.remotePlayers?.forEach?.((rp, id) => { if (ei > 3) return; const pos = rp?.object3d?.position || rp?.position; const info = Array.isArray(game.net?.roomPlayers) ? game.net.roomPlayers.find((q) => q.id === id) : null; edgeFor(ei++, pos, String(info?.name || rp?.name || t('f.ally')).slice(0, 12)); });
     for (; ei < 4; ei++) edgeFor(ei, null, '');
 
     // damage numbers
@@ -680,10 +684,10 @@ export function createUI(game) {
     const n = game.net; const on = !!(n?.connected ?? netState.connected);
     const count = Math.max(1, Array.isArray(n?.roomPlayers) && n.roomPlayers.length ? n.roomPlayers.length : num(n?.onlineCount, 1));
     const rtt = num(n?.rtt, NaN);
-    const txt = on ? `${netState.isHost ? 'Host' : 'Co-op'}${netState.room ? ' · ' + netState.room : ''} · ${count} hunter${count === 1 ? '' : 's'}${isFinite(rtt) && rtt > 0 ? ` · ${Math.round(rtt)}ms` : ''}` : (params.get('online') === '1' ? 'Offline · solo hunt' : 'Solo hunt');
+    const txt = on ? `${netState.isHost ? t('net.host') : t('net.coop')}${netState.room ? ' · ' + netState.room : ''} · ${t('net.hunters', { n: count, s: count === 1 ? '' : 's' })}${isFinite(rtt) && rtt > 0 ? ` · ${Math.round(rtt)}ms` : ''}` : (params.get('online') === '1' ? t('net.offlineSolo') : t('net.solo'));
     set('net', txt + on, () => {
       netText.textContent = txt; netPill.classList.toggle('wb-on', on);
-      const v = root.querySelector('.wb-ver-net'); if (v) v.textContent = on ? 'CO-OP ONLINE' : 'SOLO · OFFLINE';
+      const v = root.querySelector('.wb-ver-net'); if (v) v.textContent = on ? t('net.coopOnline') : t('net.soloOffline');
     });
   }
   const PCOL = ['#6fcf86', '#5fd4e8', '#e8a35f', '#c58cf0'];
@@ -692,11 +696,11 @@ export function createUI(game) {
     const on = !!game.net?.connected;
     set('party', on, (v) => party.classList.toggle('wb-hidden', !v));
     if (!on) return;
-    const rows = [{ id: '__self', name: p.name || 'Hunter', hp: num(p.hp, 0), max: num(p.maxHp, 150) }];
+    const rows = [{ id: '__self', name: p.name || t('f.hunterName'), hp: num(p.hp, 0), max: num(p.maxHp, 150) }];
     game.remotePlayers?.forEach?.((rp, id) => {
       const s = rp?.state || rp?.lastState || rp || {};
       const rpInfo = Array.isArray(game.net?.roomPlayers) ? game.net.roomPlayers.find((q) => q.id === id) : null;
-      rows.push({ id, name: rpInfo?.name || rp?.name || s.name || `Hunter ${String(id).slice(-4)}`, hp: num(rp?.hp ?? s.hp, 1), max: num(rp?.maxHp ?? s.maxHp, 150) });
+      rows.push({ id, name: rpInfo?.name || rp?.name || s.name || `${t('f.hunterName')} ${String(id).slice(-4)}`, hp: num(rp?.hp ?? s.hp, 1), max: num(rp?.maxHp ?? s.maxHp, 150) });
     });
     const seen = new Set();
     rows.forEach((r, i) => {
@@ -726,18 +730,18 @@ export function createUI(game) {
 function makeRewards(monName, broken, seed) {
   let s = seed || 1; const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
   const pick = (a) => a[Math.floor(rnd() * a.length)];
-  const base = monName && monName !== 'Monster' ? monName : 'Wildbeast';
-  const mats = ['Hide', 'Scale', 'Fang', 'Talon', 'Sinew', 'Spine', 'Plate', 'Marrow', 'Ash Gland', 'Ember Sac'];
-  const adj = ['Smouldering', 'Rough', 'Seared', 'Hardened', 'Cinder-veined', 'Ancient'];
+  const base = monName && monName !== 'Monster' ? monName : t('loot.wildbeast');
+  const mats = t('loot.mats').split('|');
+  const adj = t('loot.adj').split('|');
   const items = [];
   const used = new Set();
   for (let i = 0; i < 4; i++) {
     let m; do m = pick(mats); while (used.has(m)); used.add(m);
     const rarity = rnd() < 0.15 ? 3 : rnd() < 0.5 ? 2 : 1;
-    items.push({ name: `${rarity >= 2 ? pick(adj) + ' ' : ''}${base} ${m}`, qty: 1 + Math.floor(rnd() * 3), rarity });
+    items.push({ name: t('loot.item', { adj: rarity >= 2 ? pick(adj) : '', base, mat: m }).trim(), qty: 1 + Math.floor(rnd() * 3), rarity });
   }
-  for (const b of broken.slice(0, 3)) items.push({ name: `${base} ${b.replace(/[_-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())} Fragment`, qty: 1, rarity: 3 });
-  if (rnd() < 0.35) items.push({ name: `${base}'s Heartflame`, qty: 1, rarity: 4 });
+  for (const b of broken.slice(0, 3)) items.push({ name: t('loot.frag', { base, part: partName(b).replace(/\b\w/g, (c) => c.toUpperCase()) }), qty: 1, rarity: 3 });
+  if (rnd() < 0.35) items.push({ name: t('loot.heart', { base }), qty: 1, rarity: 4 });
   items.sort((a, b) => b.rarity - a.rarity);
   return { items: items.slice(0, 7), bounty: 3000 + Math.floor(rnd() * 40) * 50 };
 }

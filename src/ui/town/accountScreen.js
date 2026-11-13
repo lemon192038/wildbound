@@ -1,6 +1,7 @@
 // Account gate shown over the live 3D town: connecting → (offline/retry) → sign in / create account.
 import { el, esc, swallowTouch } from './common.js';
 import { fieldUrl } from './dockPanel.js';
+import { t, serverMsg, langToggleHtml, bindLangToggle } from '../../shared/i18n.js';
 
 const EMBLEM = `<svg viewBox="0 0 120 120" class="tw-emblem" aria-hidden="true"><defs><linearGradient id="twG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff2c8"/><stop offset=".5" stop-color="#d9b673"/><stop offset="1" stop-color="#7c531b"/></linearGradient>
   <linearGradient id="twE" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd08a"/><stop offset="1" stop-color="#c2410c"/></linearGradient></defs>
@@ -16,28 +17,28 @@ export function createAccountScreen(root, acct, { onReady }) {
       node = el('div', 'tw-gate', '', root); swallowTouch(node);
       node.addEventListener('keydown', (e) => e.stopPropagation());
     }
-    node.innerHTML = `<div class="tw-gate-brand">${EMBLEM}<div class="tw-gate-word">WILDBOUND</div><div class="tw-gate-tag">The harbour awaits its hunters</div></div>
+    node.innerHTML = `<div class="tw-gate-brand">${EMBLEM}<div class="tw-gate-word">WILDBOUND</div><div class="tw-gate-tag">${t('gate.tag')}</div></div>
       <div class="tw-gate-card tw-frame">${inner}</div>
-      <button class="tw-link tw-gate-off" data-a="offline">Play offline — free hunt, no progress saved</button>`;
-    node.querySelector('[data-a=offline]').addEventListener('click', offline);
+      <button class="tw-link tw-gate-off" data-a="offline">${t('gate.offline')}</button>${langToggleHtml('tw-gate-lang')}`;
+    node.querySelector('[data-a=offline]').addEventListener('click', offline); bindLangToggle(node);
     return node;
   }
-  function connecting(text = 'Contacting the Hunters’ Guild…') { frame(`<div class="tw-gate-wait"><span class="tw-spin"></span><p>${esc(text)}</p></div>`); }
+  function connecting(text = t('gate.connecting')) { frame(`<div class="tw-gate-wait"><span class="tw-spin"></span><p>${esc(text)}</p></div>`); }
   function unreachable() {
-    frame(`<div class="tw-gate-wait err"><b>The guild server cannot be reached</b><p>Check your connection, or the server may be waking up. Your progress is stored on the server and is safe.</p>
-      <button class="tw-btn tw-primary tw-big" data-a="retry">Retry</button></div>`);
+    frame(`<div class="tw-gate-wait err"><b>${t('gate.unreachable')}</b><p>${t('gate.unreachableSub')}</p>
+      <button class="tw-btn tw-primary tw-big" data-a="retry">${t('gate.retry')}</button></div>`);
     node.querySelector('[data-a=retry]').addEventListener('click', () => boot());
   }
   function form(message = '', kind = 'err') {
     const reg = mode === 'register';
-    frame(`<div class="tw-gate-tabs" role="tablist"><button class="tw-tab ${reg ? '' : 'on'}" data-m="login" role="tab">Sign In</button><button class="tw-tab ${reg ? 'on' : ''}" data-m="register" role="tab">Create Account</button></div>
+    frame(`<div class="tw-gate-tabs" role="tablist"><button class="tw-tab ${reg ? '' : 'on'}" data-m="login" role="tab">${t('gate.signIn')}</button><button class="tw-tab ${reg ? 'on' : ''}" data-m="register" role="tab">${t('gate.create')}</button></div>
       <form class="tw-form" novalidate autocomplete="on">
-        <label><span>Hunter name</span><input class="tw-input" name="name" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" minlength="3" maxlength="16" required placeholder="3–16 letters or numbers" enterkeyhint="next"></label>
-        <label><span>Password</span><input class="tw-input" name="pw" type="password" autocomplete="${reg ? 'new-password' : 'current-password'}" minlength="8" maxlength="72" required placeholder="${reg ? 'At least 8 characters' : '••••••••'}" enterkeyhint="${reg ? 'next' : 'go'}"></label>
-        ${reg ? '<label><span>Confirm password</span><input class="tw-input" name="pw2" type="password" autocomplete="new-password" maxlength="72" required placeholder="Repeat password" enterkeyhint="go"></label>' : ''}
-        <p class="tw-form-msg ${kind}" role="alert">${esc(message)}</p>
-        <button class="tw-btn tw-primary tw-big" type="submit">${reg ? 'Create Hunter' : 'Enter the Harbour'}</button>
-        <p class="tw-form-alt">${reg ? 'Already registered? <button type="button" class="tw-link" data-m="login">Sign in</button>' : 'New to the harbour? <button type="button" class="tw-link" data-m="register">Create an account</button>'}</p>
+        <label><span>${t('gate.name')}</span><input class="tw-input" name="name" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" minlength="3" maxlength="16" required placeholder="${t('gate.namePh')}" enterkeyhint="next"></label>
+        <label><span>${t('gate.pw')}</span><input class="tw-input" name="pw" type="password" autocomplete="${reg ? 'new-password' : 'current-password'}" minlength="8" maxlength="72" required placeholder="${reg ? t('gate.pwPh') : '••••••••'}" enterkeyhint="${reg ? 'next' : 'go'}"></label>
+        ${reg ? `<label><span>${t('gate.pw2')}</span><input class="tw-input" name="pw2" type="password" autocomplete="new-password" maxlength="72" required placeholder="${t('gate.pw2Ph')}" enterkeyhint="go"></label>` : ''}
+        <p class="tw-form-msg ${kind}" role="alert">${esc(serverMsg(message))}</p>
+        <button class="tw-btn tw-primary tw-big" type="submit">${reg ? t('gate.createBtn') : t('gate.enter')}</button>
+        <p class="tw-form-alt">${reg ? `${t('gate.already')} <button type="button" class="tw-link" data-m="login">${t('gate.signInLink')}</button>` : `${t('gate.new')} <button type="button" class="tw-link" data-m="register">${t('gate.createLink')}</button>`}</p>
       </form>`);
     const f = node.querySelector('form'); const prev = form.last || {};
     f.name.value = prev.name || ''; setTimeout(() => (f.name.value ? f.pw : f.name).focus({ preventScroll: true }), 50);
@@ -47,15 +48,15 @@ export function createAccountScreen(root, acct, { onReady }) {
       const name = f.name.value.trim().replace(/\s+/g, ' '), pw = f.pw.value; const msg = f.querySelector('.tw-form-msg');
       const bad = (t, input) => { msg.className = 'tw-form-msg err'; msg.textContent = t; input?.focus(); input?.classList.add('bad'); };
       f.querySelectorAll('.bad').forEach((i) => i.classList.remove('bad'));
-      if (!/^[\p{L}\p{N}_\- ]{3,16}$/u.test(name)) return bad('Name: 3–16 letters, numbers, spaces, _ or -', f.name);
-      if (pw.length < 8 || pw.length > 72) return bad('Password: 8–72 characters', f.pw);
-      if (reg && f.pw2.value !== pw) return bad('Passwords do not match', f.pw2);
-      busy = true; const sub = f.querySelector('[type=submit]'); sub.disabled = true; sub.innerHTML = `<span class="tw-spin sm"></span> ${reg ? 'Creating…' : 'Signing in…'}`;
+      if (!/^[\p{L}\p{N}_\- ]{3,16}$/u.test(name)) return bad(t('acct.badName'), f.name);
+      if (pw.length < 8 || pw.length > 72) return bad(t('acct.badPw'), f.pw);
+      if (reg && f.pw2.value !== pw) return bad(t('acct.pwMismatch'), f.pw2);
+      busy = true; const sub = f.querySelector('[type=submit]'); sub.disabled = true; sub.innerHTML = `<span class="tw-spin sm"></span> ${reg ? t('gate.creating') : t('gate.signingIn')}`;
       msg.className = 'tw-form-msg'; msg.textContent = '';
-      const r = await (reg ? acct.register(name, pw) : acct.login(name, pw)).catch(() => ({ ok: false, message: 'Something went wrong. Try again.' }));
+      const r = await (reg ? acct.register(name, pw) : acct.login(name, pw)).catch(() => ({ ok: false, message: t('srv.oops') }));
       busy = false; form.last = { name };
       if (r?.ok) { hide(); onReady?.(r.state, reg); return; }
-      sub.disabled = false; sub.textContent = reg ? 'Create Hunter' : 'Enter the Harbour'; bad(r?.message || 'Request failed', r?.error === 'taken' || r?.error === 'bad_name' ? f.name : f.pw);
+      sub.disabled = false; sub.textContent = reg ? t('gate.createBtn') : t('gate.enter'); bad(serverMsg(r?.message || 'Request failed', r?.error), r?.error === 'taken' || r?.error === 'bad_name' ? f.name : f.pw);
     });
   }
   async function boot() {

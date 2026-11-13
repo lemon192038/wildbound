@@ -16,10 +16,14 @@ import { createStoragePanel } from '../ui/town/storagePanel.js';
 import { createDockPanel } from '../ui/town/dockPanel.js';
 import { createMenuPanel } from '../ui/town/menuPanel.js';
 import { dialogueFor } from '../ui/town/dialogue.js';
+import { t, questName, itemName, serverMsg, npcName, facilityName } from '../shared/i18n.js';
 
 const lsGet = (k, d) => { try { const v = localStorage.getItem('wb.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem('wb.' + k, JSON.stringify(v)); } catch { /* private mode */ } };
-const FAC = { quest: "Hunters' Guild", smith: 'The Forge', alchemy: 'Alchemy Atelier', shop: 'Harbour Market', storage: 'Item Box', dock: 'Departure Dock' };
+const FAC = new Proxy({}, { get: (_, k) => t('fac.' + String(k)) });
+// Interactables come from src/town/town.js with English names; show them localized by facility id.
+const whoOf = (it) => npcName(it.id, it.npc);
+const placeOf = (it) => facilityName(it.id, it.name || FAC[it.id]);
 
 export function createTownHud(game) {
   const acct = game.account; const events = game.events; const touch = game.input.touch;
@@ -40,7 +44,7 @@ export function createTownHud(game) {
     <div class="tw-plate"><div class="tw-crest"><small>HR</small><b class="tw-hr">1</b></div>
       <div class="tw-plate-m"><div class="tw-pname"></div><div class="tw-xpbar"><i></i></div><div class="tw-xptext tw-num"></div></div></div>
     <div class="tw-topright"><div class="tw-purse tw-frame">${coinSvg()}<b class="tw-num tw-purse-n">0</b><span class="tw-purse-d"></span></div>
-      <button class="tw-menu-btn tw-frame" data-a="menu" aria-label="Menu">${glyph('menu')}<span>Menu</span>${touch ? '' : '<kbd>Esc</kbd>'}</button></div>
+      <button class="tw-menu-btn tw-frame" data-a="menu" aria-label="${t('hud.menu')}">${glyph('menu')}<span>${t('hud.menu')}</span>${touch ? '' : '<kbd>Esc</kbd>'}</button></div>
     <div class="tw-tracker tw-frame"></div>
     <div class="tw-prompt"></div>
     <div class="tw-toasts" aria-live="polite"></div>`, root);
@@ -62,34 +66,34 @@ export function createTownHud(game) {
     coinTarget = s.coins; if (coinShown == null) { coinShown = s.coins; purseN.textContent = fmt(s.coins); }
     const p = s.profile; const span = p.nextXp ? p.nextXp - p.hrXp : 1; const prog = p.nextXp ? Math.min(1, Math.max(0, (p.xp - p.hrXp) / span)) : 1;
     $('.tw-hr').textContent = p.hr; $('.tw-pname').textContent = s.user.name;
-    $('.tw-xpbar i').style.transform = `scaleX(${prog})`; $('.tw-xptext').textContent = p.nextXp ? `${fmt(p.xp - p.hrXp)} / ${fmt(span)} XP` : `${fmt(p.xp)} XP · Max rank`;
+    $('.tw-xpbar i').style.transform = `scaleX(${prog})`; $('.tw-xptext').textContent = p.nextXp ? `${fmt(p.xp - p.hrXp)} / ${fmt(span)} XP` : t('hud.maxRank', { a: fmt(p.xp) });
     const ex = s.quests.expedition; const act = s.quests.active; const key = JSON.stringify([ex?.iid, act?.qid, act && QUESTS[act.qid]?.type === 'deliver' ? s.box : 0]);
     if (key === lastKey) return; lastKey = key;
-    if (ex) { const q = QUESTS[ex.qid]; tracker.className = 'tw-tracker tw-frame warn'; tracker.innerHTML = `<small>${glyph('sail')} Expedition under way</small><b>${esc(q.name)}</b><p>Return to the <em>Departure Dock</em> to resume the hunt.</p>`; }
+    if (ex) { const q = QUESTS[ex.qid]; tracker.className = 'tw-tracker tw-frame warn'; tracker.innerHTML = `<small>${glyph('sail')} ${t('d.underway')}</small><b>${esc(questName(ex.qid))}</b><p>${t('hud.resumeHint')}</p>`; }
     else if (act) {
       const q = QUESTS[act.qid];
-      tracker.className = 'tw-tracker tw-frame'; tracker.innerHTML = `<small>Active quest ${stars(q.stars)}</small><b>${esc(q.name)}</b><ul>${q.objectives.slice(0, 3).map((o) => `<li>${objectiveText(o, q, s.box)}</li>`).join('')}</ul>
-        <p>${q.type === 'deliver' ? 'Turn in at the <em>Hunters’ Guild</em>' : 'Set sail from the <em>Departure Dock</em>'}</p>`;
-    } else { tracker.className = 'tw-tracker tw-frame idle'; tracker.innerHTML = `<small>No active quest</small><p>Visit the <em>Hunters’ Guild</em> to take a contract.</p>`; }
+      tracker.className = 'tw-tracker tw-frame'; tracker.innerHTML = `<small>${t('hud.active')} ${stars(q.stars)}</small><b>${esc(questName(act.qid))}</b><ul>${q.objectives.slice(0, 3).map((o) => `<li>${objectiveText(o, q, s.box)}</li>`).join('')}</ul>
+        <p>${q.type === 'deliver' ? t('hud.turnIn') : t('hud.setSail')}</p>`;
+    } else { tracker.className = 'tw-tracker tw-frame idle'; tracker.innerHTML = `<small>${t('hud.noQuest')}</small><p>${t('hud.visitGuild')}</p>`; }
   }
   // notices (HR up …) are shown as a banner, then acknowledged on the server.
   let acking = false;
   async function showNotices() {
     const s = state(); if (!s?.notices?.length || acking || gate.open) return; acking = true;
     const list = [...s.notices];
-    for (const n of list) await banner(/rank/i.test(n) ? 'Rank Up' : 'Notice', n);
+    for (const n of list) await banner(/rank/i.test(n) ? t('hud.rankUp') : t('hud.notice'), serverMsg(n));
     await acct.act('ackNotices'); acking = false;
   }
   function banner(title, sub, items = '') {
     return new Promise((res) => {
-      const b = el('div', 'tw-banner', `<div class="tw-banner-band"><h1>${esc(title)}</h1><p>${esc(sub)}</p>${items}<small>${touch ? 'Tap' : 'Click'} to continue</small></div>`, root);
+      const b = el('div', 'tw-banner', `<div class="tw-banner-band"><h1>${esc(title)}</h1><p>${esc(sub)}</p>${items}<small>${touch ? t('hud.tapCont') : t('hud.clickCont')}</small></div>`, root);
       const done = () => { if (!b.isConnected) return; b.classList.add('out'); setTimeout(() => { b.remove(); res(); }, 350); };
       b.addEventListener('click', done); setTimeout(done, 5200);
     });
   }
   function rewards(r, name) {
-    if (!r) return; const items = Object.entries(r.items || {}).map(([k, n]) => `<li>${itemIcon(k, { size: 'sm' })}<span>${esc(ITEMS[k]?.name || k)}</span><b>×${n}</b></li>`).join('');
-    banner('Quest Complete', name, `<div class="tw-banner-rw">${coinsHtml(r.coins)}<span class="tw-xp">+${fmt(r.xp)} XP</span></div>${items ? `<ul class="tw-banner-items">${items}</ul>` : ''}`);
+    if (!r) return; const items = Object.entries(r.items || {}).map(([k, n]) => `<li>${itemIcon(k, { size: 'sm' })}<span>${esc(itemName(k))}</span><b>×${n}</b></li>`).join('');
+    banner(t('hud.questComplete'), name, `<div class="tw-banner-rw">${coinsHtml(r.coins)}<span class="tw-xp">+${fmt(r.xp)} XP</span></div>${items ? `<ul class="tw-banner-items">${items}</ul>` : ''}`);
   }
 
   // ------------------------------------------------------------------ facility windows
@@ -102,11 +106,11 @@ export function createTownHud(game) {
       win?.node.classList.add('busy');
       const r = await acct.act(type, payload);
       win?.node.classList.remove('busy');
-      toast(r.ok ? r.message || 'Done' : r.message || 'Request failed', r.ok ? 'ok' : 'err');
+      toast(r.ok ? serverMsg(r.message) || t('hud.done') : serverMsg(r.message || 'Request failed', r.error), r.ok ? 'ok' : 'err');
       render(); return r;
     },
     open: (id) => openPanel(id), rerender: () => render(),
-    navigate(url, text) { leaving = true; const v = el('div', 'tw-voyage-fade', `<div><span class="tw-spin"></span><p>${esc(text || 'Setting sail…')}</p></div>`, root); requestAnimationFrame(() => v.classList.add('on')); setTimeout(() => { location.href = url; }, 900); },
+    navigate(url, text) { leaving = true; const v = el('div', 'tw-voyage-fade', `<div><span class="tw-spin"></span><p>${esc(text || t('hud.settingSail'))}</p></div>`, root); requestAnimationFrame(() => v.classList.add('on')); setTimeout(() => { location.href = url; }, 900); },
     logout: async () => { closeWin(); await acct.logout(); },
   };
   const panels = { quest: createQuestPanel(ctx), smith: createForgePanel(ctx), alchemy: createAlchemyPanel(ctx), shop: createMarketPanel(ctx), storage: createStoragePanel(ctx), dock: createDockPanel(ctx), menu: createMenuPanel(ctx) };
@@ -116,9 +120,9 @@ export function createTownHud(game) {
     if (!state() || leaving) return; closeDialogue(); if (win) closeWin(true);
     const p = panels[id]; p.onOpen?.(); releasePointer();
     const node = el('div', 'tw-win-ov', `<div class="tw-win tw-frame" data-panel="${id}" role="dialog" aria-label="${esc(p.title)}">
-      <header class="tw-win-h"><span class="tw-win-ico">${glyph(p.icon)}</span><div class="tw-win-t"><h1>${esc(p.title)}</h1><small>${esc(p.npc || npcOf(id))}</small></div>
-        <div class="tw-win-coins"></div><button class="tw-x" data-close aria-label="Close">${glyph('close')}</button></header>
-      <nav class="tw-tabs" role="tablist"></nav><div class="tw-win-body"></div><div class="tw-win-foot">${touch ? '' : '<span><kbd>Esc</kbd> Close</span>'}</div></div>`, root);
+      <header class="tw-win-h"><span class="tw-win-ico">${glyph(p.icon)}</span><div class="tw-win-t"><h1>${esc(p.title)}</h1><small>${esc(p.npc || npcName(id, npcOf(id)))}</small></div>
+        <div class="tw-win-coins"></div><button class="tw-x" data-close aria-label="${t('hud.close')}">${glyph('close')}</button></header>
+      <nav class="tw-tabs" role="tablist"></nav><div class="tw-win-body"></div><div class="tw-win-foot">${touch ? '' : `<span><kbd>Esc</kbd> ${t('hud.close')}</span>`}</div></div>`, root);
     swallowTouch(node);
     win = { id, panel: p, node, body: node.querySelector('.tw-win-body'), tabs: node.querySelector('.tw-tabs'), coins: node.querySelector('.tw-win-coins') };
     node.addEventListener('click', async (e) => {
@@ -147,15 +151,15 @@ export function createTownHud(game) {
     if (!win) return; confirmDialog.active?.(false); const n = win.node; win = null; n.classList.remove('on'); n.classList.add('out'); setTimeout(() => n.remove(), 220);
     if (!silent) restorePointer();
   }
-  function tickCountdowns() { if (!win) return; for (const n of win.body.querySelectorAll('[data-countdown]')) { const s = (+n.dataset.countdown - now()) / 1000; n.textContent = s > 0 ? clock(s) : 'moments'; } }
+  function tickCountdowns() { if (!win) return; for (const n of win.body.querySelectorAll('[data-countdown]')) { const s = (+n.dataset.countdown - now()) / 1000; n.textContent = s > 0 ? clock(s) : t('hud.moments'); } }
 
   // ------------------------------------------------------------------ NPC dialogue
   const visits = {};
   function openDialogue(it) {
     if (!state()) return; closeDialogue(); releasePointer();
     const d = dialogueFor(it.id, state(), (visits[it.id] = (visits[it.id] || 0) + 1) - 1);
-    const node = el('div', 'tw-dlg', `<div class="tw-dlg-box tw-frame"><div class="tw-dlg-plate"><span class="tw-dlg-ico">${glyph(it.id)}</span><div><b>${esc(it.npc)}</b><small>${esc(it.name || FAC[it.id])}</small></div></div>
-      <p class="tw-dlg-text"></p><div class="tw-dlg-foot"><span class="tw-dlg-next">${touch ? 'Tap to continue' : '<kbd>E</kbd> Continue'}</span><div class="tw-dlg-choices"></div></div></div>`, root);
+    const node = el('div', 'tw-dlg', `<div class="tw-dlg-box tw-frame"><div class="tw-dlg-plate"><span class="tw-dlg-ico">${glyph(it.id)}</span><div><b>${esc(whoOf(it))}</b><small>${esc(placeOf(it))}</small></div></div>
+      <p class="tw-dlg-text"></p><div class="tw-dlg-foot"><span class="tw-dlg-next">${touch ? t('hud.tapCont') : `<kbd>E</kbd> ${t('hud.continue')}`}</span><div class="tw-dlg-choices"></div></div></div>`, root);
     swallowTouch(node);
     dlg = { it, d, node, line: 0, typed: 0, text: node.querySelector('.tw-dlg-text'), done: false };
     node.querySelector('.tw-dlg-choices').innerHTML = d.choices.map((c, i) => `<button class="tw-btn ${c.id === 'open' ? 'tw-primary' : 'tw-ghost'}" data-c="${c.id}">${touch ? '' : `<kbd>${c.id === 'open' ? 'E' : i + 1}</kbd>`}${esc(c.label)}</button>`).join('');
@@ -177,9 +181,9 @@ export function createTownHud(game) {
   }
 
   // ------------------------------------------------------------------ account gate
-  const gate = createAccountScreen(root, acct, { onReady: (s, isNew) => { hud.classList.remove('tw-hidden'); syncHud(); if (isNew) setTimeout(() => toast(`Welcome to the harbour, ${s.user.name}!`, 'ok'), 400); else toast(`Welcome back, ${s.user.name}.`); showNotices(); } });
+  const gate = createAccountScreen(root, acct, { onReady: (s, isNew) => { hud.classList.remove('tw-hidden'); syncHud(); if (isNew) setTimeout(() => toast(t('hud.welcomeNew', { name: s.user.name }), 'ok'), 400); else toast(t('hud.welcomeBack', { name: s.user.name })); showNotices(); } });
   events.on('account:state', ({ state: s }) => { if (s?.serverTime) clockOffset = s.serverTime - Date.now(); syncHud(); if (win) render(); showNotices(); });
-  events.on('account:logout', (e) => { closeWin(true); closeDialogue(); hud.classList.add('tw-hidden'); coinShown = null; lastKey = ''; gate.show(e?.expired ? 'Your session expired — please sign in again.' : 'You have logged out.', e?.expired ? 'err' : 'info'); });
+  events.on('account:logout', (e) => { closeWin(true); closeDialogue(); hud.classList.add('tw-hidden'); coinShown = null; lastKey = ''; gate.show(e?.expired ? t('hud.expired') : t('hud.loggedOut'), e?.expired ? 'err' : 'info'); });
   gate.boot();
 
   // ------------------------------------------------------------------ pointer lock & keys
@@ -234,10 +238,10 @@ export function createTownHud(game) {
       const key = showPrompt ? near.id : '';
       if (key !== promptKey) {
         promptKey = key;
-        prompt.innerHTML = showPrompt ? `<div class="tw-prompt-in">${touch ? '' : '<kbd>E</kbd>'}<span class="tw-prompt-act">${near.id === 'dock' && state()?.quests.expedition ? 'Board' : 'Talk'}</span><span class="tw-prompt-sep">·</span><span class="tw-prompt-who"><b>${esc(near.npc)}</b><small>${esc(near.name || FAC[near.id])}</small></span></div>` : '';
+        prompt.innerHTML = showPrompt ? `<div class="tw-prompt-in">${touch ? '' : '<kbd>E</kbd>'}<span class="tw-prompt-act">${near.id === 'dock' && state()?.quests.expedition ? t('hud.board') : t('hud.talk')}</span><span class="tw-prompt-sep">·</span><span class="tw-prompt-who"><b>${esc(whoOf(near))}</b><small>${esc(placeOf(near))}</small></span></div>` : '';
         prompt.classList.toggle('on', !!showPrompt);
       }
-      touch?.setAction?.(showPrompt ? 'TALK' : null);
+      touch?.setAction?.(showPrompt ? t('touch.talk') : null);
     },
   };
 }
