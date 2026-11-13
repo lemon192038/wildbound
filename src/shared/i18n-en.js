@@ -85,7 +85,7 @@ export default {
     'm.sellRareQ': 'Sell rare goods?', 'm.sellBody': 'Sell {x} for {c}?', 'm.rareSub': 'Rare materials are hard to come by.',
     // item box
     'box.activeSkills': 'Active skills', 'box.noSkills': 'No skills active.', 'box.matsStay': 'Materials stay in the box — only consumables and tools can be carried.', 'box.carryMax': 'You can carry at most {n}.',
-    'box.pouchFull': 'Your pouch is full.', 'box.noneLeft': 'None left in the box.', 'box.busy': 'Cannot reorganise during a hunt.', 'box.inPouch': 'In pouch', 'box.sellValue': 'Sell value', 'box.move': 'Move',
+    'box.pouchFull': 'Your pouch is full.', 'box.noneLeft': 'None left in the box.', 'box.busy': 'Cannot reorganise during a hunt.', 'box.inPouch': 'In pouch', 'box.sellValue': 'Sell value', 'box.sellEach': '{n} each', 'box.move': 'Move',
     'box.pack': 'Pack into pouch', 'box.store': 'Store in box', 'box.select': 'Select an item.', 'box.kinds': '{n} kinds', 'box.sort': 'Sort', 'box.nothing': 'Nothing here.', 'box.pouch': 'Pouch',
     'box.slots': '{a} / {b} slots', 'box.pouchSub': 'Taken on every expedition.', 'box.busyGear': 'Cannot change gear during a hunt.', 'box.empty': 'Empty', 'box.ownedFor': '{s} · owned',
     'box.noneForSlot': 'Nothing owned for this slot.', 'box.forgeSome': 'Forge some at the smithy.', 'box.unequip': 'Unequip', 'box.equip': 'Equip', 'box.hunterStats': 'Hunter stats',

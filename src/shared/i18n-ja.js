@@ -90,7 +90,7 @@ export default {
     'm.sellRareQ': '希少品を売却しますか？', 'm.sellBody': '{x}を{c}で売却しますか？', 'm.rareSub': '希少な素材は、なかなか手に入りません。',
     // アイテムボックス
     'box.activeSkills': '発動スキル', 'box.noSkills': '発動中のスキルはありません。', 'box.matsStay': '素材はボックスに保管されます。持ち出せるのは消耗品と狩猟道具だけです。', 'box.carryMax': '持てるのは最大{n}個までです。',
-    'box.pouchFull': 'ポーチがいっぱいです。', 'box.noneLeft': 'ボックスに残っていません。', 'box.busy': '狩猟中は整理できません。', 'box.inPouch': 'ポーチ内', 'box.sellValue': '売値', 'box.move': '移動数',
+    'box.pouchFull': 'ポーチがいっぱいです。', 'box.noneLeft': 'ボックスに残っていません。', 'box.busy': '狩猟中は整理できません。', 'box.inPouch': 'ポーチ内', 'box.sellValue': '売値', 'box.sellEach': '1個 {n}コイン', 'box.move': '移動数',
     'box.pack': 'ポーチへ入れる', 'box.store': 'ボックスへ戻す', 'box.select': 'アイテムを選んでください。', 'box.kinds': '{n}種類', 'box.sort': '並び替え', 'box.nothing': '何もありません。', 'box.pouch': 'ポーチ',
     'box.slots': '{a} / {b}枠', 'box.pouchSub': '狩猟に毎回持っていく道具です。', 'box.busyGear': '狩猟中は装備を変更できません。', 'box.empty': 'なし', 'box.ownedFor': '{s}・所持品',
     'box.noneForSlot': 'この部位の装備を持っていません。', 'box.forgeSome': '鍛冶場で生産しましょう。', 'box.unequip': '外す', 'box.equip': '装備する', 'box.hunterStats': 'ハンターの能力',
@@ -112,7 +112,7 @@ export default {
     'menu.noExp': '狩猟の記録はまだありません。', 'menu.ledger': 'コインの収支', 'menu.noTx': '取引の記録はありません。', 'menu.controls': '操作とサウンド', 'menu.account': 'アカウント',
     'menu.signedIn': '{name}でログイン中です。進行状況は操作のたびにギルドのサーバーへ保存されます。', 'menu.logout': 'ログアウト', 'menu.keys': '操作キー', 'menu.logoutQ': 'ログアウトしますか？',
     'menu.logoutBody': '進行状況はサーバーに保存されています。いつでもログインし直せます。',
-    'set.sens': '視点感度', 'set.vol': '全体音量', 'set.gfx': '画質', 'set.high': '高', 'set.low': '低', 'set.lang': '言語 / Language',
+    'set.sens': '視点感度', 'set.vol': '全体音量', 'set.gfx': '画質', 'set.high': '高画質', 'set.low': '軽量', 'set.lang': '言語',
     'key.move': '移動', 'key.mouse': 'マウス', 'key.look': '視点', 'key.sprint': 'ダッシュ', 'key.talk': '話す', 'key.menuClose': 'メニュー／閉じる', 'key.lmb': '左クリック', 'key.rmb': '右クリック', 'key.light': '通常攻撃',
     'key.heavy': '強攻撃／溜め', 'key.dodge': '回避', 'key.guard': 'ガード', 'key.lock': 'ロックオン', 'key.drink': 'アイテム使用', 'key.interact': '調べる', 'key.chat': 'チャット', 'key.menu': 'メニュー',
     // 狩猟HUD

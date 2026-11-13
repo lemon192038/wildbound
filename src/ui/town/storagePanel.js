@@ -36,7 +36,7 @@ export function createStoragePanel(ctx) {
     const busy = s.quests.expedition ? t('box.busy') : '';
     const det = it ? `<header class="tw-dh">${itemIcon(sel.id, { size: 'xl' })}<div><h2 style="color:${rarityColor(it.rarity)}">${esc(itemName(sel.id))}</h2><div class="tw-dh-tags">${rarityTag(it.rarity)}<span class="tw-pill dim">${KIND[it.kind]}</span></div></div></header>
       <p class="tw-flavor">${esc(itemDesc(sel.id))}</p>
-      <dl class="tw-kv wide"><dt>${t('m.inBoxLabel')}</dt><dd class="tw-num">${fmt(s.box[sel.id] || 0)}</dd><dt>${t('box.inPouch')}</dt><dd class="tw-num">${fmt(s.pouch[sel.id] || 0)}${it.pouchMax ? ` / ${it.pouchMax}` : ''}</dd>${it.sell ? `<dt>${t('box.sellValue')}</dt><dd class="tw-num">${t('m.each', { c: fmt(it.sell) })}</dd>` : ''}</dl>
+      <dl class="tw-kv wide"><dt>${t('m.inBoxLabel')}</dt><dd class="tw-num">${fmt(s.box[sel.id] || 0)}</dd><dt>${t('box.inPouch')}</dt><dd class="tw-num">${fmt(s.pouch[sel.id] || 0)}${it.pouchMax ? ` / ${it.pouchMax}` : ''}</dd>${it.sell ? `<dt>${t('box.sellValue')}</dt><dd class="tw-num">${t('box.sellEach', { n: fmt(it.sell) })}</dd>` : ''}</dl>
       ${max ? `<div class="tw-qtyrow"><span>${t('box.move')}</span>${stepper(qty, max)}</div>` : ''}
       <footer class="tw-qd-f">${sel.bag === 'box' ? btn(`${t('box.pack')} ${glyph('arrowR')}`, 'move', { cls: 'tw-primary', dis: !!(why || busy) || !max, why: busy || why }) : btn(`${glyph('arrowL')} ${t('box.store')}`, 'move', { cls: 'tw-primary', dis: !!busy || !max, why: busy })}</footer>`
       : empty(t('box.select'));

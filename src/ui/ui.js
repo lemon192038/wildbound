@@ -2,7 +2,7 @@
 // Reads game.player / game.monsters / game.net defensively (any may be stubs or late-bound).
 // Cheap per frame: DOM is written only when a quantised value changes; moving things use transforms.
 import './ui.css';
-import { t, monsterShort, monsterTitle, itemName, itemDesc, partName, langToggleHtml, bindLangToggle } from '../shared/i18n.js';
+import { t, monsterShort, monsterTitle, itemName as iName, partName, langToggleHtml, bindLangToggle } from '../shared/i18n.js';
 
 const SVG = {
   weapon: `<svg viewBox="0 0 64 64" class="wb-weapon" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round">
@@ -119,10 +119,10 @@ export function createUI(game) {
   // Quest hunts: the bar shows what you actually carried (game.fieldItems from src/field/questRuntime.js).
   const iconFor = (id) => (id === 'whetstone' ? SVG.whet : id === 'flashPod' ? SVG.flash : id === 'snareCoil' || id === 'tranqBomb' ? SVG.trap : SVG.potion);
   const ITEMS = game.fieldItems ? game.fieldItems.list().map((it) => ({ ...it, icon: iconFor(it.id) })) : [
-    { id: 'potion', name: itemName('potion'), desc: t('it.restoresVigor'), icon: SVG.potion },
+    { id: 'potion', name: iName('potion'), desc: t('it.restoresVigor'), icon: SVG.potion },
     { id: 'whetstone', name: t('it.whetstone'), desc: t('it.whetDesc'), icon: SVG.whet },
-    { id: 'flash', name: itemName('flashPod'), desc: t('it.noneInPouch'), icon: SVG.flash, stub: true },
-    { id: 'trap', name: itemName('snareCoil'), desc: t('it.noneInPouch'), icon: SVG.trap, stub: true },
+    { id: 'flash', name: iName('flashPod'), desc: t('it.noneInPouch'), icon: SVG.flash, stub: true },
+    { id: 'trap', name: iName('snareCoil'), desc: t('it.noneInPouch'), icon: SVG.trap, stub: true },
   ];
   let sel = Math.max(0, Math.min(ITEMS.length - 1, lsGet('item', 0) | 0));
   const item = el('div', 'wb-items', `<div class="wb-item-name"><b></b><span></span></div><div class="wb-item-row"></div>`, hud);

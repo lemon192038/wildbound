@@ -79,7 +79,7 @@ export function createQuestPanel(ctx) {
     onOpen() { const a = st().quests.active?.qid; if (a) { tab = TABS.find((t) => t.types?.includes(QUESTS[a].type))?.id || 'slay'; sel = a; } else this.tab = tab; },
     render() {
       const s = st(); if (tab === 'history') return history(s);
-      const t = TABS.find((x) => x.id === tab); const ids = Object.keys(QUESTS).filter((k) => t.types.includes(QUESTS[k].type)).sort((a, b) => QUESTS[a].stars - QUESTS[b].stars);
+      const tb = TABS.find((x) => x.id === tab); const ids = Object.keys(QUESTS).filter((k) => tb.types.includes(QUESTS[k].type)).sort((a, b) => QUESTS[a].stars - QUESTS[b].stars);
       return `<div class="tw-split"><div class="tw-list tw-scroll" data-keep="ql">${ids.map((k) => row(k, s)).join('') || empty(t('q.none'))}</div>
         <div class="tw-detail tw-scroll" data-keep="qd">${detail(sel, s)}</div></div>`;
     },
