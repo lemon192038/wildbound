@@ -1,0 +1,14 @@
+{
+  "name": "wildbound",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "server": "node server/server.js",
+    "start": "vite build && node server/server.js"
+  },
+  "dependencies": { "three": "0.187.0", "ws": "8.22.2" },
+  "devDependencies": { "vite": "8.3.8" }
+}
