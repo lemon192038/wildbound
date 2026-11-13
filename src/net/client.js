@@ -138,7 +138,7 @@ function startOnline(game, net, params, remote = '') {
   function connect() {
     clearTimeout(reconnectTimer);
     try { ws = new WebSocket(url); } catch (e) { return scheduleReconnect(); }
-    ws.onopen = () => { backoff = 1000; tx({ t: 'hello', n: name || undefined, r: currentRoom || undefined, k: game.hunt === 'wyvern' ? 'wyvern' : undefined }); };
+    ws.onopen = () => { backoff = 1000; tx({ t: 'hello', n: name || undefined, r: currentRoom || undefined, k: game.hunt && game.hunt !== 'varkhul' ? game.hunt : undefined }); };
     ws.onmessage = (ev) => {
       if (typeof ev.data !== 'string' || ev.data.length > 65536) return;
       let m; try { m = JSON.parse(ev.data); } catch { return; }

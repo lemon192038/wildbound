@@ -86,7 +86,7 @@ export function createUI(game) {
   const bladeFill = blade.querySelector('.wb-blade-fill'), bladeTier = blade.querySelector('.wb-blade-tier');
   // Status ailments (src/core/status.js): chips under the bars, tinted HP bar.
   const ailRow = el('div', 'wb-ail-row', null, bars);
-  const AIL = { burn: { cls: 'wb-ail-burn', label: { small: 'BURNING', large: 'BLAZING' } }, poison: { cls: 'wb-ail-poison', label: { normal: 'POISONED', deadly: 'DEADLY POISON' } } };
+  const AIL = { burn: { cls: 'wb-ail-burn', label: { small: 'BURNING', large: 'BLAZING' } }, poison: { cls: 'wb-ail-poison', label: { normal: 'POISONED', deadly: 'DEADLY POISON' } }, blast: { cls: 'wb-ail-blast', label: { normal: 'BLASTBLIGHT' } } };
   const ailEls = {};
 
   // ---------------------------------------------------------------- nav: minimap, timer, limp
@@ -274,7 +274,8 @@ export function createUI(game) {
     title = el('div', 'wb-title', `<div class="wb-embers"></div><div class="wb-logo">${SVG.emblem}<div class="wb-logo-word">WILDBOUND</div><div class="wb-logo-tag">HUNT · FORGE · ENDURE</div></div>
       <div class="wb-quests"><div class="wb-quest-label">CHOOSE YOUR QUARRY</div><div class="wb-quest-row">
         <button class="wb-quest${game.hunt !== 'wyvern' ? ' wb-on' : ''}" data-hunt="varkhul"><b>VARKHUL</b><span>The Emberhide · ground</span></button>
-        <button class="wb-quest${game.hunt === 'wyvern' ? ' wb-on' : ''}" data-hunt="wyvern"><b>CINDRAL</b><span>The Ashwing · sky</span></button></div></div>
+        <button class="wb-quest${game.hunt === 'wyvern' ? ' wb-on' : ''}" data-hunt="wyvern"><b>CINDRAL</b><span>The Ashwing · sky</span></button>
+        <button class="wb-quest${game.hunt === 'brute' ? ' wb-on' : ''}" data-hunt="brute"><b>GORVATH</b><span>The Cinderfist · colossal</span></button></div></div>
       <div class="wb-cta">CLICK TO BEGIN THE HUNT</div>
       <div class="wb-frame wb-controls">${controls.map(([k, v]) => `<div><span class="wb-kbd">${k}</span>${v}</div>`).join('')}</div><div class="wb-ver">v0.1 · <span class="wb-ver-net">${params.get('online') === '1' ? 'CONNECTING…' : 'SOLO · OFFLINE'}</span></div>`, root);
     const emb = title.firstChild;
@@ -285,7 +286,7 @@ export function createUI(game) {
       const pick = (e) => {
         e.stopPropagation(); e.preventDefault();
         if (b.classList.contains('wb-on')) return;
-        const u = new URL(location.href); b.dataset.hunt === 'wyvern' ? u.searchParams.set('hunt', 'wyvern') : u.searchParams.delete('hunt'); location.href = u.toString();
+        const u = new URL(location.href); b.dataset.hunt !== 'varkhul' ? u.searchParams.set('hunt', b.dataset.hunt) : u.searchParams.delete('hunt'); location.href = u.toString();
       };
       b.addEventListener('mousedown', pick); b.addEventListener('touchend', pick);
     });

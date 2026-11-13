@@ -49,6 +49,16 @@ Choose on the title screen, or use the URL: `?hunt=wyvern`.
     - **Deadly poison:** about 6 HP/s for 16 s. Drinking a draught halves what remains.
   - **How to fight it:** while it hovers, hit its tail and legs. When it lands after a dive, or while it is exhausted, go for the head. Breaking the wings or tail crashes it to the ground.
   - **Re-rigging a new export:** `node tools/rig-wyvern.mjs <source.glb> public/models/wyvern.glb`
+- **Gorvath, the Cinderfist** (`?hunt=brute`) is a colossal knuckle-walking brute: an original design generated in code (`src/monster/bruteModel.js`).
+  - **Criticality:** molten cinder growths on the brow, both fists and the tail club heat up on their own, over time and when struck. They go from dull red to white-hot "critical", throwing sparks and heat.
+  - **Detach blast:** striking a hot growth hard enough tears it off. The molten mass drops and explodes about 1–1.3 s later, causing blastblight. The growth regrows in about 25 s.
+  - **Moves:** fist slam, double slam, sweeping backhand, brow slam, leap slam, tail swipe, charge and roar. Hot fists spatter bursting cinder.
+  - **Final phase** (below 35% HP):
+    - It leaps to the arena, roars and slams both fists, raising a ring of basalt spires. The ring seals the arena and holds the hunter in.
+    - Cinder now pools as a "cinder sea" that deals slip damage plus blastblight.
+    - **Cataclysm:** a long rearing roar, then every pool and lump detonates in a chain. Enough damage during the wind-up breaks it.
+    - **Self-harm:** its own blasts and the heat burn it, and it can die by its own fire.
+  - **Blastblight** (`src/core/status.js`) detonates on the hunter after about 9 s for 32 damage. Each new exposure shortens the fuse, and 3 dodge rolls shake it off.
 - **Co-op:** rooms are matched per quarry.
 
 **Quest loop:** slaying the boss shows QUEST COMPLETE with spoils and a countdown. After 30 s (set with `?respawn=N` seconds) a fresh boss of the same quarry appears and the quest restarts. The hunter is restored: HP, stamina, sharpness, 10 potions. A timed-out quest (QUEST FAILED) restarts the same way. In co-op the host decides when the respawn happens; snapshots carry a quest generation, so every client switches over together (`src/core/quest.js`).

@@ -65,16 +65,19 @@ export function createWyvernFx(game, monster) {
   // ---------------------------------------------------------------- fire patches
   const patchGeo = new THREE.PlaneGeometry(2, 2); patchGeo.rotateX(-Math.PI / 2);
   const patches = [];
-  function addPatch(p, r = 2, l = 6) {
-    if (patches.length > 40) { const old = patches.shift(); scene.remove(old.mesh); old.mesh.material.dispose(); }
-    const mesh = new THREE.Mesh(patchGeo, new THREE.MeshBasicMaterial({ map: scorch, color: 0xffffff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+  // opts: { status: [kind, level] (default small burn), drain (HP per 0.5 s tick), tint (hex), max (pool cap) }
+  function addPatch(p, r = 2, l = 6, opts = {}) {
+    if (patches.length > (opts.max || 40)) { const old = patches.shift(); scene.remove(old.mesh); old.mesh.material.dispose(); }
+    const mesh = new THREE.Mesh(patchGeo, new THREE.MeshBasicMaterial({ map: scorch, color: opts.tint ?? 0xffffff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
     mesh.scale.setScalar(r * 1.25); mesh.rotation.y = Math.random() * Math.PI * 2; mesh.position.set(p.x, ground(p.x, p.z) + 0.08, p.z); mesh.renderOrder = 2; scene.add(mesh);
-    patches.push({ mesh, r, t: 0, life: l, tick: 0 });
+    const patch = { mesh, r, t: 0, life: l, tick: 0, status: opts.status || ['burn', 'small'], drain: opts.drain ?? 2, kind: opts.kind || 'fire' };
+    patches.push(patch); return patch;
   }
 
   // ---------------------------------------------------------------- explosions
   const rocks = [];
-  function explode(p, { radius = 6.5, damage = 48, knockback = 14, status = ['burn', 'large'], patch = true, big = true } = {}) {
+  function explode(p, { radius = 6.5, damage = 48, knockback = 14, status = ['burn', 'large'], patch = true, big = true, patchOpts } = {}) {
+    monster?.onFxBlast?.(p, radius); // e.g. a boss that is hurt by its own blasts
     puff(p.clone().setY(p.y + 0.6), big ? 90 : 45, big ? 16 : 10, big ? 1.0 : 0.7, 0.8);
     burst(p.clone().setY(p.y + 0.6), big ? 46 : 24, big ? 15 : 10, 1.1);
     world.spawnDust?.(p.clone(), big ? 2.6 : 1.3);
@@ -87,7 +90,7 @@ export function createWyvernFx(game, monster) {
       events.emit('camera:shake', { intensity: clamp((big ? 1.1 : 0.6) - d / 40, 0.15, 1), duration: big ? 0.6 : 0.35 });
       if (d < radius) hurt({ damage: damage * (monster.enraged ? 1.15 : 1), knockback, from: p.clone(), kind: 'fire' }, status);
     }
-    if (patch) addPatch(p, big ? 3.2 : 2, big ? 5 : 3.5);
+    if (patch) addPatch(p, patchOpts?.r ?? (big ? 3.2 : 2), patchOpts?.life ?? (big ? 5 : 3.5), patchOpts);
     // chain reaction: nearby rocks blow shortly after
     for (const r of rocks) if (r.set && !r.dead && r.mesh.position.distanceTo(p) < 8.5) r.fuse = Math.min(r.fuse, r.t + 0.18 + Math.random() * 0.1);
   }
@@ -95,12 +98,13 @@ export function createWyvernFx(game, monster) {
   // ---------------------------------------------------------------- rock bombs
   const rockGeo = new THREE.IcosahedronGeometry(1, 1);
   { const a = rockGeo.attributes.position; for (let i = 0; i < a.count; i++) { const k = 0.8 + Math.random() * 0.35; a.setXYZ(i, a.getX(i) * k, a.getY(i) * k * 0.85, a.getZ(i) * k); } rockGeo.computeVertexNormals(); }
-  function spitRock(from, to, fuse = 3.4) {
-    if (rocks.filter((r) => !r.dead).length >= 7) return null;
-    const mesh = new THREE.Mesh(rockGeo, new THREE.MeshStandardMaterial({ color: 0x2b211b, roughness: 0.92, metalness: 0.05, emissive: new THREE.Color(1, 0.22, 0.05), emissiveIntensity: 0.25 }));
-    mesh.castShadow = true; mesh.scale.setScalar(1.05); mesh.position.copy(from); scene.add(mesh);
+  // opts: { size (scale), color, emissive (THREE.Color), blast (explode() options), max (live cap), gravity }
+  function spitRock(from, to, fuse = 3.4, opts = {}) {
+    if (rocks.filter((r) => !r.dead).length >= (opts.max || 7)) return null;
+    const mesh = new THREE.Mesh(rockGeo, new THREE.MeshStandardMaterial({ color: opts.color ?? 0x2b211b, roughness: 0.92, metalness: 0.05, emissive: opts.emissive || new THREE.Color(1, 0.22, 0.05), emissiveIntensity: 0.25 }));
+    mesh.castShadow = true; mesh.scale.setScalar(opts.size || 1.05); mesh.position.copy(from); scene.add(mesh);
     const flight = clamp(from.distanceTo(to) / 24, 0.45, 1.3); const v = new THREE.Vector3().subVectors(to, from).divideScalar(flight); v.y += 0.5 * 20 * flight;
-    const r = { mesh, v, set: false, dead: false, t: 0, fuse, spin: new THREE.Vector3(Math.random() * 6, Math.random() * 6, Math.random() * 6) };
+    const r = { mesh, v, set: false, dead: false, t: 0, fuse, size: opts.size || 1.05, blast: opts.blast, spin: new THREE.Vector3(Math.random() * 6, Math.random() * 6, Math.random() * 6) };
     rocks.push(r); events.emit('sfx', { name: 'bite', position: from.clone(), volume: 0.5, source: 'monster' });
     return r;
   }
@@ -161,11 +165,11 @@ export function createWyvernFx(game, monster) {
       }
       r.t += dt; const u = clamp(r.t / r.fuse, 0, 1);
       const late = u > 0.72 ? (Math.sin(r.t * (18 + 40 * (u - 0.72))) * 0.5 + 0.5) : 0;
-      r.mesh.scale.setScalar(1.05 + 0.6 * u * u + late * 0.06);
+      r.mesh.scale.setScalar(r.size * (1 + 0.57 * u * u + late * 0.06));
       r.mesh.material.emissiveIntensity = 0.3 + 3.2 * u * u + late * 2.5;
       if (Math.random() < dt * (3 + 20 * u)) emitFlame(p.clone().add(_v.set((Math.random() - 0.5) * 1.4, 0.8, (Math.random() - 0.5) * 1.4)), _v.set(0, 2 + 3 * u, 0), 0.5);
       requestLight(p.clone().setY(p.y + 1), 15 + 90 * u * u + late * 60);
-      if (r.t >= r.fuse) { r.dead = true; scene.remove(r.mesh); r.mesh.material.dispose(); explode(p.clone().setY(ground(p.x, p.z))); }
+      if (r.t >= r.fuse) { r.dead = true; scene.remove(r.mesh); r.mesh.material.dispose(); explode(p.clone().setY(ground(p.x, p.z)), r.blast); }
     }
     // fireballs
     for (let i = balls.length - 1; i >= 0; i--) {
@@ -186,7 +190,7 @@ export function createWyvernFx(game, monster) {
       f.mesh.material.opacity = (0.8 + Math.sin(f.t * 11 + i) * 0.15) * (1 - u * u);
       if (Math.random() < dt * 7 * f.r) emitFlame(f.mesh.position.clone().add(_v.set((Math.random() - 0.5) * f.r * 1.6, 0.2, (Math.random() - 0.5) * f.r * 1.6)), _v.set(0, 2.2, 0), 0.6);
       if (pl && !pl.dead && pl.position.distanceTo(f.mesh.position) < f.r + 0.3 && Math.abs(pl.position.y - f.mesh.position.y) < 1.5) {
-        f.tick -= dt; if (f.tick <= 0) { f.tick = 0.5; game.status?.apply('burn', 'small'); pl.drain?.(2); }
+        f.tick -= dt; if (f.tick <= 0) { f.tick = 0.5; game.status?.apply(...f.status); pl.drain?.(f.drain); }
       }
       if (f.t >= f.life) { scene.remove(f.mesh); f.mesh.material.dispose(); patches.splice(i, 1); }
     }
@@ -204,5 +208,7 @@ export function createWyvernFx(game, monster) {
     scene.remove(flames); flames.geometry.dispose(); pool.forEach((L) => scene.remove(L));
   }
 
-  return { emitFlame, puff, burst, spitRock, detonate, liveRocks, spitFireball, explode, addPatch, windBlast, hurt, requestLight, update, dispose };
+  const listPatches = () => patches;
+  function removePatch(f) { const i = patches.indexOf(f); if (i >= 0) { patches.splice(i, 1); scene.remove(f.mesh); f.mesh.material.dispose(); } }
+  return { listPatches, removePatch, emitFlame, puff, burst, spitRock, detonate, liveRocks, spitFireball, explode, addPatch, windBlast, hurt, requestLight, update, dispose };
 }

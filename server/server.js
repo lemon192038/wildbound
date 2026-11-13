@@ -19,7 +19,7 @@
 //
 // Client -> Server
 //   {t:'hello', n:name?, r:room?, k:kind?}  enter a room. r omitted => auto-matchmake. k = quarry
-//                                      ('varkhul' default | 'wyvern'); rooms never mix quarries.
+//                                      ('varkhul' default | 'wyvern' | 'brute'); rooms never mix quarries.
 //                                      into an open room (<4) or create one.
 //   {t:'p', x:[x,y,z,facing], s:{..}}  local player snapshot (player.serialize()).
 //                                      Server keeps only the latest; flushes 20Hz.
@@ -310,7 +310,7 @@ export function startServer({ port = Number(process.env.PORT ?? 8080), host = pr
         if (room) return strike(c, 'already_in_room');
         c.name = cleanText(msg.n, LIMITS.NAME_LEN) || 'Hunter-' + c.id.slice(-4);
         const req = cleanRoom(msg.r);
-        const kind = msg.k === 'wyvern' ? 'wyvern' : 'varkhul';
+        const kind = msg.k === 'wyvern' || msg.k === 'brute' ? msg.k : 'varkhul';
         let r = pickRoom(req, kind);
         if (!r) { send(c, { t: 'err', m: 'room_full' }); r = pickRoom('', kind); }
         return joinRoom(c, r);

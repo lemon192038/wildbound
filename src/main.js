@@ -6,6 +6,7 @@ import { createWorld } from './world/world.js';
 import { createPost } from './world/post.js';
 import { createMonster } from './monster/monster.js';
 import { createWyvern } from './monster/wyvern.js';
+import { createBrute } from './monster/brute.js';
 import { createPlayer } from './player/player.js';
 import { createCameraRig } from './player/camera.js';
 import { createNet } from './net/client.js';
@@ -41,9 +42,9 @@ async function boot() {
   const status = createStatus(game);             // burn / poison ailments on the local hunter
   game.addUpdater((dt) => status.update(dt));
   game.cameraRig = createCameraRig(game);        // third-person orbit cam, lock-on, shake
-  // Quest target: ?hunt=wyvern → Cindral (flying, user-made mesh), default → Varkhul.
-  game.hunt = game.params.get('hunt') === 'wyvern' ? 'wyvern' : 'varkhul';
-  const makeMonster = (g) => (g.hunt === 'wyvern' ? createWyvern : createMonster)(g);
+  // Quest target: ?hunt=wyvern → Cindral (flying, user-made mesh), ?hunt=brute → Gorvath, default → Varkhul.
+  game.hunt = ['wyvern', 'brute'].includes(game.params.get('hunt')) ? game.params.get('hunt') : 'varkhul';
+  const makeMonster = (g) => ({ wyvern: createWyvern, brute: createBrute }[g.hunt] || createMonster)(g);
   game.monsters.push(await makeMonster(game)); // boss monster: model, AI, hitzones
   game.audio = createAudio(game);                // procedural WebAudio sfx + music
   game.ui = createUI(game);                      // HUD, damage numbers, menus

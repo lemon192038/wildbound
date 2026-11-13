@@ -373,8 +373,8 @@
 /* quarry selection on the title screen */
 .wb-quests { margin-top: 2.2em; display: flex; flex-direction: column; align-items: center; gap: 0.6em; }
 .wb-quest-label { font-family: var(--serif); font-size: 0.75em; letter-spacing: 0.35em; color: rgba(246, 226, 170, 0.7); }
-.wb-quest-row { display: flex; gap: 1em; }
-.wb-quest { pointer-events: auto; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 0.25em; min-width: 12.5em; padding: 0.7em 1.2em;
+.wb-quest-row { display: flex; gap: 0.8em; flex-wrap: wrap; justify-content: center; }
+.wb-quest { pointer-events: auto; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 0.25em; min-width: 11em; padding: 0.7em 1.2em;
   background: rgba(10, 7, 4, 0.55); border: 1px solid rgba(214, 174, 96, 0.45); color: var(--parch); font-family: var(--serif); transition: border-color .2s, background .2s, transform .2s; }
 .wb-quest b { font-size: 1.05em; letter-spacing: 0.28em; font-weight: 600; }
 .wb-quest span { font-family: var(--sans, sans-serif); font-size: 0.72em; letter-spacing: 0.08em; opacity: 0.75; }
@@ -399,3 +399,5 @@
 @keyframes wbAilPulse { from { filter: brightness(0.9); } to { filter: brightness(1.25); } }
 .wb-bar.wb-hp.wb-poisoned .wb-fill { background: linear-gradient(180deg, #c58cf0, #7a2fc2 55%, #4d1782) !important; }
 .wb-bar.wb-hp.wb-burning .wb-fill { box-shadow: inset 0 0 0.5em rgba(255, 120, 40, 0.9); }
+.wb-ail-blast { border-color: rgba(255, 210, 80, 0.9); box-shadow: 0 0 0.7em rgba(255, 170, 40, 0.5); }
+.wb-ail-blast i { background: radial-gradient(circle at 50% 50%, #fffbe0, #ffc22e 40%, #d2561a 75%, #4a1205 100%); }
