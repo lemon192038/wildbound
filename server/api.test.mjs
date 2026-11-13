@@ -22,7 +22,7 @@ const give = (uid, bag) => store.mutateSave(uid, (d) => { for (const [k, v] of O
 
 // ---- accounts
 let r = await call('/api/register', { name: 'Ayla', password: 'hunter-pass-1' });
-ok(r.ok && r.token && r.state.coins === 600, 'register returns token + starting state (600 coins)');
+ok(r.ok && r.token && r.state.coins === 1500, 'register returns token + starting state (1,500 coins)');
 const A = r.token; const aId = r.state.user.id;
 ok((await call('/api/register', { name: 'ayla', password: 'another-pass' })).error === 'taken', 'duplicate name (case-insensitive) rejected');
 ok((await call('/api/register', { name: 'Bo', password: 'longenough' })).error === 'bad_name', 'too-short name rejected');
@@ -35,10 +35,12 @@ const rawUser = await store.getUserByNameKey('ayla'); ok(rawUser.pass.startsWith
 
 // ---- shop
 r = await act(A, 'buy', { item: 'potion', qty: 3 });
-ok(r.ok && r.state.coins === 600 - 180 && r.state.box.potion === 8, 'buy 3 potions: −180 coins, +3 in box');
+ok(r.ok && r.state.coins === 1500 - 180 && r.state.box.potion === 8, 'buy 3 potions: −180 coins, +3 in box');
 ok((await act(A, 'buy', { item: 'potion', qty: 50 })).error === 'stock', 'cannot exceed shop stock');
 ok((await act(A, 'buy', { item: 'vk_gem', qty: 1 })).error === 'not_sold', 'cannot buy unsold items');
-ok((await act(A, 'buy', { item: 'snareCoil', qty: 1 })).ok && (await act(A, 'buy', { item: 'ironOre', qty: 2 })).error === 'coins', 'insufficient coins blocks purchase');
+ok((await act(A, 'buy', { item: 'snareCoil', qty: 1 })).ok, 'buy a Snare Coil');
+await store.mutateSave(aId, (d) => { d.coins = 100; });
+ok((await act(A, 'buy', { item: 'ironOre', qty: 2 })).error === 'coins', 'insufficient coins blocks purchase');
 ok((await act(A, 'buy', { item: 'potion', qty: -2 })).error === 'bad_qty' && (await act(A, 'buy', { item: 'potion', qty: 1.5 })).error === 'bad_qty', 'negative / fractional quantities rejected');
 r = await act(A, 'sell', { item: 'potion', qty: 2 });
 ok(r.ok && r.state.box.potion === 6 && r.result.earned === 2 * ITEMS.potion.sell, 'sell 2 potions: −2 box, +coins');
@@ -46,7 +48,7 @@ ok((await act(A, 'sell', { item: 'potion', qty: 99 })).error === 'missing', 'can
 ok((await act(B, 'state')).error === 'bad_action', 'unknown action type rejected');
 
 // ---- isolation
-r = await call('/api/state', null, B); ok(r.state.coins === 600 && r.state.box.potion === 5 && r.state.user.id === bId, 'second account unaffected by first');
+r = await call('/api/state', null, B); ok(r.state.coins === 1500 && r.state.box.potion === 5 && r.state.user.id === bId, 'second account unaffected by first');
 
 // ---- concurrency: 12 parallel purchases with funds for exactly N
 await store.mutateSave(bId, (d) => { d.coins = 5 * 60; });

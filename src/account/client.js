@@ -53,7 +53,7 @@ export function createAccount(game) {
     act(type, payload = {}) {
       const run = async () => {
         const r = await request('/api/action', { type, ...payload });
-        if (r?.state) setState(r.state);
+        if (r?.state && type !== 'ping') setState(r.state); // ping only updates play time server-side; skip re-renders
         if (!r?.ok) emit('account:error', { message: r?.message || 'Request failed', error: r?.error });
         return { ok: !!r?.ok, result: r?.result, message: r?.message || r?.result?.msg, error: r?.error };
       };

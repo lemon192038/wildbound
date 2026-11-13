@@ -203,7 +203,7 @@ export const SHOP = {
 export const HR_XP = [0, 0, 300, 800, 1600, 2800, 4500, 7000, 10500]; // cumulative xp needed for HR index
 export const hrForXp = (xp) => { let hr = 1; for (let i = 2; i < HR_XP.length; i++) if (xp >= HR_XP[i]) hr = i; return hr; };
 export const POUCH = { slots: 16 };
-export const START = { coins: 600, box: { potion: 5, sunpetal: 3, glowcap: 2, honey: 2 }, pouch: { potion: 5 } };
+export const START = { coins: 1500, box: { potion: 5, sunpetal: 3, glowcap: 2, honey: 2 }, pouch: { potion: 5 } };
 
 // ---------------------------------------------------------------- derived helpers (pure)
 export const weaponStats = (defId, lv) => { const d = WEAPONS[defId]; if (!d) return null; const L = d.levels[Math.min(lv, d.levels.length - 1)]; return { ...L, rarity: d.rarity, name: d.name, maxLv: d.levels.length - 1, effect: d.effect }; };
