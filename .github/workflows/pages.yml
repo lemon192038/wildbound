@@ -32,7 +32,7 @@ jobs:
       - run: npx vite build
         env:
           VITE_STATIC: '1'
-          VITE_SERVER_URL: ${{ vars.WILDBOUND_SERVER_URL }}
+          VITE_SERVER_URL: ${{ vars.WILDBOUND_SERVER_URL || 'wss://wildbound-jl72.onrender.com' }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

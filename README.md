@@ -49,7 +49,7 @@ Static offline build (no co-op server): `VITE_STATIC=1 npx vite build --outDir <
 
 **Co-op server, Render (free):** Render → New → Blueprint → this repo (uses `render.yaml`). The server also hosts the full game at its own URL, e.g. `https://wildbound.onrender.com`; co-op works there directly.
 
-**Co-op from the GitHub Pages site:** set the repo variable `WILDBOUND_SERVER_URL` to `wss://<your-render-host>` (Settings → Secrets and variables → Actions → Variables), then re-run the Pages workflow. The server accepts the Pages origin via `ALLOWED_ORIGINS` (set in `render.yaml`/`Dockerfile`).
+**Co-op from the GitHub Pages site:** the Pages build connects to `wss://wildbound-jl72.onrender.com` by default. To use a different server, set the repo variable `WILDBOUND_SERVER_URL` (Settings → Secrets and variables → Actions → Variables), then re-run the Pages workflow. The server accepts the Pages origin via `ALLOWED_ORIGINS` (set in `render.yaml`/`Dockerfile`).
 
 **Fly.io (alternative):** `fly launch --copy-config --no-deploy` (choose a unique app name), then `fly deploy`. It uses `Dockerfile` and `fly.toml`.
 
