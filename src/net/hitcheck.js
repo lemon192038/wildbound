@@ -16,7 +16,7 @@ export const MOTION_VALUES = Object.freeze({ light1: 0.34, light2: 0.3, light3: 
 export const CRIT_CHANCE = 0.12, CRIT_MULT = 1.25;
 export const MAX_REACH = 6, MAX_PART_SLACK = 3;
 // Legit peak is ~370 raw dmg/s (full light combo hitting 2 parts); a full-charge double hit is ~880 at once.
-export const DPS_RATE = 400, DPS_BURST = 1600;
+export const DPS_RATE = 800, DPS_BURST = 3200; // scaled for the best equipment (×2.07)
 const STATE_WINDOW = [-800, 400]; // ms around the hit time in which the attacker's snapshot must show the motion
 const SWING_WINDOW = 400;          // ms: hits with the same motion closer than this count as one swing
 
@@ -78,7 +78,8 @@ export function createHitValidator({ rate = DPS_RATE, burst = DPS_BURST, rand = 
       // 5. damage + DPS cap
       const isCrit = rand() < CRIT_CHANCE;
       const sh = fin(hit.sh) ? Math.min(1, Math.max(0, hit.sh)) : 1;
-      const damage = mv * ATTACK_POWER * sharpMult(sh) * (isCrit ? CRIT_MULT : 1);
+      const wm = Number.isFinite(hit.wm) ? Math.max(0.5, Math.min(2.1, hit.wm)) : 1; // equipment multiplier (server-clamped)
+      const damage = mv * ATTACK_POWER * wm * sharpMult(sh) * (isCrit ? CRIT_MULT : 1);
       a.bucket = Math.min(burst, a.bucket + ((ctx.now - a.bt) / 1000) * rate); a.bt = ctx.now;
       if (a.bucket < damage) return no('dps_cap');
       a.bucket -= damage;

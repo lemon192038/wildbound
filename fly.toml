@@ -15,3 +15,8 @@ primary_region = "nrt"
     path = "/healthz"
     interval = "30s"
     timeout = "5s"
+
+# Persistent volume for the SQLite account database (fly volumes create wildbound_data --size 1)
+[mounts]
+  source = "wildbound_data"
+  destination = "/data"

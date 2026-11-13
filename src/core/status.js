@@ -15,7 +15,13 @@ export function createStatus(game) {
   let lastState = '', tick = 0;
   const api = {
     apply(kind, level) {
-      const d = DEF[kind]?.[level]; if (!d || game.player?.dead) return;
+      let d = DEF[kind]?.[level]; if (!d || game.player?.dead) return;
+      // armour skills (player.gear.skills) and temporary wards from consumables (api.ward)
+      const sk = game.player?.gear?.skills || {};
+      if (api.wards[kind] > 0) return;
+      if (kind === 'burn' && sk.heatward) d = { ...d, t: d.t * (1 - 0.3 * sk.heatward) };
+      if (kind === 'poison') { if (sk.antivenom >= 3) return; if (sk.antivenom) d = { ...d, dps: d.dps * (1 - 0.3 * sk.antivenom) }; }
+      if (kind === 'blast') { if (sk.blastward >= 3) return; if (sk.blastward) d = { ...d, t: d.t + 3 * sk.blastward }; }
       const cur = active.get(kind);
       // A stronger level replaces a weaker one; the same level refreshes to the longer duration.
       if (kind === 'blast' && cur) cur.t = Math.max(1.2, cur.t - 1.5); // more blight → it goes off sooner
@@ -24,8 +30,11 @@ export function createStatus(game) {
     },
     clear(kind) { for (const k of kind ? [kind] : [...active.keys()]) if (active.delete(k)) game.events.emit('status:clear', { kind: k }); },
     list: () => [...active.values()],
+    wards: {}, // kind → seconds of immunity (e.g. Frostfern Salve wards burns)
+    ward(kind, sec) { api.wards[kind] = Math.max(api.wards[kind] || 0, sec); api.clear(kind); },
     has: (kind) => active.has(kind),
     update(dt) {
+      for (const k in api.wards) api.wards[k] = Math.max(0, api.wards[k] - dt);
       const P = game.player; if (!P || !active.size) { lastState = P?.state || ''; return; }
       if (P.dead) { api.clear(); return; }
       // Rolling smothers flames.

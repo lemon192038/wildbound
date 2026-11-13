@@ -112,7 +112,8 @@ function startOnline(game, net, params, remote = '') {
     let lv = e.level;
     if (lv == null && (mo === 'heavy' || mo === 'trueslash')) { try { lv = P.serialize?.().h; } catch { lv = 0; } }
     const out = { t: 'hit', mo, lv: (mo === 'heavy' || mo === 'trueslash') ? Math.max(0, Math.min(3, Math.trunc(num(lv)))) : 0,
-      pt: partName(e.part), mi: Math.max(0, ti), sh: Math.round(Math.max(0, Math.min(1, num(P?.sharpness ?? 1))) * 100) / 100 };
+      pt: partName(e.part), mi: Math.max(0, ti), sh: Math.round(Math.max(0, Math.min(1, num(P?.sharpness ?? 1))) * 100) / 100,
+      wm: Math.round(Math.max(0.5, Math.min(2.4, num((P?.gear?.atk ?? 1) * (P?.gear?.buffAtk ?? 1) * (P?.gear?.sharp ?? 1)))) * 100) / 100 }; // gear multiplier (server clamps)
     if (!e.point) return;
     out.p = [num(e.point.x), num(e.point.y), num(e.point.z)];
     if (clockOffset != null) out.ts = Math.round(performance.now() + clockOffset); // hit time on the server clock
@@ -214,7 +215,7 @@ function startOnline(game, net, params, remote = '') {
         const from = String(m.i), now = performance.now();
         const hitT = num(m.ts) && clockOffset != null ? num(m.ts) - clockOffset : now - net.rtt / 2;
         pendingHits.push({ from, mo: m.mo, lv: Math.trunc(num(m.lv)), pt: typeof m.pt === 'string' ? m.pt : '', mi: Math.trunc(num(m.mi)),
-          p: Array.isArray(m.p) ? m.p.slice(0, 3).map(num) : null, sh: num(m.sh), t: hitT, arrive: now });
+          p: Array.isArray(m.p) ? m.p.slice(0, 3).map(num) : null, sh: num(m.sh), wm: num(m.wm ?? 1), t: hitT, arrive: now });
         return;
       }
       case 'ev': {

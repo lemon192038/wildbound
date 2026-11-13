@@ -57,6 +57,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { motionValue, MAX_REACH } from '../src/net/hitcheck.js';
+import { openStore } from './store.js';
+import { createApi } from './api.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -132,7 +134,15 @@ export function startServer({ port = Number(process.env.PORT ?? 8080), host = pr
   distDir = process.env.DIST || path.resolve(__dirname, '..', 'dist'), allowAnyOrigin = process.env.ALLOW_ANY_ORIGIN === '1',
   allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map((o) => o.trim().replace(/\/+$/, '')).filter(Boolean),
   trustProxy = process.env.TRUST_PROXY === '1',
+  dbPath = process.env.DB_PATH || path.resolve(__dirname, '..', 'data', 'wildbound.db'), databaseUrl = process.env.DATABASE_URL, store: givenStore = null,
   log = console.log } = {}) {
+  // Accounts / saves / economy API (see server/api.js). The store opens asynchronously; API calls wait for it.
+  const storeReady = givenStore ? Promise.resolve(givenStore) : openStore({ url: databaseUrl, file: dbPath, log });
+  let api = null;
+  storeReady.then((st) => { api = createApi(st, { allowedOrigins, log }); }).catch((e) => log('[wildbound] store failed:', e.message));
+  function routeApi(req, res, pathname) {
+    storeReady.then(() => api.handle(req, res, pathname)).catch(() => { res.writeHead(503, { 'Content-Type': 'application/json' }); res.end('{"ok":false,"error":"store"}'); });
+  }
   const DIST = path.resolve(distDir);
   let distReal = DIST;
   try { distReal = fs.realpathSync(DIST); } catch { /* dist missing: static 404s, ws still works */ }
@@ -187,7 +197,11 @@ export function startServer({ port = Number(process.env.PORT ?? 8080), host = pr
     }
   }
 
-  const server = http.createServer(serveStatic);
+  const server = http.createServer((req, res) => {
+    let pathname = '/'; try { pathname = new URL(req.url, 'http://x').pathname; } catch { /* */ }
+    if (pathname.startsWith('/api/')) return routeApi(req, res, pathname);
+    return serveStatic(req, res);
+  });
   server.headersTimeout = 10000; server.requestTimeout = 15000;
   const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024, perMessageDeflate: false, clientTracking: false });
 
@@ -344,7 +358,7 @@ export function startServer({ port = Number(process.env.PORT ?? 8080), host = pr
         // coarse reach check vs. the attacker's latest relayed position (snapshots lag hits by <=~100ms)
         const reach = Math.hypot(c.x[0] - p[0], c.x[2] - p[2]);
         if (reach > MAX_REACH + 3) return suspect(c, 'hit_out_of_reach', `dist=${reach.toFixed(1)}`);
-        const out = { t: 'hit', i: c.id, mo: msg.mo, lv, pt: cleanText(msg.pt, 24), mi: Math.trunc(clampNum(msg.mi, 0, 3)), p, sh: clampNum(msg.sh, 0, 1) };
+        const out = { t: 'hit', i: c.id, mo: msg.mo, lv, pt: cleanText(msg.pt, 24), mi: Math.trunc(clampNum(msg.mi, 0, 3)), p, sh: clampNum(msg.sh, 0, 1), wm: clampNum(msg.wm ?? 1, 0.5, 2.1) }; // gear multiplier: capped at the best legitimate gear (≈2.07)
         if (msg.ts != null) {
           const ts = clampNum(msg.ts, 0, 1e15);
           if (Math.abs(now - ts) > 5000) return suspect(c, 'hit_stale');
@@ -419,9 +433,10 @@ export function startServer({ port = Number(process.env.PORT ?? 8080), host = pr
     for (const c of clients) { send(c, { t: 'bye' }); try { c.ws.close(1001, 'server shutdown'); } catch { /* */ } }
     await new Promise((r) => { server.close(() => r()); server.closeAllConnections?.(); setTimeout(r, 1500).unref(); });
     for (const c of clients) c.ws.terminate();
+    if (!givenStore) await storeReady.then((st) => st.close()).catch(() => {});
     log('[wildbound] stopped');
   }
-  return { ready, close, rooms, clients, server };
+  return { ready, close, rooms, clients, server, storeReady };
 }
 
 // ── CLI entry ──
