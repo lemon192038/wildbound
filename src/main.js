@@ -13,6 +13,7 @@ import { createUI } from './ui/ui.js';
 import { createAudio } from './audio/audio.js';
 import { TouchControls, isTouchDevice } from './core/touch.js';
 import { createQuest } from './core/quest.js';
+import { createStatus } from './core/status.js';
 
 // The shared `game` context. Every module receives it; see CONTRACTS.md.
 const engine = new Engine();
@@ -37,6 +38,8 @@ async function boot() {
   game.world = await createWorld(game);          // terrain, sky, lighting, foliage, water, getHeight(x,z)
   engine.post = createPost(game);                // composer: SSAO/bloom/color grade/etc.
   game.player = await createPlayer(game);        // local hunter: model, animation, combat
+  const status = createStatus(game);             // burn / poison ailments on the local hunter
+  game.addUpdater((dt) => status.update(dt));
   game.cameraRig = createCameraRig(game);        // third-person orbit cam, lock-on, shake
   // Quest target: ?hunt=wyvern → Cindral (flying, user-made mesh), default → Varkhul.
   game.hunt = game.params.get('hunt') === 'wyvern' ? 'wyvern' : 'varkhul';

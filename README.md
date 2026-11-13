@@ -36,6 +36,17 @@ Choose on the title screen, or use the URL: `?hunt=wyvern`.
 
 - **Varkhul, the Emberhide:** a ground beast built fully procedurally (default).
 - **Cindral, the Ashwing:** a flying wyvern. Its mesh was made by the project owner, and `tools/rig-wyvern.mjs` processes it offline: simplify (300k → 48k triangles), compress textures to WebP, then auto-rig (24 joints with computed skin weights) into `public/models/wyvern.glb`.
+  - **Moveset:**
+    - **Hover rock-bombing:** timed rock bombs swell and glow, then blast a wide area (large burn).
+    - **Forced detonation:** a fireball shot or a bite sets the bombs off early, and blasts chain to nearby bombs.
+    - **Back-jump rock spit:** leaves a short-fuse bomb at the hunter's feet.
+    - **Great roar:** a long, wide stun that always leads into a back-jump spit or a dive.
+    - **Dragon wind pressure:** landing, takeoff and the gust cause a long stun.
+    - **Sweeping breath:** a fan of flame from the ground or the air, leaving burning ground.
+    - **Chained talon dives:** 2–3 dives, 3 when enraged, inflicting deadly poison.
+  - **Ailments** (`src/core/status.js`):
+    - **Burn:** each dodge roll smothers 4 s.
+    - **Deadly poison:** about 6 HP/s for 16 s. Drinking a draught halves what remains.
   - **How to fight it:** while it hovers, hit its tail and legs. When it lands after a dive, or while it is exhausted, go for the head. Breaking the wings or tail crashes it to the ground.
   - **Re-rigging a new export:** `node tools/rig-wyvern.mjs <source.glb> public/models/wyvern.glb`
 - **Co-op:** rooms are matched per quarry.

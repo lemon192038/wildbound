@@ -191,6 +191,12 @@ export async function createPlayer(game) {
     else { setState('hit', 0.05); vel.copy(away).multiplyScalar(Math.max(1.5, kb * 0.5)); }
     return true;
   };
+  // Damage-over-time from status ailments (src/core/status.js): no flinch, no i-frame check, can faint.
+  P.drain = (amount) => {
+    if (P.dead || frozen || !(amount > 0)) return;
+    P.hp = Math.max(0, P.hp - amount); P.redHp = Math.max(P.hp, (P.redHp ?? P.hp) - amount * 0.5); sinceHit = 0;
+    if (P.hp <= 0) die();
+  };
   function die() {
     P.dead = true; P.hp = 0; setState('dead', 0.1); deadT = 0; P.respawnTime = 5; P.chargeLevel = 0; events.emit('player:died', {});
   }

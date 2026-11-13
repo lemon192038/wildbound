@@ -84,6 +84,10 @@ export function createUI(game) {
   stBar.trail.remove();
   const blade = el('div', 'wb-blade', `<div class="wb-blade-shape"><div class="wb-blade-fill"></div></div><span class="wb-blade-tier"></span>`, bars);
   const bladeFill = blade.querySelector('.wb-blade-fill'), bladeTier = blade.querySelector('.wb-blade-tier');
+  // Status ailments (src/core/status.js): chips under the bars, tinted HP bar.
+  const ailRow = el('div', 'wb-ail-row', null, bars);
+  const AIL = { burn: { cls: 'wb-ail-burn', label: { small: 'BURNING', large: 'BLAZING' } }, poison: { cls: 'wb-ail-poison', label: { normal: 'POISONED', deadly: 'DEADLY POISON' } } };
+  const ailEls = {};
 
   // ---------------------------------------------------------------- nav: minimap, timer, limp
   const nav = el('div', 'wb-nav', null, hud);
@@ -475,6 +479,20 @@ export function createUI(game) {
 
     // quest timer (gameplay time; frozen until the hunt starts and while paused)
     if (started && !questOver && !pause) questTime -= dt;
+    { // ailments
+      const list = game.status?.list?.() || [];
+      const key = list.map((a) => a.kind + a.level + Math.ceil(a.t)).join('|');
+      set('ail', key, () => {
+        for (const k in ailEls) if (!list.some((a) => a.kind === k)) { ailEls[k].remove(); delete ailEls[k]; }
+        for (const a of list) {
+          const d = AIL[a.kind]; if (!d) continue;
+          const e = ailEls[a.kind] || (ailEls[a.kind] = el('div', 'wb-ail ' + d.cls, '<i></i><span></span><b class="wb-num"></b>', ailRow));
+          e.children[1].textContent = d.label[a.level] || a.kind.toUpperCase(); e.children[2].textContent = Math.max(0, Math.ceil(a.t)) + 's';
+        }
+        hpBar.b.classList.toggle('wb-poisoned', list.some((a) => a.kind === 'poison'));
+        hpBar.b.classList.toggle('wb-burning', list.some((a) => a.kind === 'burn'));
+      });
+    }
     if (nextEl && game.quest?.respawnAt != null) set('qn', fmtTime(Math.max(0, game.quest.respawnAt - (game.quest.clock || 0))), (v) => { if (nextEl) nextEl.textContent = v; });
     set('qt', fmtTime(questTime), (v) => (timerVal.textContent = v));
     set('qw', questTime < 300, (v) => timer.classList.toggle('wb-warn', v));

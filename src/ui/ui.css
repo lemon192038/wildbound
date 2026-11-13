@@ -385,3 +385,17 @@
 .wb-next { position: absolute; left: 50%; bottom: 9%; transform: translateX(-50%); font-family: var(--serif); letter-spacing: 0.3em; font-size: 0.95em; color: var(--parch); text-shadow: 0 0.1em 0.4em #000; opacity: 0; animation: wbFadeIn 0.8s 2.2s forwards; }
 .wb-next b { color: var(--gold-hi); margin-left: 0.4em; letter-spacing: 0.08em; }
 @keyframes wbFadeIn { to { opacity: 1; } }
+
+/* status ailments */
+.wb-ail-row { display: flex; gap: 0.45em; margin-top: 0.35em; min-height: 1.5em; }
+.wb-ail { display: flex; align-items: center; gap: 0.4em; padding: 0.15em 0.6em 0.15em 0.3em; font-family: var(--serif); font-size: 0.7em; letter-spacing: 0.14em; color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(10, 6, 4, 0.7); animation: wbAilPulse 1s ease-in-out infinite alternate; }
+.wb-ail i { width: 1.1em; height: 1.1em; border-radius: 50%; }
+.wb-ail b { font-family: var(--sans); letter-spacing: 0; opacity: 0.85; }
+.wb-ail-burn { border-color: rgba(255, 140, 60, 0.8); box-shadow: 0 0 0.6em rgba(255, 100, 30, 0.45); }
+.wb-ail-burn i { background: radial-gradient(circle at 50% 70%, #fff3b0, #ff8a2a 45%, #b3260a 80%); }
+.wb-ail-poison { border-color: rgba(190, 90, 255, 0.85); box-shadow: 0 0 0.6em rgba(160, 60, 255, 0.45); }
+.wb-ail-poison i { background: radial-gradient(circle at 40% 35%, #f0d0ff, #a24be8 45%, #3b0f66 85%); }
+@keyframes wbAilPulse { from { filter: brightness(0.9); } to { filter: brightness(1.25); } }
+.wb-bar.wb-hp.wb-poisoned .wb-fill { background: linear-gradient(180deg, #c58cf0, #7a2fc2 55%, #4d1782) !important; }
+.wb-bar.wb-hp.wb-burning .wb-fill { box-shadow: inset 0 0 0.5em rgba(255, 120, 40, 0.9); }
