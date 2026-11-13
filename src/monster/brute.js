@@ -11,6 +11,7 @@
 //    heat burn it — it can die by its own fire.
 // Contract: same as createMonster (CONTRACTS.md).
 import * as THREE from 'three';
+import { t } from '../shared/i18n.js';
 import { buildBrute, growthTexture } from './bruteModel.js';
 import { createWyvernFx } from './wyvernFx.js';
 
@@ -104,7 +105,7 @@ export async function createBrute(game) {
     fx.spitRock(p, to, hot ? 1.0 : 1.3, { size: 1.35, color: 0x4a1406, emissive: new THREE.Color(1, 0.55, 0.15), blast: m.final ? { ...BLAST, radius: 7, patchOpts: { ...SEA, r: 3.2, life: 45 } } : { ...BLAST, radius: 7 }, max: 14 });
     m.size[part] = 0; m.heat[part] = 0; m.detachAcc[part] = 0; m.detachCount[part]++;
     sfx('break', 0.8, p); fx.burst(p, 30, 8, 0.8);
-    if (emit) toast(`${part.startsWith('fist') ? 'A fist' : part === 'head' ? 'The brow' : 'The tail'} sheds a molten mass!`);
+    if (emit) toast(t('brute.shed', { p: t(part.startsWith('fist') ? 'brute.fist' : part === 'head' ? 'brute.brow' : 'brute.tail') }));
   }
 
   // ---------------------------------------------------------------- final phase ring
@@ -125,7 +126,7 @@ export async function createBrute(game) {
       mesh.position.set(x, groundAt(x, z) - h, z); mesh.rotation.set((Math.random() - 0.5) * 0.25, Math.random() * 3, (Math.random() - 0.5) * 0.25); mesh.castShadow = true; ringGroup.add(mesh);
       pillars.push({ mesh, target: groundAt(x, z) - 0.5, delay: i * 0.03 });
     }
-    toast('THE RING IS SEALED — THERE IS NO RETREAT'); events.emit('boss:deathmatch', { monster: m });
+    toast(t('brute.sealed')); events.emit('boss:deathmatch', { monster: m });
     try { game.audio?.setMusicIntensity?.(1); } catch { /* */ }
   }
   function updateRing(dt) {
@@ -292,13 +293,13 @@ export async function createBrute(game) {
     if (m.actionName === 'cataclysm' && m.actionTime < 2.6) windupDmg += dmg;
     let broke = false; if (p.breakable && !p.broken && p.hp <= 0) { p.broken = true; broke = true; events.emit('monster:partBreak', { monster: m, part: p.name }); sfx('break', 1); }
     if (m.hp <= 0) { die(); return { damage: dmg, part: p.name, hitzone: p.hitzone, killed: true }; }
-    if (!m.enraged && m.hp < m.maxHp * 0.6) { m.enraged = true; toast('Gorvath is enraged!'); }
+    if (!m.enraged && m.hp < m.maxHp * 0.6) { m.enraged = true; toast(t('brute.enraged')); }
     if (!m.final && m.hp < m.maxHp * FINAL_AT && m.actionName !== 'sealRing') { m.queue = []; startAction('sealRing'); return { damage: dmg, part: p.name, hitzone: p.hitzone, weak: p.hitzone >= 1.2 }; }
     m.limping = m.hp < m.maxHp * 0.15;
     const interruptCata = m.actionName === 'cataclysm' && m.actionTime < 2.6 && windupDmg >= 900;
     if (interruptCata || broke || p.acc >= p._flinch) {
       p.acc = 0;
-      if (!['topple', 'death', 'sealRing'].includes(m.actionName) && (m.actionName !== 'cataclysm' || interruptCata)) { m.queue = []; startAction(broke || interruptCata ? 'topple' : 'flinch'); if (interruptCata) toast('The cataclysm is broken!'); }
+      if (!['topple', 'death', 'sealRing'].includes(m.actionName) && (m.actionName !== 'cataclysm' || interruptCata)) { m.queue = []; startAction(broke || interruptCata ? 'topple' : 'flinch'); if (interruptCata) toast(t('brute.cataBroken')); }
     }
     return { damage: dmg, part: p.name, hitzone: p.hitzone, weak: p.hitzone >= 1.2, broken: broke };
   };
@@ -351,7 +352,7 @@ export async function createBrute(game) {
       gr.mat.emissive.setRGB(1, 0.22 + h * 0.62, 0.04 + h * h * 0.6); gr.mat.emissiveIntensity = m.state === 'dead' ? gr.mat.emissiveIntensity : 0.7 + h * h * 4.5 + pulse * (0.3 + h) + flash * 0.5;
       gr.group.scale.setScalar(Math.max(0.001, sz * (1 + h * 0.3 + pulse * 0.04 * h)));
       if (h >= 0.75 && sz > 0.8) {
-        crit++; if (!criticalToast[part] && !m.remoteControlled) { criticalToast[part] = true; toast(`${part.startsWith('fist') ? 'A fist' : part === 'head' ? 'The brow' : 'The tail'} glows white-hot — critical!`); }
+        crit++; if (!criticalToast[part] && !m.remoteControlled) { criticalToast[part] = true; toast(t('brute.crit', { p: t(part.startsWith('fist') ? 'brute.fist' : part === 'head' ? 'brute.brow' : 'brute.tail') })); }
         if (Math.random() < dt * 14) fx.burst(gr.group.getWorldPosition(_a).clone(), 2, 4, 0.5);
         if (Math.random() < dt * 8) fx.emitFlame(gr.group.getWorldPosition(_a).clone(), new THREE.Vector3(0, 3, 0), 0.5);
       } else if (h < 0.5) criticalToast[part] = false;

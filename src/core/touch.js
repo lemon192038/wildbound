@@ -3,6 +3,8 @@
 // Buttons: ATTACK (tap, combo), HEAVY (hold to charge, release to slash), DODGE, GUARD (hold),
 // ITEM (use selected), NEXT (cycle item), LOCK (lock-on), MENU (pause).
 // Sits under #ui-root (z-index 10) so the title / pause / chat overlays still receive taps.
+import { t } from '../shared/i18n.js';
+
 export function isTouchDevice() {
   return (typeof window !== 'undefined') && (('ontouchstart' in window) || navigator.maxTouchPoints > 1);
 }
@@ -33,20 +35,20 @@ export class TouchControls {
     document.head.appendChild(css);
     const root = (this.root = document.createElement('div')); root.className = 'tc-root';
     root.innerHTML = `<div class="tc-zone tc-left"></div><div class="tc-zone tc-right"></div>
-      <div class="tc-stick"><div class="tc-knob"></div></div><div class="tc-hint">MOVE</div>`;
+      <div class="tc-stick"><div class="tc-knob"></div></div><div class="tc-hint">${t('touch.move')}</div>`;
     document.body.appendChild(root);
     this.stick = root.querySelector('.tc-stick'); this.knob = root.querySelector('.tc-knob');
     const hint = root.querySelector('.tc-hint');
 
     // Buttons: [label, action, right(px), bottom(px), size(px), mode]  mode: tap | hold
     const B = [
-      ['ATTACK', 'light', 118, 150, 84, 'tap'],
-      ['HEAVY', 'heavy', 30, 210, 76, 'hold'],
-      ['DODGE', 'dodge', 30, 124, 70, 'tap'],
-      ['GUARD', 'guard', 212, 120, 62, 'hold'],
-      ['ITEM', 'item', 210, 196, 54, 'tap'],
-      ['NEXT', 'next', 268, 160, 44, 'tap'],
-      ['LOCK', 'lockOn', 130, 250, 54, 'tap'],
+      [t('touch.attack'), 'light', 118, 150, 84, 'tap'],
+      [t('touch.heavy'), 'heavy', 30, 210, 76, 'hold'],
+      [t('touch.dodge'), 'dodge', 30, 124, 70, 'tap'],
+      [t('touch.guard'), 'guard', 212, 120, 62, 'hold'],
+      [t('touch.item'), 'item', 210, 196, 54, 'tap'],
+      [t('touch.next'), 'next', 268, 160, 44, 'tap'],
+      [t('touch.lock'), 'lockOn', 130, 250, 54, 'tap'],
     ];
     for (const [label, act, r, b, size, mode] of B) {
       const el = document.createElement('div'); el.className = 'tc-btn'; el.textContent = label;
@@ -71,7 +73,7 @@ export class TouchControls {
     Object.assign(actBtn.style, { right: '210px', bottom: '270px', width: '78px', height: '78px', borderColor: 'rgba(246,226,170,.95)' }); root.appendChild(actBtn);
     actBtn.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); actBtn.classList.add('tc-down'); this.pressed.add('interact'); }, { passive: false });
     actBtn.addEventListener('touchend', (e) => { e.preventDefault(); actBtn.classList.remove('tc-down'); }, { passive: false });
-    const menu = document.createElement('div'); menu.className = 'tc-btn tc-menu'; menu.textContent = 'MENU'; root.appendChild(menu);
+    const menu = document.createElement('div'); menu.className = 'tc-btn tc-menu'; menu.textContent = t('touch.menu'); root.appendChild(menu);
     menu.addEventListener('touchstart', (e) => { e.preventDefault(); dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', key: 'Escape' })); }, { passive: false });
 
     const left = root.querySelector('.tc-left'), right = root.querySelector('.tc-right');

@@ -1,8 +1,10 @@
 // Gathering points in the hunting field (deterministic layout per seed): herbs, glowcaps, tidecap lichen
 // by the water, ore outcrops (iron / crimson), rare stormquartz crystals, honey hives and bone piles.
+// Labels shown to the player are localized (i18n key g.<type>); TYPES[].label is the English fallback.
 // Each point yields a few times. Results are reported to the server at the end of the quest, where they
 // are validated & capped (server/economy.js sanitizeReport) — the field only tracks what you picked.
 import * as THREE from 'three';
+import { t as tr } from '../shared/i18n.js';
 
 const TYPES = {
   herb: { items: [['sunpetal', 85], ['honey', 15]], uses: 3, label: 'Herb patch', color: 0xc8e070, glow: 0xfff0a0 },
@@ -51,7 +53,7 @@ export function createGather(game) {
       if (!okSpot(x, z)) continue;
       taken.push({ x, z }); i++;
       const mesh = makeMesh(type); mesh.position.set(x, world.getHeight(x, z), z); mesh.rotation.y = R() * Math.PI * 2; group.add(mesh);
-      nodes.push({ type, x, z, mesh, uses: TYPES[type].uses, label: TYPES[type].label, pos: mesh.position });
+      nodes.push({ type, x, z, mesh, uses: TYPES[type].uses, label: tr('g.' + type), pos: mesh.position });
     }
   }
   let t = 0;
