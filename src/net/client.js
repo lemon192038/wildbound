@@ -50,8 +50,12 @@ export function createNet(game) {
   const params = game.params || new URLSearchParams(location.search);
   const flag = params.get('online');
   const net = stubNet();
-  // Static hosting (e.g. the published artifact) has no game server: stay offline.
-  if (flag === '0' || typeof WebSocket === 'undefined' || import.meta.env.VITE_STATIC === '1') return net;
+  // Build-time co-op server for static hosting (e.g. GitHub Pages → a Render/Fly server).
+  const remote = /^wss?:\/\/[^\s]+$/.test(import.meta.env.VITE_SERVER_URL || '') ? import.meta.env.VITE_SERVER_URL.replace(/\/+$/, '') : '';
+  if (flag === '0' || typeof WebSocket === 'undefined') return net;
+  if (remote) { start(); return net; }
+  // Static hosting without a configured server (e.g. the published artifact): stay offline.
+  if (import.meta.env.VITE_STATIC === '1') return net;
 
   if (flag === '1') start();
   else if (params.get('shot') !== '1' && /^https?:$/.test(location.protocol)) {
@@ -64,13 +68,13 @@ export function createNet(game) {
   return net;
 
   function start() {
-    try { startOnline(game, net, params); } catch (e) { console.warn('[net] failed to start', e); }
+    try { startOnline(game, net, params, remote); } catch (e) { console.warn('[net] failed to start', e); }
   }
 }
 
-function startOnline(game, net, params) {
+function startOnline(game, net, params, remote = '') {
   const THREE = game.THREE;
-  const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
+  const url = remote ? `${remote}/ws` : `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
   const wantRoom = (params.get('room') || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 24);
   const name = (params.get('name') || '').slice(0, 16);
   let ws = null, backoff = 1000, reconnectTimer = 0, closedByUser = false, currentRoom = wantRoom;

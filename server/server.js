@@ -2,7 +2,10 @@
 //
 // Run: `PORT=8080 node server/server.js` (after `npx vite build`).
 // Env: PORT (default 8080), HOST (default 0.0.0.0), DIST (default ../dist),
-//      ALLOW_ANY_ORIGIN=1 to skip the WebSocket Origin==Host check.
+//      ALLOW_ANY_ORIGIN=1 to skip the WebSocket Origin==Host check,
+//      ALLOWED_ORIGINS=https://a.example,https://b.example to also accept those page origins
+//        (e.g. the GitHub Pages site connecting cross-origin),
+//      TRUST_PROXY=1 to take the client IP from X-Forwarded-For (Render/Fly sit behind a proxy).
 //
 // ─────────────────────────────── PROTOCOL (v1) ───────────────────────────────
 // Every frame is a UTF-8 JSON object with a short type key `t`. Frames > 4096
@@ -126,6 +129,8 @@ const cleanVec = (v, n) => (Array.isArray(v) && v.length === n ? v.map((x) => Ma
 // ───────────────────────────── server ─────────────────────────────
 export function startServer({ port = Number(process.env.PORT ?? 8080), host = process.env.HOST || '0.0.0.0',
   distDir = process.env.DIST || path.resolve(__dirname, '..', 'dist'), allowAnyOrigin = process.env.ALLOW_ANY_ORIGIN === '1',
+  allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map((o) => o.trim().replace(/\/+$/, '')).filter(Boolean),
+  trustProxy = process.env.TRUST_PROXY === '1',
   log = console.log } = {}) {
   const DIST = path.resolve(distDir);
   let distReal = DIST;
@@ -191,9 +196,10 @@ export function startServer({ port = Number(process.env.PORT ?? 8080), host = pr
     if (u.pathname !== '/ws' || shuttingDown) return fail('404 Not Found');
     if (!allowAnyOrigin && req.headers.origin) {
       let oh = ''; try { oh = new URL(req.headers.origin).host; } catch { /* invalid */ }
-      if (oh !== req.headers.host) return fail('403 Forbidden');
+      if (oh !== req.headers.host && !allowedOrigins.includes(req.headers.origin)) return fail('403 Forbidden');
     }
-    const ip = req.socket.remoteAddress || '?';
+    const fwd = trustProxy ? String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() : '';
+    const ip = (fwd && fwd.length <= 64 ? fwd : '') || req.socket.remoteAddress || '?';
     if (clients.size >= LIMITS.MAX_CONN || (perIp.get(ip) || 0) >= LIMITS.MAX_CONN_PER_IP) return fail('503 Service Unavailable');
     wss.handleUpgrade(req, socket, head, (ws) => onConnection(ws, ip));
   });

@@ -1,0 +1,18 @@
+# Render Blueprint: the co-op server (also serves the game itself at its own URL).
+# Render → New → Blueprint → pick this repo. Free plan sleeps after ~15 min idle; first visit wakes it (~1 min).
+services:
+  - type: web
+    name: wildbound
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npx vite build
+    startCommand: node server/server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: TRUST_PROXY
+        value: "1"
+      # Lets the GitHub Pages build connect cross-origin.
+      - key: ALLOWED_ORIGINS
+        value: https://lemon192038.github.io

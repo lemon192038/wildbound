@@ -1,0 +1,17 @@
+# Fly.io: `fly launch --copy-config --no-deploy` (pick a unique app name), then `fly deploy`.
+app = "wildbound"
+primary_region = "nrt"
+
+[build]
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    path = "/healthz"
+    interval = "30s"
+    timeout = "5s"

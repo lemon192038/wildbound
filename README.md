@@ -42,3 +42,15 @@ Debug URL params: `?low=1`, `?hq=1`, `?autoplay=1`, `?shot=1`, `?cam=x,y,z,tx,ty
 Touch devices get on-screen controls automatically (force with `?touch=1`). Drag anywhere on the left half for a floating move stick (push past the rim to sprint) and drag on the right half to look. The buttons are ATTACK (tap), HEAVY (hold, then release), DODGE, GUARD (hold), ITEM, NEXT (cycle item), LOCK and MENU. Touch devices also default to the low-cost render path; add `?hq=1` to override.
 
 Static offline build (no co-op server): `VITE_STATIC=1 npx vite build --outDir <dir>`.
+
+## Deploy
+
+**Solo, GitHub Pages:** pushing to `main` runs `.github/workflows/pages.yml` (tests, then a static build) and publishes to https://lemon192038.github.io/wildbound/. One-time setup: Settings → Pages → Source: **GitHub Actions**.
+
+**Co-op server, Render (free):** Render → New → Blueprint → this repo (uses `render.yaml`). The server also hosts the full game at its own URL, e.g. `https://wildbound.onrender.com`; co-op works there directly.
+
+**Co-op from the GitHub Pages site:** set the repo variable `WILDBOUND_SERVER_URL` to `wss://<your-render-host>` (Settings → Secrets and variables → Actions → Variables), then re-run the Pages workflow. The server accepts the Pages origin via `ALLOWED_ORIGINS` (set in `render.yaml`/`Dockerfile`).
+
+**Fly.io (alternative):** `fly launch --copy-config --no-deploy` (choose a unique app name), then `fly deploy`. It uses `Dockerfile` and `fly.toml`.
+
+Server env: `PORT`, `ALLOWED_ORIGINS` (comma-separated page origins), `TRUST_PROXY=1` (client IP from X-Forwarded-For), `ALLOW_ANY_ORIGIN=1`.

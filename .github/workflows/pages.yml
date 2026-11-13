@@ -25,10 +25,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node server/test.mjs
-      # Static offline build: GitHub Pages cannot run the co-op WebSocket server.
+      # Static build. GitHub Pages cannot run the WebSocket server, so co-op connects to the
+      # server deployed on Render/Fly when the repo variable WILDBOUND_SERVER_URL is set
+      # (Settings → Secrets and variables → Actions → Variables, e.g. wss://wildbound.onrender.com).
+      # Without it the Pages build is solo/offline.
       - run: npx vite build
         env:
           VITE_STATIC: '1'
+          VITE_SERVER_URL: ${{ vars.WILDBOUND_SERVER_URL }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
