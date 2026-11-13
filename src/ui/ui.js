@@ -264,11 +264,23 @@ export function createUI(game) {
   if (!shot) {
     const controls = CONTROLS;
     title = el('div', 'wb-title', `<div class="wb-embers"></div><div class="wb-logo">${SVG.emblem}<div class="wb-logo-word">WILDBOUND</div><div class="wb-logo-tag">HUNT · FORGE · ENDURE</div></div>
+      <div class="wb-quests"><div class="wb-quest-label">CHOOSE YOUR QUARRY</div><div class="wb-quest-row">
+        <button class="wb-quest${game.hunt !== 'wyvern' ? ' wb-on' : ''}" data-hunt="varkhul"><b>VARKHUL</b><span>The Emberhide · ground</span></button>
+        <button class="wb-quest${game.hunt === 'wyvern' ? ' wb-on' : ''}" data-hunt="wyvern"><b>CINDRAL</b><span>The Ashwing · sky</span></button></div></div>
       <div class="wb-cta">CLICK TO BEGIN THE HUNT</div>
       <div class="wb-frame wb-controls">${controls.map(([k, v]) => `<div><span class="wb-kbd">${k}</span>${v}</div>`).join('')}</div><div class="wb-ver">v0.1 · <span class="wb-ver-net">${params.get('online') === '1' ? 'CONNECTING…' : 'SOLO · OFFLINE'}</span></div>`, root);
     const emb = title.firstChild;
     for (let i = 0; i < 28; i++) { const e = el('i', null, null, emb); e.style.cssText = `left:${Math.random() * 100}%;animation-duration:${7 + Math.random() * 9}s;animation-delay:${-Math.random() * 14}s;--dx:${(Math.random() - 0.5) * 160}px;transform:scale(${0.5 + Math.random()})`; }
     hud.style.opacity = '0';
+    // Quarry selection: switching reloads with ?hunt= (the monster is built at boot).
+    title.querySelectorAll('.wb-quest').forEach((b) => {
+      const pick = (e) => {
+        e.stopPropagation(); e.preventDefault();
+        if (b.classList.contains('wb-on')) return;
+        const u = new URL(location.href); b.dataset.hunt === 'wyvern' ? u.searchParams.set('hunt', 'wyvern') : u.searchParams.delete('hunt'); location.href = u.toString();
+      };
+      b.addEventListener('mousedown', pick); b.addEventListener('touchend', pick);
+    });
     title.addEventListener('mousedown', (e) => {
       e.stopPropagation();
       try { game.renderer?.domElement?.requestPointerLock?.(); } catch { /* headless */ }

@@ -18,7 +18,8 @@
 // A socket starts in the HUB (lobby). It must send `hello` to enter a quest room.
 //
 // Client -> Server
-//   {t:'hello', n:name?, r:room?}      enter a room. r omitted => auto-matchmake
+//   {t:'hello', n:name?, r:room?, k:kind?}  enter a room. r omitted => auto-matchmake. k = quarry
+//                                      ('varkhul' default | 'wyvern'); rooms never mix quarries.
 //                                      into an open room (<4) or create one.
 //   {t:'p', x:[x,y,z,facing], s:{..}}  local player snapshot (player.serialize()).
 //                                      Server keeps only the latest; flushes 20Hz.
@@ -216,23 +217,25 @@ export function startServer({ port = Number(process.env.PORT ?? 8080), host = pr
     for (const c of room.players) if (c !== except) { if (c.ws.readyState === 1 && c.ws.bufferedAmount < 1 << 20) c.ws.send(data); }
   }
 
-  function makeRoom(name, auto) {
-    const room = { name, auto, players: [], host: null, monster: null, monsterDirty: false, lastMonsterFlush: 0 };
+  function makeRoom(name, auto, kind = 'varkhul') {
+    const room = { name, auto, kind, players: [], host: null, monster: null, monsterDirty: false, lastMonsterFlush: 0 };
     rooms.set(name, room);
     return room;
   }
-  function pickRoom(requested) {
+  function pickRoom(requested, kind = 'varkhul') {
     if (requested) {
+      // Named rooms are per quarry: the same name for a different quarry is a different room.
+      if (kind !== 'varkhul' && !requested.endsWith('_' + kind)) requested = (requested.slice(0, 23 - kind.length) + '_' + kind);
       const r = rooms.get(requested);
-      if (!r) return makeRoom(requested, false);
-      if (r.players.length < LIMITS.ROOM_SIZE) return r;
-      return null; // full
+      if (!r) return makeRoom(requested, false, kind);
+      if (r.players.length < LIMITS.ROOM_SIZE && r.kind === kind) return r;
+      return null; // full (or a clash with another quarry)
     }
-    let best = null; // auto-matchmake: fullest open auto room so parties fill up
-    for (const r of rooms.values()) if (r.auto && r.players.length < LIMITS.ROOM_SIZE && (!best || r.players.length > best.players.length)) best = r;
+    let best = null; // auto-matchmake: fullest open auto room for this quarry so parties fill up
+    for (const r of rooms.values()) if (r.auto && r.kind === kind && r.players.length < LIMITS.ROOM_SIZE && (!best || r.players.length > best.players.length)) best = r;
     if (best) return best;
     let name; do { name = 'q' + (autoRoomSeq++).toString(36); } while (rooms.has(name));
-    return makeRoom(name, true);
+    return makeRoom(name, true, kind);
   }
   function joinRoom(c, room) {
     c.room = room; c.joinedAt = Date.now();
@@ -307,8 +310,9 @@ export function startServer({ port = Number(process.env.PORT ?? 8080), host = pr
         if (room) return strike(c, 'already_in_room');
         c.name = cleanText(msg.n, LIMITS.NAME_LEN) || 'Hunter-' + c.id.slice(-4);
         const req = cleanRoom(msg.r);
-        let r = pickRoom(req);
-        if (!r) { send(c, { t: 'err', m: 'room_full' }); r = pickRoom(''); }
+        const kind = msg.k === 'wyvern' ? 'wyvern' : 'varkhul';
+        let r = pickRoom(req, kind);
+        if (!r) { send(c, { t: 'err', m: 'room_full' }); r = pickRoom('', kind); }
         return joinRoom(c, r);
       }
     }

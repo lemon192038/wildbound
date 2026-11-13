@@ -30,6 +30,16 @@ Open the page in two browser windows to hunt together (up to 4 per room, auto-ma
 | Lock-on | F or Tab |
 | Chat / menu | Enter / Esc |
 
+## Quarries
+
+Choose on the title screen, or use the URL: `?hunt=wyvern`.
+
+- **Varkhul, the Emberhide:** a ground beast built fully procedurally (default).
+- **Cindral, the Ashwing:** a flying wyvern. Its mesh was made by the project owner, and `tools/rig-wyvern.mjs` processes it offline: simplify (300k → 48k triangles), compress textures to WebP, then auto-rig (24 joints with computed skin weights) into `public/models/wyvern.glb`.
+  - **How to fight it:** while it hovers, hit its tail and legs. When it lands after a dive, or while it is exhausted, go for the head. Breaking the wings or tail crashes it to the ground.
+  - **Re-rigging a new export:** `node tools/rig-wyvern.mjs <source.glb> public/models/wyvern.glb`
+- **Co-op:** rooms are matched per quarry.
+
 ## Structure
 
 See `CONTRACTS.md`. `src/world` (terrain, foliage, sky, water, post), `src/monster` (Varkhul: rig, AI, attacks, part breaks), `src/player` (hunter, combat, camera), `src/ui`, `src/audio`, `src/net` + `server/` (WebSocket rooms, host-authoritative monster and damage validation).

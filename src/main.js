@@ -5,6 +5,7 @@ import { Events } from './core/events.js';
 import { createWorld } from './world/world.js';
 import { createPost } from './world/post.js';
 import { createMonster } from './monster/monster.js';
+import { createWyvern } from './monster/wyvern.js';
 import { createPlayer } from './player/player.js';
 import { createCameraRig } from './player/camera.js';
 import { createNet } from './net/client.js';
@@ -36,7 +37,9 @@ async function boot() {
   engine.post = createPost(game);                // composer: SSAO/bloom/color grade/etc.
   game.player = await createPlayer(game);        // local hunter: model, animation, combat
   game.cameraRig = createCameraRig(game);        // third-person orbit cam, lock-on, shake
-  game.monsters.push(await createMonster(game)); // boss monster: model, AI, hitzones
+  // Quest target: ?hunt=wyvern → Cindral (flying, user-made mesh), default → Varkhul.
+  game.hunt = game.params.get('hunt') === 'wyvern' ? 'wyvern' : 'varkhul';
+  game.monsters.push(await (game.hunt === 'wyvern' ? createWyvern : createMonster)(game)); // boss monster: model, AI, hitzones
   game.audio = createAudio(game);                // procedural WebAudio sfx + music
   game.ui = createUI(game);                      // HUD, damage numbers, menus
   game.net = createNet(game);                    // co-op sync via websocket (optional)
