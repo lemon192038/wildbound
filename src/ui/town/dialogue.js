@@ -1,7 +1,7 @@
 // NPC dialogue: short, context-aware lines for each facility keeper. Returns { lines, choices }.
 // Lines are i18n keys (src/shared/i18n-*.js, "dlg.*"), so each language can phrase them naturally.
-import { QUESTS, WEAPONS, RECIPES, SHOP, nextWeaponCost } from '../../shared/gamedata.js';
-import { t, monsterShort, questName, weaponName, elementName } from '../../shared/i18n.js';
+import { QUESTS, WEAPONS, RECIPES, SHOP, DESTINATIONS, nextWeaponCost, destForMonster } from '../../shared/gamedata.js';
+import { t, monsterShort, questName, weaponName, elementName, destName } from '../../shared/i18n.js';
 import { maxBrew } from './alchemyPanel.js';
 
 const pick = (a, seed) => a[Math.abs(seed) % a.length];
@@ -45,11 +45,13 @@ export function dialogueFor(id, s, visits = 0) {
       const used = s ? Object.keys(s.pouch || {}).length : 0; const pots = s?.pouch?.potion || 0;
       return L([t('dlg.b.hi', { name }), pots ? t('dlg.b.pots', { used, n: pots, s: pl(pots) }) : t('dlg.b.noPots')], t('dlg.b.open'));
     }
-    case 'dock': {
-      if (ex) return L([t('dlg.d.ex', { m: short(QUESTS[ex.qid]?.monster) })], t('dlg.d.board'));
-      if (!act) return L([t('dlg.d.none')], t('dlg.d.check'));
-      if (act.type === 'deliver') return L([t('dlg.d.deliver')], t('dlg.d.check'));
-      return L([t('dlg.d.act', { q }) + (act.monster ? t('dlg.d.actm', { m: short(act.monster) }) : ''), (s.pouch?.potion || 0) ? t('dlg.d.packed') : t('dlg.d.light')], t('dlg.d.sail'));
+    case 'dock': { // the captain opens the world map: any destination (free expedition) or the accepted quest's
+      const dq = act && act.type !== 'deliver' && act.monster ? destForMonster(act.monster) : null;
+      const where = pick([t('dlg.d.where1'), t('dlg.d.where2'), t('dlg.d.where3')], v);
+      if (ex) return L([t('dlg.d.exBack', { d: destName(ex.dest), m: short(DESTINATIONS[ex.dest]?.monster) }), t('dlg.d.exResume')], t('dlg.d.map'));
+      const line2 = dq ? t('dlg.d.questTo', { q, d: destName(dq), m: short(act.monster) })
+        : act?.type === 'deliver' ? t('dlg.d.deliver') : t('dlg.d.free');
+      return L([where, line2, (s.pouch?.potion || 0) ? '' : t('dlg.d.light')], t('dlg.d.map'));
     }
     default: return L(['…'], t('dlg.open'));
   }

@@ -17,6 +17,7 @@ import { createQuest } from './core/quest.js';
 import { createAccount } from './account/client.js';
 import { prepareQuest, startQuestRuntime } from './field/questRuntime.js';
 import { createStatus } from './core/status.js';
+import { showLoadingScreen } from './ui/loadingScreen.js';
 
 // The shared `game` context. Every module receives it; see CONTRACTS.md.
 const engine = new Engine();
@@ -56,6 +57,7 @@ function startLoop(step) {
 }
 
 async function bootField() {
+  showLoadingScreen(game);                       // region/destination/boss card until window.__ready (src/ui/loadingScreen.js)
   const questCtx = await prepareQuest(game);     // ?quest=<iid>: server-validated expedition (null = free hunt)
   // Boss & field: from the expedition (prepareQuest), else legacy ?hunt= free hunt. Field is always the boss's home.
   game.hunt ||= ['wyvern', 'brute'].includes(game.params.get('hunt')) ? game.params.get('hunt') : 'varkhul';
