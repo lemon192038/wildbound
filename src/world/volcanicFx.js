@@ -63,7 +63,7 @@ export function createVolcanicFx(THREE, scene, F, { getHeight, low, emitters, la
   const KIND = {
     smoke: (e) => emit(e.x + (rnd() - 0.5) * e.spread, e.y, e.z + (rnd() - 0.5) * e.spread, (rnd() - 0.5) * 0.4, 1.4 + rnd() * 1.2, (rnd() - 0.5) * 0.4, 7 + rnd() * 5, 1.6 * e.scale, 2.4, 0.25, 0.05, ...fxPal.smoke, 0.32, 1.0, 1),
     steam: (e) => emit(e.x + (rnd() - 0.5) * e.spread, e.y, e.z + (rnd() - 0.5) * e.spread, (rnd() - 0.5) * 0.3, 1.2 + rnd() * 1.4, (rnd() - 0.5) * 0.3, 4 + rnd() * 3, 0.7 * e.scale, 3.0, 0.3, 0.12, ...fxPal.steam, 0.3, 0.0, 1),
-    plume: (e) => emit(e.x + (rnd() - 0.5) * e.spread, e.y, e.z + (rnd() - 0.5) * e.spread, (rnd() - 0.5) * 6, 14 + rnd() * 10, (rnd() - 0.5) * 6, 24 + rnd() * 14, 70 * e.scale, 2.2, 0.05, 0.1, 0.07, 0.06, 0.06, 0.9, 1.2, 6),
+    plume: (e) => emit(e.x + (rnd() - 0.5) * e.spread, e.y, e.z + (rnd() - 0.5) * e.spread, (rnd() - 0.5) * 6, 14 + rnd() * 10, (rnd() - 0.5) * 6, 24 + rnd() * 14, 70 * e.scale, 2.2, 0.05, 0.1, 0.16, 0.13, 0.12, 0.85, 1.6, 6),
     mist: (e) => emit(e.x + (rnd() - 0.5) * e.spread, e.y, e.z + (rnd() - 0.5) * e.spread, (rnd() - 0.5) * 0.4, 0.25 + rnd() * 0.3, (rnd() - 0.5) * 0.4, 14 + rnd() * 6, 5 * e.scale, 1.6, 0.1, 0.0, ...fxPal.steam, 0.12, 0.5, 0.3),
   };
   for (const e of emitters) { e.acc = rnd(); e.spread ??= 1; e.scale ??= 1; }

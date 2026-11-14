@@ -14,9 +14,9 @@ import { createLandmarks } from './volcanicLandmarks.js';
 import { createVolcanicFx } from './volcanicFx.js';
 
 const FX_PAL = {
-  foothills: { dust: [0.2, 0.18, 0.17], smoke: [0.085, 0.075, 0.072], steam: [0.6, 0.58, 0.54], ash: [0.34, 0.32, 0.31] },
-  wastes: { dust: [0.42, 0.4, 0.37], smoke: [0.12, 0.11, 0.1], steam: [0.7, 0.68, 0.64], ash: [0.56, 0.54, 0.51] },
-  hollow: { dust: [0.2, 0.17, 0.15], smoke: [0.07, 0.055, 0.05], steam: [0.42, 0.36, 0.33], ash: [0.32, 0.27, 0.25] },
+  foothills: { dust: [0.075, 0.064, 0.058], smoke: [0.045, 0.04, 0.038], steam: [0.34, 0.32, 0.3], ash: [0.2, 0.19, 0.185] },
+  wastes: { dust: [0.2, 0.19, 0.18], smoke: [0.08, 0.075, 0.07], steam: [0.46, 0.45, 0.43], ash: [0.4, 0.39, 0.37] },
+  hollow: { dust: [0.09, 0.07, 0.06], smoke: [0.05, 0.04, 0.036], steam: [0.3, 0.25, 0.22], ash: [0.22, 0.18, 0.16] },
 };
 
 export async function createWorld(game) {
@@ -52,6 +52,9 @@ export async function createWorld(game) {
   sun.shadow.bias = F.cave ? -0.0006 : -0.0004; sun.shadow.normalBias = F.cave ? 0.12 : 0.045; sun.shadow.radius = 2.5;
   scene.add(sun, sun.target);
   const hemi = new THREE.HemisphereLight(F.light.hemiSky, F.light.hemiGround, F.light.hemi); scene.add(hemi);
+  // cave: one fixed warm "bounce" light standing in for the glow of every lava pool on the chamber
+  let bounce = null;
+  if (F.light.bounce) { bounce = new THREE.PointLight(F.light.bounce[0], F.light.bounce[1], 160, 1.2); bounce.position.set(0, 38, 0); scene.add(bounce); }
 
   // ---- terrain ----
   const textures = createVolcanicTextures(THREE, renderer, seed, low ? 256 : 512);
@@ -63,7 +66,7 @@ export async function createWorld(game) {
   // ---- props, lava, set pieces ----
   const props = createProps(THREE, scene, F, terrain, textures, { low, seed });
   const lava = createLava(THREE, scene, terrain, F, (x, z) => F.lavaFlow(x, z), {
-    lights: low ? 2 : (F.cave ? 3 : 4), lightIntensity: F.cave ? 900 : 520, lightRange: F.cave ? 85 : 60, lightLift: F.cave ? 5 : 3.5, lightSpacing: F.cave ? 40 : 36,
+    lights: low ? 2 : (F.cave ? 3 : 4), lightIntensity: F.cave ? 2600 : 520, lightRange: F.cave ? 120 : 60, lightLift: F.cave ? 8 : 3.5, lightSpacing: F.cave ? 40 : 36,
   });
   const landmarks = createLandmarks(THREE, scene, F, terrain, { rock: props.rockMat }, { seed, low, sunDir, utils: { mergeGeometries } });
   for (const m of landmarks.lavaMats) lava.addMaterial(m);
@@ -140,6 +143,7 @@ export async function createWorld(game) {
     flash = lastFlash > 0 ? Math.max(0, Math.min(1, since / 0.25)) * Math.exp(-Math.max(0, since - 0.25) / 2.6) * (0.75 + 0.25 * Math.sin(since * 23)) : 0;
     flashU.value = flash * (F.cave ? 0.5 : 1);
     hemi.intensity = hemiBase * (1 + flash * (F.cave ? 0.5 : 0.7));
+    if (bounce) bounce.intensity = F.light.bounce[1] * (1 + flash * 0.8 + 0.05 * Math.sin(time * 1.7));
     scene.fog.color.copy(fogBase).lerp(glowCol, flash * 0.18).multiplyScalar(1 + flash * 0.35);
     terrain.shared.uPulse.value = 1 + flash * 0.6;
     for (const m of lava.lights) m.userData.flash = flash;

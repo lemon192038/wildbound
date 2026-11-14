@@ -88,8 +88,8 @@ export function createWorldMap(ctx) {
   const pinEls = [...pins.children];
 
   // ---------------------------------------------------------------- transform helpers
-  const minS = () => Math.min(V.w / MAP_W, V.h / MAP_H);
-  const maxS = () => Math.max(minS() * 4, 1.4);
+  const minS = () => Math.max(V.w / MAP_W, V.h / MAP_H); // the chart always fills the window
+  const maxS = () => Math.max(minS() * 3.5, 1.4);
   function clampView() {
     V.s = clamp(V.s, minS(), maxS());
     const mw = MAP_W * V.s, mh = MAP_H * V.s;
@@ -105,7 +105,7 @@ export function createWorldMap(ctx) {
   const detailW = () => (detail.classList.contains('on') ? detail.offsetWidth : 0);
   const ledgerW = () => (ledger.offsetParent && !ledger.classList.contains('min') ? ledger.offsetWidth + 16 : 0);
   function fit(animate = true) {
-    const s = minS() * 1.08; const cx = MAP_W * 0.5, cy = MAP_H * 0.52;
+    const s = minS(); const cx = MAP_W * 0.5, cy = MAP_H * 0.5;
     if (animate) animateTo(s, cx, cy); else { V.s = s; V.tx = V.w / 2 - cx * s; V.ty = V.h / 2 - cy * s; clampView(); V.dirty = true; }
   }
   function focusDest(id, zoom) {
@@ -142,7 +142,7 @@ export function createWorldMap(ctx) {
     if (moved <= 6 && drag && e.type === 'pointerup') {
       const onPin = e.target.closest?.('.wm-pin'); const now = performance.now();
       if (!onPin && now - lastTap.t < 320 && Math.hypot(p.x - lastTap.x, p.y - lastTap.y) < 36) { // double-tap → zoom
-        lastTap.t = 0; const ns = V.s * 2 > maxS() * 0.98 ? minS() * 1.08 : V.s * 2; animateTo(ns, (p.x - V.tx) / V.s, (p.y - V.ty) / V.s, p.x, p.y, 320);
+        lastTap.t = 0; const ns = V.s * 2 > maxS() * 0.98 ? minS() : V.s * 2; animateTo(ns, (p.x - V.tx) / V.s, (p.y - V.ty) / V.s, p.x, p.y, 320);
       } else { lastTap = { t: now, x: p.x, y: p.y }; if (!onPin && e.target.closest?.('.wm-view')) singleTap(); }
     }
     drag = null;

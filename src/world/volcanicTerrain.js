@@ -92,7 +92,7 @@ export function createVolcanicTerrain(THREE, F, textures, opts = {}) {
     const h = getHeight(x, z); getNormal(x, z, _n); const slope = 1 - _n.y;
     const sd = F.lavaSD(x, z);
     const s = F.surface(x, z, h, slope, sd);
-    const ht = sd < 0 ? 1 : Math.exp(-sd / 9);
+    const ht = Math.max(sd < 0 ? 1 : Math.exp(-sd / 9), F.extraHeat ? F.extraHeat(x, z) : 0);
     let wet = 0;
     for (const sp of F.springs) wet = Math.max(wet, smoothstep(1.35, 0.95, Math.hypot(x - sp.x, z - sp.z) / sp.r));
     const k = (j * MS + i) * 4; heat[j * MS + i] = ht;
@@ -200,7 +200,7 @@ vec3 terrN; float terrRough; vec3 terrEmit;
   // emissive: glowing cooling cracks + incandescent ground right at the lava edge
   float heat = a1.b;
   float pulse = 0.75 + 0.25 * sin(uTime * 1.3 + vWPos.x * 0.07 + vWPos.z * 0.05);
-  float vein = smoothstep(0.35, 0.9, crackM) * a1.a * (0.25 + 0.75 * heat) * pulse * uPulse;
+  float vein = smoothstep(0.35, 0.9, crackM) * a1.a * (0.45 + 0.55 * heat) * pulse * uPulse;
   float edge = pow(heat, 5.0);
   terrEmit = WB_GLOW * (vein * 2.6 + edge * 1.4 * (0.6 + 0.4 * h)) + WB_GLOW * heat * heat * 0.06;
   terrN = nW; terrRough = rough;

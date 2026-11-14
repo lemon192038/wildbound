@@ -37,11 +37,11 @@ export function createLandmarks(THREE, scene, F, terrain, mats, opts = {}) {
         const t = i / SEGS, r = ra + (rb - ra) * t; const u = (r - r0) / (r1 - r0);
         const top = yA + (yB - yA) * u + 3.5 * Math.sin(Math.PI * u);
         const root = Math.min(smoothstep(0.18, 0.0, u), 1) + smoothstep(0.82, 1.0, u);
-        const w = 3.4 + 2.5 * root + 0.6 * N.noise(r * 0.2, 1), th = 2.2 + 9 * root + 0.5 * N.noise(r * 0.3, 4);
+        const w = 6.5 + 5 * root + 1.2 * N.noise(r * 0.2, 1), th = 3.6 + 11 * root + 1.0 * N.noise(r * 0.3, 4);
         const endK = closeEnd && i === SEGS ? 0.15 : closeEnd && i === SEGS - 1 ? 0.7 : 1;
         for (let k = 0; k < RING; k++) {
           const ang = (k / RING) * Math.PI * 2; const ca = Math.cos(ang), sa = Math.sin(ang);
-          const jag = 1 + 0.18 * N.noise(r * 0.35 + k, k * 1.7) + (closeEnd && i >= SEGS - 1 ? 0.35 * (rnd() - 0.5) : 0);
+          const jag = 1 + 0.3 * N.noise(r * 0.35 + k * 0.7, k * 1.7) + 0.12 * N.noise(r * 1.3, k) + (closeEnd && i >= SEGS - 1 ? 0.35 * (rnd() - 0.5) : 0);
           const across = ca * w * 0.5 * jag * endK, vert = (sa > 0 ? sa * 0.9 : sa * th) * jag * endK;
           pos.push(dx * r - dz * across, top - 0.9 + vert, dz * r + dx * across);
         }
@@ -87,13 +87,10 @@ export function createLandmarks(THREE, scene, F, terrain, mats, opts = {}) {
         pos.push(ca * r, base - lump * smoothstep(0, 0.12, t) + lip, sa * r);
       }
     }
-    for (let j = 0; j < RS; j++) for (let i = 0; i < AS; i++) { const a = j * (AS + 1) + i, b = a + 1, c = a + AS + 1, d = c + 1; idx.push(a, b, c, b, d, c); }
+    for (let j = 0; j < RS; j++) for (let i = 0; i < AS; i++) { const a = j * (AS + 1) + i, b = a + 1, c = a + AS + 1, d = c + 1; idx.push(a, c, b, b, c, d); } // winding -> normals face down into the cavern
     // inner rim thickness (so the oculus edge reads as rock, not paper)
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
-    // normals must face down into the cavern
-    if (g.attributes.normal.getY(Math.floor(g.attributes.normal.count / 2)) > 0) { const ix = g.index.array; for (let k = 0; k < ix.length; k += 3) { const tmp = ix[k + 1]; ix[k + 1] = ix[k + 2]; ix[k + 2] = tmp; } g.computeVertexNormals(); }
-    const roofMat = mats.rock.clone(); roofMat.side = THREE.DoubleSide; roofMat.onBeforeCompile = mats.rock.onBeforeCompile; roofMat.customProgramCacheKey = () => mats.rock.customProgramCacheKey() + '-roof';
-    const roof = new THREE.Mesh(g, roofMat); roof.castShadow = true; roof.receiveShadow = true; roof.name = 'cavern-roof'; group.add(roof);
+    const roof = new THREE.Mesh(g, mats.rock); roof.castShadow = true; roof.receiveShadow = true; roof.name = 'cavern-roof'; group.add(roof);
     // light shaft through the oculus (along -sunDir)
     const sd = opts.sunDir; const topY = R.apex + 2, k = topY / sd.y;
     const shaftGeo = new THREE.CylinderGeometry(R.oculus * 0.9, R.oculus * 1.25, k, 24, 1, true);
@@ -126,7 +123,7 @@ void main(){
         let rb = al.r; while (G(ca * rb, sa * rb) < F.lavaY + 0.2 && rb < al.r + 40) rb += 0.5; // back shore of the pool
         let rt = rb; while (G(ca * rt, sa * rt) < 55 && rt < rb + 30) rt += 0.5;
         const path = []; for (let r = rt; r >= rb - 0.5; r -= 0.7) path.push([ca * r, sa * r]); path.push([ca * (rb - 2.5), sa * (rb - 2.5)]);
-        if (path.length > 3) fallGeos.push(createLavafall(THREE, G, path, 4.5 + rnd() * 2, fallMat, F.lavaY));
+        if (path.length > 3) fallGeos.push(createLavafall(THREE, G, path, 7 + rnd() * 3, fallMat, F.lavaY));
         emitters.push({ kind: 'smoke', x: ca * (rb - 2), y: F.lavaY + 0.5, z: sa * (rb - 2), rate: 1.6, spread: 4, scale: 1.6 });
         emitters.push({ kind: 'mist', x: ca * (rb - 3), y: F.lavaY + 2, z: sa * (rb - 3), rate: 0.25, spread: 6, scale: 1.4 });
       }

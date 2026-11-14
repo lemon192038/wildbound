@@ -112,8 +112,8 @@ ${V ? `    // the volcano's ash plume: a billowing column above the crater, shea
       vec2 pp = vec2(x * 1.3, up * 9.0 - uTime * 0.035);
       float bill = fbm(pp * 1.4 + vec2(0.0, -uTime * 0.02)) * 0.7 + fbm(pp * 3.7) * 0.3;
       float col = smoothstep(1.0, 0.25, abs(x) + (bill - 0.5) * 0.9) * smoothstep(-0.02, 0.03, up) * (1.0 - smoothstep(0.5, 0.95, up));
-      vec3 pc = mix(vec3(0.05, 0.045, 0.045), ${v3(S.cloud)} * 1.4, bill);
-      pc += VS_GLOWCOL * (exp(-up * 14.0) * (0.9 + uFlash * 4.0) + uFlash * 0.4 * exp(-up * 4.0)) * (0.4 + bill);
+      vec3 pc = mix(vec3(0.07, 0.06, 0.06), vec3(0.3, 0.25, 0.23), bill * bill) * (0.6 + 0.6 * smoothstep(-0.5, 0.8, dot(fl, VS_SUN.xz)));
+      pc += VS_GLOWCOL * (exp(-up * 6.0) * (0.55 + uFlash * 4.0) + uFlash * 0.5 * exp(-up * 3.0)) * (0.3 + bill);
       c = mix(c, pc, col * 0.96);
     }
 ` : ''}
@@ -159,6 +159,7 @@ export function createDistantRing(THREE, seed, F, textures) {
       const rid = N.ridged(x * 0.0028 + 3, z * 0.0028 - 1, 5, 2.05, 0.5), big = N.fbm(x * 0.001, z * 0.001, 3) * 0.5 + 0.5;
       let h = -30 + near * (40 + 50 * big + 30 * rid) * (1 - D.lowNorth * north) + far * (50 + 200 * Math.pow(rid, 1.3) * (0.4 + big)) * (1 - D.lowNorth * 0.6 * north);
       if (D.mesa) { const q = h / 28, f = q - Math.floor(q); h = (Math.floor(q) + smoothstep(0.7, 0.95, f)) * 28; }
+      if (F.volcano) { const vd = Math.hypot(x - F.volcano.x, z - F.volcano.z); const k = smoothstep(F.volcano.r * 0.75, F.volcano.r * 1.25, vd); h = h * k - 60 * (1 - k); }
       pos.push(x, h, z);
       tmp.copy(c0).lerp(c1, smoothstep(-10, 160, h) * 0.6 + 0.2 * rid);
       col.push(tmp.r, tmp.g, tmp.b);
@@ -185,7 +186,7 @@ export function createDistantRing(THREE, seed, F, textures) {
 export function createVolcano(THREE, seed, F, textures, flashUniform, timeUniform) {
   const V = F.volcano; if (!V) return null;
   const N = makeNoise2D(seed + 901); const rnd = mulberry32(seed + 5);
-  const AS = 160, RS = 56;
+  const AS = 180, RS = 60;
   const pos = [], idx = [], aux = [];
   const streams = []; for (let i = 0; i < V.streams; i++) streams.push({ a: Math.PI * 0.5 + (rnd() - 0.5) * 2.4, reach: 0.45 + rnd() * 0.45, w: 0.012 + rnd() * 0.01 });
   for (let j = 0; j <= RS; j++) {
@@ -193,10 +194,10 @@ export function createVolcano(THREE, seed, F, textures, flashUniform, timeUnifor
     for (let i = 0; i <= AS; i++) {
       const a = (i / AS) * Math.PI * 2; const ca = Math.cos(a), sa = Math.sin(a);
       const u = (r - V.crater) / (V.r - V.crater);
-      const gul = N.ridged(a * 9, u * 3, 4, 2, 0.5);
-      let h = V.h * Math.pow(Math.max(0, 1 - Math.max(u, 0)), 1.7) * (1 - 0.06 * gul) + N.fbm(ca * r * 0.01, sa * r * 0.01, 4) * 28 * smoothstep(0, 0.4, u);
+      const gul = N.ridged(a * 14, u * 2.5, 4, 2, 0.5);
+      let h = V.h * Math.pow(Math.max(0, 1 - Math.max(u, 0)), 1.7) * (1 - 0.1 * gul) * (1 + 0.04 * N.noise(a * 3, 2)) + N.fbm(ca * r * 0.01, sa * r * 0.01, 4) * 28 * smoothstep(0, 0.4, u);
       if (u < 0) h = V.h - 40 * smoothstep(0, -0.4, u) + 6 * N.noise(a * 5, 1); // crater bowl rim
-      h -= 30 * smoothstep(0.85, 1.0, t);
+      h -= 260 * smoothstep(0.8, 1.0, t);
       pos.push(ca * r, h, sa * r);
       // stream mask: meandering lines running down from the crater (direction a measured toward the field)
       let s = 0;
@@ -212,7 +213,7 @@ export function createVolcano(THREE, seed, F, textures, flashUniform, timeUnifor
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('aV', new THREE.Float32BufferAttribute(aux, 2));
   g.setIndex(idx); g.computeVertexNormals();
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 });
-  mat.defines = { WB_FAR_FOG: '0.55' };
+  mat.defines = { WB_FAR_FOG: '0.42' };
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.tRock = { value: textures.basalt }; sh.uniforms.uT = timeUniform; sh.uniforms.uFl = flashUniform;
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 aV; varying vec2 vV; varying vec3 vMW;')
@@ -221,7 +222,7 @@ export function createVolcano(THREE, seed, F, textures, flashUniform, timeUnifor
       .replace('#include <color_fragment>', `#include <color_fragment>
   vec4 rk = texture2D(tRock, vMW.xz * 0.006) * 0.6 + texture2D(tRock, vMW.xy * 0.02) * 0.4;
   float ashC = smoothstep(0.75, 0.25, vV.y) * 0.6;
-  diffuseColor.rgb = mix(vec3(0.03, 0.028, 0.028), vec3(0.2, 0.19, 0.185), ashC) * mix(0.55, 1.45, rk.r);`)
+  diffuseColor.rgb = mix(vec3(0.018, 0.016, 0.017), vec3(0.14, 0.13, 0.128), ashC) * mix(0.5, 1.5, rk.r);`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
   float flowT = fract(vV.y * 6.0 - uT * 0.05);
   float st = vV.x * (0.7 + 0.3 * sin(vV.y * 40.0 - uT * 0.6));

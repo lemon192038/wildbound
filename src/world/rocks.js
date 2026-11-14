@@ -111,7 +111,7 @@ function scrubGeo(THREE, seed) {
 // ---------------- materials ----------------
 function rockMaterial(THREE, F, tx, shared, { emissiveCracks = 0, ashTop = 1, name = 'rock', basaltScale = 0.35 } = {}) {
   const P = F.palette;
-  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 });
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, shadowSide: THREE.DoubleSide });
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, shared, { tBas: { value: tx.basalt }, tBasN: { value: tx.basaltN }, tAsh: { value: tx.ash } });
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vRW; varying vec3 vRN; varying float vRY;')
@@ -149,7 +149,7 @@ ${VOLC_GLSL}`)
   float cr = smoothstep(0.4, 0.95, c.g) * ${emissiveCracks.toFixed(2)} * (0.6 + 0.4 * sin(uTime * 1.4 + vRW.x * 0.3 + vRW.y));
   rockEm += WB_GLOW * cr * 2.5;
 }`)
-      .replace('#include <normal_fragment_maps>', 'normal = normalize((viewMatrix * vec4(rockWN, 0.0)).xyz);')
+      .replace('#include <normal_fragment_maps>', 'normal = normalize((viewMatrix * vec4(rockWN, 0.0)).xyz) * faceDirection;')
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += rockEm;');
   };
   mat.customProgramCacheKey = () => `wb-vrock-${F.id}-${name}`;
@@ -226,14 +226,13 @@ export function createProps(THREE, scene, F, terrain, tx, opts) {
     scatter(C(42), 1500, () => { const [x, z, r] = polar(26, 230); if (!clearOf(x, z, 6) || !lavaClear(x, z, 3) || !flatEnough(x, z) || !freeOfColliders(x, z, 1)) return false; put('tree', x, z, 0.8 + rnd() * 0.6, { tilt: 0.1, sink: 0, col: r < B ? 0.45 : 0, tint: 1 }); return true; });
     scatter(C(240), 3000, () => { const [x, z] = polar(18, 220); if (!lavaClear(x, z, 1.5) || !flatEnough(x, z, 0.85)) return false; put('scrub', x, z, 0.8 + rnd() * 1.2, { tilt: 0.1, sink: 0.05, tint: 0.6 + rnd() * 0.6 }); return true; });
     for (const [x, z] of F.vents) put('slab', x, z, 1.4 + rnd(), { sy: 0.7, sink: 0.1, tint: 0.7 });
+    scatter(C(60), 1500, () => { const [x, z] = polar(8, 60); if (!clearOf(x, z, 3)) return false; put(rnd() < 0.5 ? 'boulderB' : 'slab', x, z, 0.15 + rnd() * 0.35, { sink: 0.35, tint: 0.6 + rnd() * 0.5 }); return true; });
   } else if (id === 'wastes') {
-    kind('lying', columnsGeo(THREE, seed + 12, { n: 4, h0: 0.8, h1: 1.0, r: 0.12, spread: 0.18, lying: true }), colMat);
     kind('tree', treeGeo(THREE, seed + 13), new THREE.MeshStandardMaterial({ color: 0x1c1a18, roughness: 0.95 }));
     kind('scrub', scrubGeo(THREE, seed + 14), new THREE.MeshStandardMaterial({ color: 0x5a564a, roughness: 1 }), { shadow: false });
     // broken column stumps around the plateau edge (low enough for the wyvern to hover over)
     scatter(C(11), 800, () => { const [x, z] = polar(38, 55); const s = 4 + rnd() * 3; if (!clearOf(x, z, 9) || !freeOfColliders(x, z, s * 0.6)) return false; put(rnd() < 0.5 ? 'cols' : 'colsTall', x, z, s, { sy: 3 + rnd() * 6, sink: 0.05, tilt: 0.12, col: s * 0.55 }); return true; });
     // toppled columns lying in the ash (collider chain along the length)
-    scatter(C(6), 500, () => { const [x, z] = polar(24, 54); const L = 7 + rnd() * 6, ry = rnd() * Math.PI; if (!clearOf(x, z, 10) || !freeOfColliders(x, z, L * 0.5)) return false; put('lying', x, z, 1, { sxz: 1, ax: L, az: 7, sy: 7, ry, rx: 0, rz: 0, sink: 0.35 }); const dx = Math.cos(ry), dz = -Math.sin(ry); for (let k = -1; k <= 1; k++) colliders.push({ x: x + dx * k * L * 0.33, z: z + dz * k * L * 0.33, r: 1.0 }); return true; });
     // giant basalt towers beyond the moat
     scatter(C(18), 1500, () => { const [x, z] = polar(96, 225); const s = 10 + rnd() * 14; if (!lavaClear(x, z, s * 0.6 + 2) || !freeOfColliders(x, z, s * 0.5)) return false; put(rnd() < 0.6 ? 'colsTall' : 'cols', x, z, s, { sy: 25 + rnd() * 50, sink: 0.05, tilt: 0.08 }); return true; });
     scatter(C(14), 1200, () => { const [x, z] = polar(92, 230); const s = 4 + rnd() * 6; if (!lavaClear(x, z, s + 2)) return false; put(rnd() < 0.5 ? 'spire' : 'spireB', x, z, s, { sy: 14 + rnd() * 30, sink: 0.05, tilt: 0.1 }); return true; });
