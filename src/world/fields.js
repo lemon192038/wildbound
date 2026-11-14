@@ -79,7 +79,7 @@ function foothills(seed) {
       scoria: [[0.04, 0.026, 0.022], [0.2, 0.12, 0.085]], oxide: [0.3, 0.085, 0.04], ash: [[0.15, 0.14, 0.135], [0.34, 0.32, 0.3]],
       sulfur: [0.72, 0.6, 0.2], glow: [1.0, 0.3, 0.05], burn: [0.05, 0.03, 0.025],
     },
-    light: { sunDir: [-0.82, 0.24, 0.3], sunCol: [1.0, 0.56, 0.32], sun: 2.8, hemiSky: 0x6c5a58, hemiGround: 0x5a2410, hemi: 0.55, env: 0.32, exposure: 1.05 },
+    light: { sunDir: [-0.82, 0.24, 0.3], sunCol: [1.0, 0.56, 0.32], sun: 2.8, hemiSky: 0x6c5a58, hemiGround: 0x5a2410, hemi: 0.85, env: 0.45, exposure: 1.3 },
     sky: { zenith: [0.045, 0.04, 0.05], horizon: [0.36, 0.19, 0.13], away: [0.17, 0.12, 0.115], sunCol: [1.0, 0.5, 0.25], cloud: [0.09, 0.075, 0.075], cloudLit: [0.55, 0.26, 0.14], glowDir: [0.095, 0.1, -0.99], glowCol: [1.0, 0.28, 0.06], cover: 0.62, sunDisk: 0.7 },
     fog: { density: 0.0027, falloff: 0.016, base: -2, extra: 0.00022 },
     distant: { r0: 280, lowNorth: 0.4, palette: [[0.03, 0.028, 0.03], [0.2, 0.15, 0.13]] },
@@ -246,7 +246,7 @@ function hollow(seed) {
       scoria: [[0.04, 0.022, 0.018], [0.17, 0.09, 0.065]], oxide: [0.26, 0.07, 0.03], ash: [[0.1, 0.09, 0.085], [0.22, 0.2, 0.19]],
       sulfur: [0.68, 0.56, 0.2], glow: [1.0, 0.32, 0.06], burn: [0.04, 0.025, 0.02],
     },
-    light: { sunDir: [0.06, 0.99, 0.09], sunCol: [1.0, 0.86, 0.7], sun: 4.5, hemiSky: 0x5c4a46, hemiGround: 0x6a3018, hemi: 1.0, env: 0.22, exposure: 1.2, bounce: [0xff8048, 420] },
+    light: { sunDir: [0.06, 0.99, 0.09], sunCol: [1.0, 0.86, 0.7], sun: 4.5, hemiSky: 0x5c4a46, hemiGround: 0x6a3018, hemi: 1.45, env: 0.35, exposure: 1.55, bounce: [0xff8048, 620] },
     sky: { zenith: [0.32, 0.3, 0.3], horizon: [0.55, 0.42, 0.32], away: [0.4, 0.34, 0.3], sunCol: [1.0, 0.8, 0.6], cloud: [0.3, 0.27, 0.26], cloudLit: [0.8, 0.68, 0.55], glowDir: [0, 1, 0], glowCol: [1.0, 0.4, 0.1], cover: 0.4, sunDisk: 0.8 },
     // fog colour in the cave: dark ember haze, not the sky
     fog: { density: 0.0075, falloff: 0.012, base: 0, extra: 0.0002, cave: [0.075, 0.03, 0.018] },

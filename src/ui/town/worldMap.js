@@ -114,7 +114,7 @@ export function createWorldMap(ctx) {
   }
 
   // ---------------------------------------------------------------- input: drag / inertia / pinch / wheel / double-tap
-  const ptrs = new Map(); let drag = null, pinch = null, moved = 0, lastTap = { t: 0, x: 0, y: 0 }, lastMove = 0;
+  const ptrs = new Map(); let lastDbl = 0, drag = null, pinch = null, moved = 0, lastTap = { t: 0, x: 0, y: 0 }, lastMove = 0;
   const local = (e) => { const r = view.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
   view.addEventListener('pointerdown', (e) => {
     if (e.button > 0) return; const [x, y] = local(e); ptrs.set(e.pointerId, { x, y }); V.anim = null; V.vx = V.vy = 0;
@@ -141,8 +141,8 @@ export function createWorldMap(ctx) {
     if (performance.now() - lastMove > 80) V.vx = V.vy = 0;
     if (moved <= 6 && drag && e.type === 'pointerup') {
       const onPin = e.target.closest?.('.wm-pin'); const now = performance.now();
-      if (!onPin && now - lastTap.t < 320 && Math.hypot(p.x - lastTap.x, p.y - lastTap.y) < 36) { // double-tap → zoom
-        lastTap.t = 0; const ns = V.s * 2 > maxS() * 0.98 ? minS() : V.s * 2; animateTo(ns, (p.x - V.tx) / V.s, (p.y - V.ty) / V.s, p.x, p.y, 320);
+      if (!onPin && now - lastTap.t < 380 && Math.hypot(p.x - lastTap.x, p.y - lastTap.y) < 40) { // double-tap → zoom
+        lastTap.t = 0; lastDbl = now; const ns = V.s * 2 > maxS() * 0.98 ? minS() : V.s * 2; animateTo(ns, (p.x - V.tx) / V.s, (p.y - V.ty) / V.s, p.x, p.y, 320);
       } else { lastTap = { t: now, x: p.x, y: p.y }; if (!onPin && e.target.closest?.('.wm-view')) singleTap(); }
     }
     drag = null;
@@ -151,6 +151,10 @@ export function createWorldMap(ctx) {
   root.addEventListener('click', (e) => { if (moved > 6 && e.target.closest('.wm-view')) { e.stopPropagation(); e.preventDefault(); } }, true);
   view.addEventListener('wheel', (e) => { e.preventDefault(); const [x, y] = local(e); V.anim = null; zoomAt(V.s * Math.exp(-clamp(e.deltaY, -120, 120) * 0.0022), x, y); }, { passive: false });
   view.addEventListener('dragstart', (e) => e.preventDefault());
+  view.addEventListener('dblclick', (e) => { // fallback when the browser reports the double tap/click but our timing missed it
+    if (performance.now() - lastDbl < 600 || e.target.closest('.wm-pin')) return; const [x, y] = local(e); lastDbl = performance.now();
+    const ns = V.s * 2 > maxS() * 0.98 ? minS() : V.s * 2; animateTo(ns, (x - V.tx) / V.s, (y - V.ty) / V.s, x, y, 320);
+  });
   let tapTimer = 0;
   function singleTap() { clearTimeout(tapTimer); tapTimer = setTimeout(() => { if (lastTap.t && selected) select(null); }, 330); }
   function hoverAt(e) { const pin = e.target.closest?.('.wm-pin'); const id = pin?.dataset.dest || null; if (id !== hover) { hover = id; } }
