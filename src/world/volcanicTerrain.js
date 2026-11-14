@@ -158,7 +158,7 @@ vec3 terrN; float terrRough; vec3 terrEmit;
   vec3 col = flowC * b1.x + scoC * b1.y;
   vec3 nT = flN * b1.x + scN * b1.y;
   float h = fl.a * b1.x + sc.a * b1.y;
-  float rough = 0.5 * b1.x + 0.95 * b1.y;
+  float rough = 0.62 * b1.x + 0.95 * b1.y;
   float crackM = fl.g * b1.x;
   // ash settles in hollows and on flat ground
   float wA = a1.r * (1.0 - smoothstep(0.3, 0.55, slope));

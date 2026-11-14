@@ -44,10 +44,10 @@ export async function createWorld(game) {
   // ---- lights ----
   const sun = new THREE.DirectionalLight(new THREE.Color(...F.light.sunCol), F.light.sun);
   sun.castShadow = true;
-  const SHR = F.cave ? 132 : low ? 30 : 36;
+  const SHR = F.cave ? 178 : low ? 30 : 36; // cave: one static box covering every wall under the roof
   const SM = F.cave ? (low ? 1024 : 2048) : (low ? 1024 : 2048);
   sun.shadow.mapSize.set(SM, SM);
-  Object.assign(sun.shadow.camera, { left: -SHR, right: SHR, top: SHR, bottom: -SHR, near: 1, far: F.cave ? 420 : 460 });
+  Object.assign(sun.shadow.camera, { left: -SHR, right: SHR, top: SHR, bottom: -SHR, near: 1, far: F.cave ? 640 : 460 });
   sun.shadow.camera.updateProjectionMatrix();
   sun.shadow.bias = F.cave ? -0.0006 : -0.0004; sun.shadow.normalBias = F.cave ? 0.12 : 0.045; sun.shadow.radius = 2.5;
   scene.add(sun, sun.target);
@@ -131,6 +131,20 @@ export async function createWorld(game) {
     }
   }
 
+  // Monsters never stand in lava: walking bosses that end up within MARGIN of it are pushed back along the
+  // lava signed-distance gradient (the foothills levee stops most of them; this catches leaps / collider tunnelling).
+  const MARGIN = 4;
+  function keepMonstersOffLava() {
+    for (const m of game.monsters || []) {
+      const p = m?.position; if (!p || m.remoteControlled) continue;
+      if (p.y - terrain.getHeight(p.x, p.z) > 3) continue; // airborne (wyvern flight, leaps)
+      const sd = F.lavaSD(p.x, p.z); if (sd >= MARGIN) continue;
+      const e = 0.5, gx = F.lavaSD(p.x + e, p.z) - F.lavaSD(p.x - e, p.z), gz = F.lavaSD(p.x, p.z + e) - F.lavaSD(p.x, p.z - e);
+      const gl = Math.hypot(gx, gz) || 1; const k = Math.min(MARGIN - sd, 2.5);
+      p.x += gx / gl * k; p.z += gz / gl * k;
+    }
+  }
+
   let time = 0;
   const _cam = new THREE.Vector3();
   function update(dt, rawDt) {
@@ -153,6 +167,7 @@ export async function createWorld(game) {
     landmarks.update(time);
     fx.update(rawDt, camera, renderer);
     hazard(dt);
+    keepMonstersOffLava();
     followShadow();
     camera.getWorldPosition(_cam);
     world.heatHaze = Math.min(1, terrain.heatAt(_cam.x, _cam.z) * 1.2 + (F.haze ? 0.15 : 0));

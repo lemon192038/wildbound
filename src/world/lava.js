@@ -147,7 +147,7 @@ export function createLavafall(THREE, getHeight, path, width, mat, lavaY) {
     const [x, z] = path[i]; const [nx, nz] = path[Math.min(n - 1, i + 1)], [px, pz] = path[Math.max(0, i - 1)];
     let tx = nx - px, tz = nz - pz; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
     const sx = -tz, sz = tx; // across
-    const w = width * (0.75 + 0.25 * Math.sin(i * 0.7)) * (i === n - 1 ? 1.6 : 1);
+    const w = width * (0.9 + 0.1 * Math.sin(i * 0.37)) * (1 + 0.5 * i / n) * (i === n - 1 ? 1.5 : 1);
     if (i > 0) { const [qx, qz] = path[i - 1]; acc += Math.hypot(x - qx, z - qz, getHeight(x, z) - getHeight(qx, qz)); }
     for (let s = 0; s <= 1; s++) {
       const ox = x + sx * (s - 0.5) * w, oz = z + sz * (s - 0.5) * w;

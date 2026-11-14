@@ -142,7 +142,7 @@ function wastes(seed) {
     surface(x, z, h, slope, sd) {
       const r = Math.hypot(x, z);
       const ashN = N2.fbm(x * 0.03 + 4, z * 0.03, 3);
-      const ash = clamp(smoothstep(-0.3, 0.25, ashN + 0.25 * N.fbm(x * 0.11, z * 0.11, 2)) * 0.95 + 0.25 * smoothstep(20, 45, r) - 0.9 * smoothstep(0.32, 0.55, slope) - 0.5 * smoothstep(10, 2, sd), 0, 1);
+      const ash = (1 - 0.45 * smoothstep(80, 130, r)) * clamp(smoothstep(-0.3, 0.25, ashN + 0.25 * N.fbm(x * 0.11, z * 0.11, 2)) * 0.95 + 0.25 * smoothstep(20, 45, r) - 0.9 * smoothstep(0.32, 0.55, slope) - 0.5 * smoothstep(10, 2, sd), 0, 1);
       const scoria = smoothstep(0.1, 0.5, slope) * 0.7 + smoothstep(12, 2, sd) * 0.5;
       const crack = 0.9 * smoothstep(9, 1, sd) + 0.7 * smoothstep(0.1, 0.5, N.fbm(x * 0.05, z * 0.05, 2));
       let sulfur = 0;
@@ -246,7 +246,7 @@ function hollow(seed) {
       scoria: [[0.04, 0.022, 0.018], [0.17, 0.09, 0.065]], oxide: [0.26, 0.07, 0.03], ash: [[0.1, 0.09, 0.085], [0.22, 0.2, 0.19]],
       sulfur: [0.68, 0.56, 0.2], glow: [1.0, 0.32, 0.06], burn: [0.04, 0.025, 0.02],
     },
-    light: { sunDir: [0.06, 0.99, 0.09], sunCol: [1.0, 0.86, 0.7], sun: 4.5, hemiSky: 0x5c4a46, hemiGround: 0x6a3018, hemi: 1.0, env: 0.22, exposure: 1.2, bounce: [0xff8048, 650] },
+    light: { sunDir: [0.06, 0.99, 0.09], sunCol: [1.0, 0.86, 0.7], sun: 4.5, hemiSky: 0x5c4a46, hemiGround: 0x6a3018, hemi: 1.0, env: 0.22, exposure: 1.2, bounce: [0xff8048, 420] },
     sky: { zenith: [0.32, 0.3, 0.3], horizon: [0.55, 0.42, 0.32], away: [0.4, 0.34, 0.3], sunCol: [1.0, 0.8, 0.6], cloud: [0.3, 0.27, 0.26], cloudLit: [0.8, 0.68, 0.55], glowDir: [0, 1, 0], glowCol: [1.0, 0.4, 0.1], cover: 0.4, sunDisk: 0.8 },
     // fog colour in the cave: dark ember haze, not the sky
     fog: { density: 0.0075, falloff: 0.012, base: 0, extra: 0.0002, cave: [0.075, 0.03, 0.018] },
