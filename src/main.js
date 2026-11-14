@@ -17,6 +17,7 @@ import { createQuest } from './core/quest.js';
 import { createAccount } from './account/client.js';
 import { prepareQuest, startQuestRuntime } from './field/questRuntime.js';
 import { createStatus } from './core/status.js';
+import { showLoadingScreen } from './ui/loadingScreen.js';
 
 // The shared `game` context. Every module receives it; see CONTRACTS.md.
 const engine = new Engine();
@@ -56,15 +57,18 @@ function startLoop(step) {
 }
 
 async function bootField() {
+  showLoadingScreen(game);                       // region/destination/boss card until window.__ready (src/ui/loadingScreen.js)
   const questCtx = await prepareQuest(game);     // ?quest=<iid>: server-validated expedition (null = free hunt)
-  game.world = await createWorld(game);          // terrain, sky, lighting, foliage, water, getHeight(x,z)
+  // Boss & field: from the expedition (prepareQuest), else legacy ?hunt= free hunt. Field is always the boss's home.
+  game.hunt ||= ['wyvern', 'brute'].includes(game.params.get('hunt')) ? game.params.get('hunt') : 'varkhul';
+  game.fieldId ||= { varkhul: 'foothills', wyvern: 'wastes', brute: 'hollow' }[game.hunt];
+  game.world = await createWorld(game);          // volcanic field chosen by game.fieldId: foothills | wastes | hollow
   engine.post = createPost(game);                // composer: SSAO/bloom/color grade/etc.
   game.player = await createPlayer(game);        // local hunter: model, animation, combat
   const status = createStatus(game);             // burn / poison ailments on the local hunter
   game.addUpdater((dt) => status.update(dt));
   game.cameraRig = createCameraRig(game);        // third-person orbit cam, lock-on, shake
   // Quest target: ?hunt=wyvern → Cindral (flying, user-made mesh), ?hunt=brute → Gorvath, default → Varkhul.
-  game.hunt ||= ['wyvern', 'brute'].includes(game.params.get('hunt')) ? game.params.get('hunt') : 'varkhul';
   const makeMonster = (g) => ({ wyvern: createWyvern, brute: createBrute }[g.hunt] || createMonster)(g);
   game.monsters.push(await makeMonster(game)); // boss monster: model, AI, hitzones
   game.audio = createAudio(game);                // procedural WebAudio sfx + music

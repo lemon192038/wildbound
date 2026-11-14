@@ -235,3 +235,34 @@ export function questAvailable(qid, save) {
   for (const p of q.prereq || []) if (!(save.quests?.cleared?.[p] > 0)) return { ok: false, why: `Clear "${QUESTS[p].name}" first` };
   return { ok: true };
 }
+
+// ---------------------------------------------------------------- world map destinations (expeditions)
+// Each destination is one hunting field. `field` selects the field layout in src/world (createWorld reads
+// game.fieldId), `monster` the boss that lives there. map: normalised position on the world map (0..1).
+// Quests travel to the destination of their monster (destForMonster); free expeditions pick any destination.
+export const DESTINATIONS = {
+  ember_foothills: { monster: 'varkhul', field: 'foothills', name: 'Emberfall Foothills', region: 'The Cinder Reach', map: { x: 0.585, y: 0.64 }, danger: 2, recHR: 1,
+    desc: 'The open flanks of Mount Kaldrith: black lava plains, steaming vents and old basalt ridges under a smouldering summit. Varkhul hunts the foothills.' },
+  ashfang_wastes: { monster: 'wyvern', field: 'wastes', name: 'Ashfang Wastes', region: 'The Cinder Reach', map: { x: 0.69, y: 0.5 }, danger: 4, recHR: 3,
+    desc: 'An ash-choked badland of lava moats, toppled rock pillars and broken stone bridges, where Cindral bombs anything that moves from the sky.' },
+  cinderdeep_hollow: { monster: 'brute', field: 'hollow', name: 'Cinderdeep Hollow', region: 'The Cinder Reach', map: { x: 0.55, y: 0.44 }, danger: 6, recHR: 5,
+    desc: 'A vast cavern beneath the volcano, lit by lavafalls and choked with steam. The ground trembles with Gorvath\'s footsteps.' },
+};
+export const destForMonster = (m) => Object.keys(DESTINATIONS).find((k) => DESTINATIONS[k].monster === m) || 'ember_foothills';
+export const FREE_EXPEDITION = { timeLimit: 3000, minClear: 20, slayMinClear: 60, gatherCap: 10 };
+
+// Field-guide entries (shown in the world map's boss details). Facts mirror the implemented AI in src/monster.
+export const MONSTER_INFO = {
+  varkhul: { danger: 2, recHR: 1, size: '≈16 m', habitat: 'ember_foothills', element: 'fire',
+    desc: 'A heat-scarred quadruped wyvern with an armoured crest, a spiked club tail and ember vents along its back that blaze when it is enraged.',
+    traits: ['Enrages below 50% health: faster, vents blaze, new combos', 'Limps when below 20% health', 'Tires after long fights — exhausted, its breath fizzles', 'Tail can be severed; horn, forelegs and back can be broken'],
+    attacks: ['Bite', '360° tail sweep', 'Charge', 'Leap slam', 'Fire breath cone (burns)', 'Roar (stuns nearby hunters)'] },
+  wyvern: { danger: 4, recHR: 3, size: '≈16 m wingspan', habitat: 'ashfang_wastes', element: 'fire',
+    desc: 'A flying wyvern that rains timed rock bombs from the air and detonates them with fire or its jaws.',
+    traits: ['Fights mostly in the air; lands to bite or when exhausted', 'Breaking its wings or tail sends it crashing down', 'Glare Pods ground it', 'Inflicts burns and deadly poison'],
+    attacks: ['Hover rock-bombing (timed blasts)', 'Forced detonation (fireball or bite)', 'Back-jump rock spit', 'Great roar → follow-up', 'Dragon wind pressure (long stun)', 'Sweeping breath (burning ground)', 'Chained talon dives (deadly poison)'] },
+  brute: { danger: 6, recHR: 5, size: '≈6 m at the shoulder', habitat: 'cinderdeep_hollow', element: 'fire',
+    desc: 'A colossal knuckle-walking brute. Molten cinder growths on its brow, fists and tail heat to white-hot and tear off as bombs.',
+    traits: ['Growths turn critical when heated or struck', 'Hitting a hot growth makes it drop and explode (blastblight)', 'Water/ice weapons cool the growths', 'Below 35%: seals the arena — final stand', 'Burns itself with its own blasts'],
+    attacks: ['Fist slam / double slam', 'Sweeping backhand', 'Brow slam', 'Leap slam', 'Tail swipe', 'Charge', 'Cinder sea pools', 'Cataclysm — chained detonation of every pool'] },
+};

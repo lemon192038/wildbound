@@ -5,7 +5,7 @@
 //   getLang() → 'ja' | 'en'      setLang(l) → stores + reloads      t(key, {name}) → text
 //   itemName/itemDesc/weaponName/weaponEffect/armorName/skillName/skillDesc/questName/questDesc/monsterName …
 //   serverMsg(message, error) → server/API English message translated (templates + embedded names)
-import { ITEMS, WEAPONS, ARMOR, SKILLS, QUESTS, MONSTERS } from './gamedata.js';
+import { ITEMS, WEAPONS, ARMOR, SKILLS, QUESTS, MONSTERS, DESTINATIONS } from './gamedata.js';
 import EN from './i18n-en.js';
 import JA from './i18n-ja.js';
 
@@ -49,6 +49,10 @@ export const armorSetName = (setId) => P().armorSets?.[setId] ?? EN.armorSets[se
 export const equipDefName = (kind, def) => (kind === 'weapon' ? weaponName(def) : armorName(def));
 export const skillName = (id) => pick('skills', id, 0) ?? SKILLS[id]?.name ?? id;
 export const skillDesc = (id) => pick('skills', id, 1) ?? SKILLS[id]?.desc ?? '';
+// destinations (world map): [name, desc, region]
+export const destName = (id) => pick('dests', id, 0) ?? DESTINATIONS[id]?.name ?? id;
+export const destDesc = (id) => pick('dests', id, 1) ?? DESTINATIONS[id]?.desc ?? '';
+export const destRegion = (id) => pick('dests', id, 2) ?? DESTINATIONS[id]?.region ?? '';
 export const questName = (id) => pick('quests', id, 0) ?? QUESTS[id]?.name ?? id;
 export const questDesc = (id) => pick('quests', id, 1) ?? QUESTS[id]?.desc ?? '';
 const monsterIdOf = (x) => (MONSTERS[x] ? x : Object.keys(MONSTERS).find((k) => MONSTERS[k].name === x || MONSTERS[k].name.split(',')[0] === x) || null);

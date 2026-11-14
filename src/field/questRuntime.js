@@ -5,9 +5,9 @@
 //   const ctx = await prepareQuest(game)         // before the world/monster exist; null → free hunt
 //   startQuestRuntime(game, ctx)                 // after player + monster + UI are created
 import * as THREE from 'three';
-import { QUESTS, ITEMS, MONSTERS } from '../shared/gamedata.js';
+import { QUESTS, ITEMS, MONSTERS, DESTINATIONS, destForMonster, FREE_EXPEDITION } from '../shared/gamedata.js';
 import { createGather } from './gather.js';
-import { t, itemName, itemDesc, questName, monsterShort, partName, serverMsg } from '../shared/i18n.js';
+import { t, itemName, itemDesc, questName, monsterShort, partName, serverMsg, destName, isJa } from '../shared/i18n.js';
 
 const HEAL = { heal50: 50, heal100: 100, healFull: 999 };
 const navTown = () => { const u = new URL(location.href); const keep = new URLSearchParams(); for (const k of ['low', 'hq', 'touch', 'lang']) if (u.searchParams.has(k)) keep.set(k, u.searchParams.get(k)); keep.set('mode', 'town'); location.href = `${u.pathname}?${keep}`; };
@@ -52,15 +52,20 @@ export async function prepareQuest(game) {
     o.querySelector('button').onclick = navTown;
     await new Promise(() => {}); // halt boot here
   }
-  const q = QUESTS[ex.qid];
-  game.hunt = q.monster || 'varkhul';
+  // Free expeditions (world map) have no quest: synthesise an objective-less "quest" for the runtime.
+  const free = !!ex.free; const destId = ex.dest || destForMonster(QUESTS[ex.qid]?.monster); const dest = DESTINATIONS[destId] || DESTINATIONS.ember_foothills;
+  const q = free ? { name: dest.name, monster: dest.monster, free: true, objectives: [{ k: 'slayOrCapture' }], timeLimit: FREE_EXPEDITION.timeLimit, maxFaints: 3, minClear: FREE_EXPEDITION.slayMinClear } : QUESTS[ex.qid];
+  game.hunt = q.monster || dest.monster || 'varkhul';
+  game.fieldId = dest.field;                     // which volcanic field to build (src/world) — always the destination's
+  game.destId = destId; game.expeditionFree = free;
   game.questTimeLimit = q.timeLimit;
   game.questDef = q;
   const carried = { ...ex.carried }; const used = {};
   // Item bar: every carried consumable/tool + the whetstone (infinite).
   const order = Object.keys(carried).filter((k) => ITEMS[k]).sort((a, b) => (ITEMS[a].kind === 'consumable' ? 0 : 1) - (ITEMS[b].kind === 'consumable' ? 0 : 1));
-  const ctx = { iid, ex, q, state, carried, used, items: order, runtime: null };
-  const rt = { abandon: () => ctx.finish?.('fail', 'Abandoned'), ctx };
+  const ctx = { iid, ex, q, state, carried, used, items: order, runtime: null, free, destId };
+  // Free expeditions never 'fail': returning to port keeps what you gathered (server: completeQuest).
+  const rt = { abandon: () => (free ? ctx.finish?.('return') : ctx.finish?.('fail', 'Abandoned')), ctx };
   game.questRuntime = rt; ctx.runtime = rt;
   game.fieldItems = {
     list: () => [...order.map((k) => ({ id: k, name: itemName(k), desc: itemDesc(k) })), { id: 'whetstone', name: t('it.whetstone'), desc: t('it.whetDesc') }],
@@ -103,7 +108,7 @@ export function startQuestRuntime(game, ctx) {
   const st = { slain: false, captured: false, parts: new Set(), gathered: {}, faints: 0, t: 0, phase: 'hunt', endAt: 0, snaredUntil: 0, tranq: 0, buffs: {} };
   events.on('monster:died', () => { st.slain = true; });
   events.on('monster:partBreak', (e) => { const p = typeof e?.part === 'string' ? e.part : e?.part?.name; if (p) st.parts.add(p); });
-  events.on('player:died', () => { st.faints++; if (st.phase === 'hunt') toast(t('qr.faintN', { a: st.faints, b: q.maxFaints })); if (st.faints >= q.maxFaints) finish('fail', 'Fainted too many times'); });
+  events.on('player:died', () => { st.faints++; if (st.phase === 'hunt') toast(t('qr.faintN', { a: st.faints, b: q.maxFaints })); if (st.faints >= q.maxFaints) finish(ctx.free ? 'return' : 'fail', 'Fainted too many times'); });
   events.on('quest:failed', (e) => finish('fail', e?.reason || 'Time expired'));
 
   // ---------------------------------------------------------------- items
@@ -189,10 +194,10 @@ export function startQuestRuntime(game, ctx) {
     if (st.phase === 'done' || st.phase === 'submitting') return;
     if (kind === 'success' && st.phase === 'hunt') {
       st.phase = 'complete'; st.endAt = st.t + 20; events.emit('quest:complete', { gen: 0 });
-      banner = document.createElement('div'); banner.className = 'qr-banner'; banner.innerHTML = `<h2>${t('f.questComplete')}</h2><p>${t('qr.returning', { n: '<b>20</b>' })}</p>`; document.getElementById('ui-root').appendChild(banner);
+      banner = document.createElement('div'); banner.className = 'qr-banner'; banner.innerHTML = `<h2>${ctx.free ? (isJa() ? '狩猟完了' : 'HUNT COMPLETE') : t('f.questComplete')}</h2><p>${t('qr.returning', { n: '<b>20</b>' })}</p>`; document.getElementById('ui-root').appendChild(banner);
       return;
     }
-    submit(kind, reason);
+    submit(kind === 'return' ? 'success' : kind, reason);
   }
   ctx.finish = finish;
   async function submit(kind, reason) {
@@ -204,6 +209,17 @@ export function startQuestRuntime(game, ctx) {
     st.phase = 'done'; card.remove();
     const res = r?.result || {}; const rw = res.rewards;
     const ok = kind === 'success' && r?.ok && res.ok !== false;
+    if (ctx.free) { // expedition report: materials only — no bounty, no quest
+      const itemsF = rw ? Object.entries(rw.items).map(([k, n], i) => `<div class="qr-item" style="--rc:${RARITY[ITEMS[k]?.rarity || 1]};animation-delay:${0.4 + i * 0.08}s"><span>${itemName(k)}</span><b>×${n}</b></div>`).join('') : '';
+      const elF = overlay(`<div class="qr-card"><h1 class="${r?.ok ? '' : 'fail'}">${isJa() ? '遠征報告' : 'EXPEDITION REPORT'}</h1>
+        <div class="qr-sub">${destName(ctx.destId)}${r?.ok ? '' : ' — ' + serverMsg(r?.message || 'Error', r?.error)}</div>
+        ${r?.ok ? `<div class="qr-row"><span>${isJa() ? '狩猟' : 'Hunt'}</span><b>${res.hunted ? (st.captured ? (isJa() ? '捕獲' : 'Captured') : (isJa() ? '討伐' : 'Slain')) + ' — ' + monsterShort(q.monster) : (isJa() ? '未討伐' : 'Not hunted')}</b></div>
+        <div class="qr-row"><span>${t('qr.time')}</span><b>${fmt(res.elapsed || st.t)}</b></div>
+        <div class="qr-items">${itemsF || `<div class="qr-row"><span>${isJa() ? '持ち帰った素材なし' : 'No materials brought back'}</span></div>`}</div>
+        <div class="qr-row"><span>${isJa() ? '自由遠征' : 'Free expedition'}</span><b>${isJa() ? '報酬金・クエスト進行なし' : 'no bounty or quest progress'}</b></div>` : ''}
+        <button class="qr-btn">${t('qr.return')}</button></div>`);
+      elF.querySelector('button').onclick = navTown; return;
+    }
     const items = rw ? Object.entries(rw.items).map(([k, n], i) => `<div class="qr-item" style="--rc:${RARITY[ITEMS[k]?.rarity || 1]};animation-delay:${0.4 + i * 0.08}s"><span>${itemName(k)}</span><b>×${n}</b></div>`).join('') : '';
     const el = overlay(`<div class="qr-card">
       <h1 class="${ok ? '' : 'fail'}">${ok ? t('f.questComplete') : t('f.questFailed')}</h1>
@@ -223,11 +239,11 @@ export function startQuestRuntime(game, ctx) {
     P.gear.buffAtk = st.buffs.atk > 0 ? 1.1 : 1; P.gear.buffDef = st.buffs.def > 0 ? 0.85 : 1;
     if (st.buffs.stam > 0) P.stamina = Math.min(P.maxStamina, P.stamina + 6 * dt);
     const lines = objLines(); const key = lines.map((l) => l.join()).join('|');
-    if (key !== objKey) { objKey = key; obj.innerHTML = `<h4>${questName(ctx.ex.qid).toUpperCase()}</h4>` + lines.map(([t, d]) => `<div class="${d ? 'done' : ''}"><span>${t}</span></div>`).join(''); }
+    if (key !== objKey) { objKey = key; obj.innerHTML = `<h4>${ctx.free ? (isJa() ? '自由遠征 · ' : 'FREE EXPEDITION · ') + destName(ctx.destId).toUpperCase() : questName(ctx.ex.qid).toUpperCase()}</h4>` + lines.map(([t, d]) => `<div class="${d ? 'done' : ''}"><span>${t}</span></div>`).join(''); }
     if (st.phase === 'hunt' && success()) finish('success');
     if (st.phase === 'complete') {
       // never report before the server's plausibility minimum (server clock), else the report is refused
-      const earliest = ctx.ex.at + (q.minClear + 2) * 1000 - (Date.now() + clockSkew);
+      const earliest = ctx.ex.at + ((q.minClear || 0) + 2) * 1000 - (Date.now() + clockSkew);
       const left = Math.max(0, Math.ceil(Math.max(st.endAt - st.t, earliest / 1000))); const b = banner?.querySelector('b'); if (b) b.textContent = left;
       if (st.t >= st.endAt && earliest <= 0) submit('success');
     }

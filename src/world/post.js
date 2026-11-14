@@ -56,6 +56,19 @@ void main(){
 }`,
 };
 
+// Heat haze: cheap screen-space shimmer, strongest low on screen; strength driven by world.heatHaze (lava proximity).
+const HazeShader = {
+  uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uStrength: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `
+uniform sampler2D tDiffuse; uniform float uTime, uStrength; varying vec2 vUv;
+void main(){
+  float k = uStrength * (0.35 + 0.65 * smoothstep(0.85, 0.15, vUv.y));
+  vec2 o = vec2(sin(vUv.y * 160.0 + uTime * 7.0 + sin(vUv.x * 37.0 + uTime * 2.3) * 2.0), cos(vUv.x * 120.0 - uTime * 5.3 + sin(vUv.y * 51.0) * 2.0)) * k;
+  gl_FragColor = texture2D(tDiffuse, vUv + o);
+}`,
+};
+
 const GradeShader = {
   uniforms: { tDiffuse: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uTime: { value: 0 }, uCA: { value: 0.0016 }, uVig: { value: 0.32 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
@@ -116,6 +129,8 @@ export function createPost(game) {
   const rays = new ShaderPass({ ...RaysShader, defines: { RAY_SAMPLES: low ? 24 : 48 } });
   rays.uniforms.tDepth.value = scenePass.rt.depthTexture;
   composer.addPass(rays);
+  const haze = new ShaderPass(HazeShader); haze.enabled = false;
+  composer.addPass(haze);
   composer.addPass(new OutputPass());
   const grade = new ShaderPass(GradeShader);
   composer.addPass(grade);
@@ -130,10 +145,12 @@ export function createPost(game) {
   setSize(w, h);
   let t = 0, last = performance.now(); const _fwd = new THREE.Vector3(), _sp = new THREE.Vector3();
   return {
-    composer, passes: { scenePass, gtao, bloom, rays, grade, aa },
+    composer, passes: { scenePass, gtao, bloom, rays, haze, grade, aa },
     render() {
       const now = performance.now(); t += Math.min(0.1, (now - last) / 1000); last = now;
       grade.uniforms.uTime.value = t;
+      const hz = game.world?.heatHaze || 0;
+      haze.enabled = hz > 0.02; haze.uniforms.uTime.value = t; haze.uniforms.uStrength.value = hz * 0.0018;
       // project the sun for the light-shaft pass; fade out when the sun is behind / far off-screen
       const sd = game.world?.sunDirection;
       if (sd) {

@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import {
   ITEMS, WEAPONS, ARMOR, ARMOR_SLOTS, RECIPES, QUESTS, MONSTERS, SHOP, POUCH, START, STARTER_WEAPON, STARTER_ARMOR,
   weaponStats, armorStats, nextWeaponCost, nextArmorCost, loadoutStats, recipeUnlocked, questAvailable, hrForXp, HR_XP,
+  DESTINATIONS, destForMonster, FREE_EXPEDITION,
 } from '../src/shared/gamedata.js';
 
 export class GameError extends Error { constructor(code, message) { super(message || code); this.code = code; } }
@@ -153,17 +154,31 @@ export const ACTIONS = {
     const rewards = grant(d, q, a.qid, { slain: false }, now, rand);
     d.quests.active = null; return { msg: `Quest complete: ${q.name}`, rewards };
   },
-  depart(d, p, { now }) {
-    const a = d.quests.active; const q = a && QUESTS[a.qid]; if (!q) fail('none', 'Accept a quest at the guild first');
-    if (q.type === 'deliver') fail('deliver', 'Deliveries are turned in at the guild counter');
+  // depart {mode:'quest'|'free', dest}
+  //  quest: travels to the accepted quest's destination (dest, if given, must match it).
+  //  free : any destination, no quest needed; the accepted quest (if any) is untouched and cannot complete.
+  depart(d, { mode, dest } = {}, { now }) {
     if (d.quests.expedition) fail('busy', 'Already on a hunt');
+    const a = d.quests.active; const q = a && QUESTS[a.qid];
+    if (!mode) mode = q ? 'quest' : 'free';
+    let qid = null;
+    if (mode === 'quest') {
+      if (!q) fail('none', 'Accept a quest at the guild first');
+      if (q.type === 'deliver') fail('deliver', 'Deliveries are turned in at the guild counter');
+      const qDest = destForMonster(q.monster);
+      if (dest != null && dest !== qDest) fail('wrong_dest', 'Your quest leads elsewhere');
+      dest = qDest; qid = a.qid;
+    } else if (mode === 'free') {
+      if (typeof dest !== 'string' || !has(DESTINATIONS, dest)) fail('bad_dest', 'Unknown destination');
+    } else fail('bad_mode', 'Unknown expedition type');
     const carried = { ...d.pouch }; d.pouch = {};
     const iid = crypto.randomBytes(9).toString('base64url');
-    d.quests.expedition = { iid, qid: a.qid, at: now, carried };
-    return { msg: `Departing for “${q.name}”`, iid, quest: a.qid, carried, stats: loadoutStats(d.equip, d.loadout) };
+    d.quests.expedition = { iid, qid, dest, free: mode === 'free', at: now, carried };
+    return { msg: qid ? `Departing for “${q.name}”` : `Setting sail for ${DESTINATIONS[dest].name}`, iid, quest: qid, dest, mode, carried, stats: loadoutStats(d.equip, d.loadout) };
   },
   completeQuest(d, { iid, report }, { now, rand }) {
     const ex = d.quests.expedition; if (!ex || ex.iid !== iid) fail('no_expedition', 'That hunt is not active (already reported?)');
+    if (ex.free) return completeFree(d, ex, report, now, rand);
     const q = QUESTS[ex.qid]; const elapsed = (now - ex.at) / 1000; const r = sanitizeReport(report, q);
     // Too early: refuse WITHOUT consuming the expedition, so an honest (fast) client can simply retry later.
     if (elapsed < q.minClear) fail('too_early', `Report again in ${Math.ceil(q.minClear - elapsed)}s`);
@@ -177,12 +192,37 @@ export const ACTIONS = {
   },
   failQuest(d, { iid, report, reason }, { now }) {
     const ex = d.quests.expedition; if (!ex || ex.iid !== iid) fail('no_expedition', 'That hunt is not active');
-    const r = sanitizeReport(report, QUESTS[ex.qid]); returnCarried(d, ex.carried, r.used);
+    const r = sanitizeReport(report, ex.free ? freeQuestShape(ex) : QUESTS[ex.qid]); returnCarried(d, ex.carried, r.used);
     d.quests.expedition = null; // the quest stays accepted so it can be retried
     pushHistory(d, { t: now, qid: ex.qid, ok: false, why: String(reason || 'abandoned').slice(0, 40), s: Math.round((now - ex.at) / 1000) });
     return { msg: 'Returned to port', ok: false };
   },
 };
+
+// ---------------------------------------------------------------- free expeditions
+// No quest: no bounty coins or hunter XP, never clears or advances quests. You keep what you carve,
+// break and gather (server-capped), and slays/captures count in your hunt log.
+const freeQuestShape = (ex) => ({ monster: DESTINATIONS[ex.dest]?.monster, objectives: [], minClear: FREE_EXPEDITION.minClear, timeLimit: FREE_EXPEDITION.timeLimit, maxFaints: 99 });
+function completeFree(d, ex, report, now, rand) {
+  const dest = DESTINATIONS[ex.dest]; const elapsed = (now - ex.at) / 1000;
+  const r = sanitizeReport(report, freeQuestShape(ex));
+  for (const k of Object.keys(r.gathered)) r.gathered[k] = Math.min(r.gathered[k], FREE_EXPEDITION.gatherCap);
+  const hunted = r.slain || r.captured;
+  if (elapsed < (hunted ? FREE_EXPEDITION.slayMinClear : FREE_EXPEDITION.minClear)) fail('too_early', `Report again in ${Math.ceil((hunted ? FREE_EXPEDITION.slayMinClear : FREE_EXPEDITION.minClear) - elapsed)}s`);
+  returnCarried(d, ex.carried, r.used);
+  const items = {}; const add = (k, n) => { if (n > 0) items[k] = (items[k] || 0) + n; };
+  const mon = MONSTERS[dest.monster];
+  if (hunted && mon && elapsed <= FREE_EXPEDITION.timeLimit + 120) {
+    for (let i = 0; i < (r.captured ? 4 : 3); i++) add(weighted(mon.carves, rand), 1);
+    for (const p of r.parts) if (mon.breaks[p]) add(mon.breaks[p], 1);
+    const h = (d.hunts[dest.monster] ||= { slain: 0, captured: 0 }); r.captured ? h.captured++ : h.slain++;
+  }
+  for (const [k, n] of Object.entries(r.gathered)) add(k, n);
+  for (const [k, n] of Object.entries(items)) give(d.box, k, n);
+  d.quests.expedition = null;
+  pushHistory(d, { t: now, qid: null, dest: ex.dest, free: true, ok: true, hunted, s: Math.round(elapsed) });
+  return { msg: `Returned from ${dest.name}`, ok: true, free: true, rewards: { coins: 0, xp: 0, items, hr: d.profile.hr, hrUp: false }, hunted, elapsed: Math.round(elapsed) };
+}
 
 // ---------------------------------------------------------------- quest judgement & rewards
 function sanitizeReport(rep, q) {
@@ -243,7 +283,7 @@ export function equipValue(e) {
 // Expire hunts that were never reported (crashed tab, closed browser): items carried are returned.
 export function expireStale(d, now) {
   const ex = d.quests.expedition; if (!ex) return false;
-  const q = QUESTS[ex.qid]; if (!q || now - ex.at > (q.timeLimit + 600) * 1000) { returnCarried(d, ex.carried, {}); d.quests.expedition = null; pushHistory(d, { t: now, qid: ex.qid, ok: false, why: 'Expired', s: 0 }); return true; }
+  const limit = ex.free ? FREE_EXPEDITION.timeLimit : QUESTS[ex.qid]?.timeLimit; if (!limit || now - ex.at > (limit + 600) * 1000) { returnCarried(d, ex.carried, {}); d.quests.expedition = null; pushHistory(d, { t: now, qid: ex.qid, ok: false, why: 'Expired', s: 0 }); return true; }
   return false;
 }
 
@@ -257,7 +297,7 @@ export function publicState(d, user, now) {
     equip: d.equip.map((e) => ({ ...e, value: equipValue(e) })), loadout: d.loadout, sets: d.sets, stats: loadoutStats(d.equip, d.loadout),
     crafted: d.crafted, craftLog: d.craftLog.slice(-30),
     recipes: Object.fromEntries(Object.keys(RECIPES).map((k) => [k, recipeUnlocked(RECIPES[k], d)])),
-    quests: { cleared: d.quests.cleared, active: d.quests.active, expedition: d.quests.expedition ? { iid: d.quests.expedition.iid, qid: d.quests.expedition.qid, at: d.quests.expedition.at, carried: d.quests.expedition.carried } : null, history: d.quests.history.slice(-30),
+    quests: { cleared: d.quests.cleared, active: d.quests.active, expedition: d.quests.expedition ? { iid: d.quests.expedition.iid, qid: d.quests.expedition.qid, dest: d.quests.expedition.dest || destForMonster(QUESTS[d.quests.expedition.qid]?.monster), free: !!d.quests.expedition.free, at: d.quests.expedition.at, carried: d.quests.expedition.carried } : null, history: d.quests.history.slice(-30),
       available: Object.fromEntries(Object.keys(QUESTS).map((k) => [k, questAvailable(k, d)])) },
     hunts: d.hunts, areas: d.areas,
     shop: Object.fromEntries(Object.entries(d.shop).map(([k, s]) => [k, { left: s.left, restockAt: s.at + SHOP.restockMinutes * 60000 }])),

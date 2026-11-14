@@ -91,7 +91,7 @@ ok((await act(A, 'move', { item: 'ironOre', qty: 1, to: 'pouch' })).error === 'n
 
 // ---- quests
 ok((await act(A, 'acceptQuest', { quest: 'q_cw1' })).error === 'unavailable', 'quest locked behind rank/prerequisites');
-ok((await act(A, 'depart')).error === 'none', 'cannot depart without a quest');
+ok((await act(A, 'depart', { mode: 'quest' })).error === 'none', 'cannot depart on a quest expedition without a quest');
 r = await act(A, 'acceptQuest', { quest: 'q_vk1' }); ok(r.ok && r.state.quests.active.qid === 'q_vk1', 'accept "Emberhide Awakens"');
 ok((await act(A, 'acceptQuest', { quest: 'q_ore' })).error === 'active', 'only one active quest at a time');
 r = await act(A, 'depart'); const iid = r.result.iid;
@@ -126,6 +126,25 @@ r = await act(A, 'deliverQuest'); ok(r.ok && r.state.coins === dc + QUESTS.q_del
 r = await act(A, 'acceptQuest', { quest: 'q_ore' }); await act(A, 'move', { item: 'potion', qty: 2, to: 'pouch' }).catch(() => {});
 r = await act(A, 'depart'); clock += (QUESTS.q_ore.timeLimit + 700) * 1000; r = await call('/api/state', null, A);
 ok(!r.state.quests.expedition && r.state.quests.history.at(-1).why === 'Expired', 'abandoned (never reported) hunts expire and return carried items');
+
+// ---- free expeditions (world map)
+ok((await act(A, 'depart', { mode: 'free', dest: 'nowhere' })).error === 'bad_dest', 'free expedition needs a real destination');
+r = await act(A, 'acceptQuest', { quest: 'q_vk1' });
+ok((await act(A, 'depart', { mode: 'quest', dest: 'cinderdeep_hollow' })).error === 'wrong_dest', 'quest expedition cannot sail to another destination');
+let s1 = (await call('/api/state', null, A)).state;
+r = await act(A, 'depart', { mode: 'free', dest: 'cinderdeep_hollow' }); const fiid = r.result.iid;
+ok(r.ok && r.state.quests.expedition.free && r.state.quests.expedition.dest === 'cinderdeep_hollow' && r.state.quests.active?.qid === s1.quests.active?.qid && !!s1.quests.active, 'free expedition to Cinderdeep Hollow while a quest stays accepted');
+clock += 20 * 1000;
+ok((await act(A, 'completeQuest', { iid: fiid, report: { slain: true } })).error === 'too_early', 'free slay reported implausibly fast is refused');
+clock += 60 * 1000;
+r = await act(A, 'completeQuest', { iid: fiid, report: { slain: true, parts: ['fistL', 'head'], gathered: { ironOre: 50 } } });
+ok(r.ok && r.result.free && r.state.coins === s1.coins && r.state.profile.xp === s1.profile.xp, 'free expedition: no bounty coins or XP');
+ok(JSON.stringify(r.state.quests.cleared) === JSON.stringify(s1.quests.cleared) && r.state.quests.active?.qid === s1.quests.active.qid, 'free expedition never clears or consumes the accepted quest');
+ok(r.state.hunts.brute?.slain === 1 && r.result.rewards.items.gv_knuckle >= 1 && (r.result.rewards.items.ironOre || 0) <= 10, 'free expedition: hunt log, Gorvath carves/breaks, gathering capped');
+ok((await act(A, 'completeQuest', { iid: fiid, report: { slain: true } })).error === 'no_expedition', 'free expedition rewards cannot be claimed twice');
+r = await act(A, 'depart', { mode: 'quest' });
+ok(r.ok && r.result.dest === 'ember_foothills' && !r.state.quests.expedition.free, 'quest expedition goes to its monster\'s destination (Varkhul → Emberfall Foothills)');
+await act(A, 'failQuest', { iid: r.result.iid }); await act(A, 'abandonQuest');
 
 // ---- persistence across login
 const stA = (await call('/api/state', null, A)).state;
