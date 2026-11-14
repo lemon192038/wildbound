@@ -367,7 +367,7 @@ export function createWorldMap(ctx) {
         const k = clamp((now - t0) / DUR, 0, 1); const sc = (1 / span) * (1 + k * 0.25); const ox = W / 2 - cx * sc, oy = H / 2 - cy * sc;
         g.fillStyle = '#0a0705'; g.fillRect(0, 0, W, H);
         if (artCanvas) { g.globalAlpha = 0.9; g.drawImage(artCanvas, ox, oy, MAP_W * sc, MAP_H * sc); g.globalAlpha = 1; }
-        const vg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.25, W / 2, H / 2, Math.hypot(W, H) * 0.6); vg.addColorStop(0, 'rgba(10,6,3,0.05)'); vg.addColorStop(1, 'rgba(10,6,3,0.92)'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
+        const vg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.25, W / 2, H / 2, Math.hypot(W, H) * 0.6); vg.addColorStop(0, 'rgba(10,6,3,0.15)'); vg.addColorStop(1, 'rgba(10,6,3,0.95)'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
         const e = clamp((k - 0.08) / 0.8, 0, 1); const ee = e < 0.5 ? 2 * e * e : 1 - Math.pow(-2 * e + 2, 2) / 2; const n = Math.max(1, Math.round(ee * (route.length - 1)));
         const P = route.map(([u, v]) => [u * MAP_W * sc + ox, v * MAP_H * sc + oy]);
         g.lineCap = 'round'; g.setLineDash([3, 12]); g.lineDashOffset = -now / 40; g.strokeStyle = '#ffe2a0'; g.lineWidth = 5; g.beginPath(); P.slice(0, n + 1).forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke(); g.setLineDash([]);
@@ -375,7 +375,7 @@ export function createWorldMap(ctx) {
         for (let i = 1; i < 6; i++) { const [wx, wy] = P[Math.max(0, n - i * 2)]; g.fillStyle = `rgba(255,255,255,${0.22 - i * 0.035})`; g.beginPath(); g.ellipse(wx, wy + 6, 10 - i, 3, 0, 0, Math.PI * 2); g.fill(); }
         drawShip(g, ex2, ey, 2.2, 0, '#fff2d2'); void px2;
         const [dx, dy] = P[P.length - 1]; const pr = 18 + Math.sin(now / 160) * 4; g.strokeStyle = `rgba(255,140,60,${0.4 + ee * 0.5})`; g.lineWidth = 3; g.beginPath(); g.arc(dx, dy, pr, 0, Math.PI * 2); g.stroke();
-        if (k < 1) requestAnimationFrame(step); else resolve();
+        if (k < 1 || window.__wmHoldCine) requestAnimationFrame(step); else resolve(); // __wmHoldCine: test/screenshot hook
       };
       requestAnimationFrame(step);
     });
