@@ -54,7 +54,7 @@ export async function prepareQuest(game) {
   }
   // Free expeditions (world map) have no quest: synthesise an objective-less "quest" for the runtime.
   const free = !!ex.free; const destId = ex.dest || destForMonster(QUESTS[ex.qid]?.monster); const dest = DESTINATIONS[destId] || DESTINATIONS.ember_foothills;
-  const q = free ? { name: dest.name, monster: dest.monster, free: true, objectives: [{ k: 'slayOrCapture' }], timeLimit: FREE_EXPEDITION.timeLimit, maxFaints: 3 } : QUESTS[ex.qid];
+  const q = free ? { name: dest.name, monster: dest.monster, free: true, objectives: [{ k: 'slayOrCapture' }], timeLimit: FREE_EXPEDITION.timeLimit, maxFaints: 3, minClear: FREE_EXPEDITION.slayMinClear } : QUESTS[ex.qid];
   game.hunt = q.monster || dest.monster || 'varkhul';
   game.fieldId = dest.field;                     // which volcanic field to build (src/world) — always the destination's
   game.destId = destId; game.expeditionFree = free;
@@ -243,7 +243,7 @@ export function startQuestRuntime(game, ctx) {
     if (st.phase === 'hunt' && success()) finish('success');
     if (st.phase === 'complete') {
       // never report before the server's plausibility minimum (server clock), else the report is refused
-      const earliest = ctx.ex.at + (q.minClear + 2) * 1000 - (Date.now() + clockSkew);
+      const earliest = ctx.ex.at + ((q.minClear || 0) + 2) * 1000 - (Date.now() + clockSkew);
       const left = Math.max(0, Math.ceil(Math.max(st.endAt - st.t, earliest / 1000))); const b = banner?.querySelector('b'); if (b) b.textContent = left;
       if (st.t >= st.endAt && earliest <= 0) submit('success');
     }
