@@ -17,7 +17,8 @@ import { createQuest } from './core/quest.js';
 import { createAccount } from './account/client.js';
 import { prepareQuest, startQuestRuntime } from './field/questRuntime.js';
 import { createStatus } from './core/status.js';
-import { showLoadingScreen } from './ui/loadingScreen.js';
+import { showLoadingScreen, createLoadingProgress } from './ui/loadingScreen.js';
+import { t } from './shared/i18n.js';
 
 // The shared `game` context. Every module receives it; see CONTRACTS.md.
 const engine = new Engine();
@@ -41,6 +42,10 @@ if (touch) {
 // Modes: the hunting field (existing combat: ?mode=field / ?quest=… / legacy ?hunt=…) and the harbour
 // town hub (default). Switching modes is a page navigation, so each mode boots clean (no teardown leaks).
 game.mode = game.params.get('mode') === 'field' || game.params.has('quest') || game.params.has('hunt') ? 'field' : 'town';
+if (game.mode === 'field' && game.params.get('field') === 'island') game.mode = 'island'; // open-world exploration
+// Boot timings (ms since navigation start) for the developer overlay (?debug=1).
+game.bootTimings = {}; const bootMark = (k) => { game.bootTimings[k] = Math.round(performance.now()); };
+let loader = null;
 
 function startLoop(step) {
   let last = performance.now();
@@ -53,27 +58,35 @@ function startLoop(step) {
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
-  window.__ready = true;
+  window.__ready = true; bootMark('firstFrame');
+  if (game.params.has('debug')) import('./ui/debugOverlay.js').then((m) => m.createDebugOverlay(game)).catch((e) => console.warn('[debug] overlay failed', e));
 }
 
 async function bootField() {
-  showLoadingScreen(game);                       // region/destination/boss card until window.__ready (src/ui/loadingScreen.js)
+  game.loading = createLoadingProgress({ prepare: 1, world: 4, player: 1.5, monster: 2, ui: 1 });
+  loader = showLoadingScreen(game);              // region/destination/boss card until window.__ready (src/ui/loadingScreen.js)
+  game.loading.set('prepare', 0.2);
   const questCtx = await prepareQuest(game);     // ?quest=<iid>: server-validated expedition (null = free hunt)
+  game.loading.set('prepare', 1); bootMark('prepared');
   // Boss & field: from the expedition (prepareQuest), else legacy ?hunt= free hunt. Field is always the boss's home.
   game.hunt ||= ['wyvern', 'brute'].includes(game.params.get('hunt')) ? game.params.get('hunt') : 'varkhul';
   game.fieldId ||= { varkhul: 'foothills', wyvern: 'wastes', brute: 'hollow' }[game.hunt];
   game.world = await createWorld(game);          // volcanic field chosen by game.fieldId: foothills | wastes | hollow
+  game.loading.set('world', 1); bootMark('world');
   engine.post = createPost(game);                // composer: SSAO/bloom/color grade/etc.
   game.player = await createPlayer(game);        // local hunter: model, animation, combat
+  game.loading.set('player', 1); bootMark('player');
   const status = createStatus(game);             // burn / poison ailments on the local hunter
   game.addUpdater((dt) => status.update(dt));
   game.cameraRig = createCameraRig(game);        // third-person orbit cam, lock-on, shake
   // Quest target: ?hunt=wyvern → Cindral (flying, user-made mesh), ?hunt=brute → Gorvath, default → Varkhul.
   const makeMonster = (g) => ({ wyvern: createWyvern, brute: createBrute }[g.hunt] || createMonster)(g);
   game.monsters.push(await makeMonster(game)); // boss monster: model, AI, hitzones
+  game.loading.set('monster', 1); bootMark('monster');
   game.audio = createAudio(game);                // procedural WebAudio sfx + music
   game.ui = createUI(game);                      // HUD, damage numbers, menus
   game.net = createNet(game);                    // co-op sync via websocket (optional)
+  game.loading.set('ui', 1); bootMark('ui');
   if (questCtx) startQuestRuntime(game, questCtx); // objectives, gathering, items, report → rewards
   else { const quest = createQuest(game, makeMonster); game.addUpdater((dt) => quest.update(dt)); } // free hunt: respawn loop
   if (game.input.touch) {
@@ -125,4 +138,39 @@ async function bootTown() {
   });
 }
 
-(game.mode === 'field' ? bootField() : bootTown()).catch((e) => { console.error(e); document.body.insertAdjacentHTML('beforeend', `<pre style="color:#f66;position:fixed;top:0;left:0;z-index:9">${e.stack}</pre>`); });
+// Open volcanic island (free exploration, ?mode=field&field=island). Stage 1 of the open-world plan
+// (IMPLEMENTATION_PLAN.md): streamed terrain + regions, no monsters / co-op on the island yet.
+async function bootIsland() {
+  game.fieldId = 'island'; game.expeditionFree = true; game.noQuestTimer = true;
+  game.loading = createLoadingProgress({ world: 5, chunks: 3, player: 1, ui: 1 });
+  loader = showLoadingScreen(game);
+  const { createIslandWorld } = await import('./world/island/island.js');
+  game.world = await createIslandWorld(game);    // reports 'world' + 'chunks' progress itself
+  bootMark('world');
+  engine.post = createPost(game);
+  game.player = await createPlayer(game); game.loading.set('player', 1); bootMark('player');
+  const status = createStatus(game); game.addUpdater((dt) => status.update(dt));
+  game.cameraRig = createCameraRig(game);
+  game.audio = createAudio(game);
+  game.ui = createUI(game);
+  game.net = { update() {}, connected: false, id: 'local', roomPlayers: [] }; // island co-op: stage 8 (see PROGRESS.md)
+  game.questRuntime = { label: t('island.return'), confirm: t('island.returnQ'), abandon: () => { const u = new URL(location.href); const k = new URLSearchParams(); for (const n of ['low', 'hq', 'touch', 'lang']) if (u.searchParams.has(n)) k.set(n, u.searchParams.get(n)); k.set('mode', 'town'); location.href = `${u.pathname}?${k}`; } };
+  game.events.on('world:region', ({ id }) => game.ui?.toast?.(t('island.enter', { r: t('region.' + id) })));
+  game.loading.set('ui', 1); bootMark('ui');
+  if (game.input.touch) { if (game.params.get('shot') === '1') game.input.touch.show(); else game.events.on('ui:start', () => game.input.touch.show()); }
+  game.events.on('hitstop', ({ duration }) => { engine.hitstop = Math.max(engine.hitstop, duration); });
+  startLoop((dt, rawDt, input) => {
+    game.world.update(dt, rawDt);
+    game.player.update(dt, input, rawDt);
+    for (const fn of game.updaters) fn(dt, rawDt);
+    game.cameraRig.update(rawDt, input);
+    game.audio.update(dt, rawDt);
+    game.ui.update(dt, rawDt);
+  });
+}
+
+(game.mode === 'island' ? bootIsland() : game.mode === 'field' ? bootField() : bootTown()).catch((e) => {
+  console.error(e);
+  if (loader) loader.fail(e); // the loading screen stays up with the error and a retry button (never a black page)
+  else document.body.insertAdjacentHTML('beforeend', `<pre style="color:#f66;position:fixed;top:0;left:0;z-index:9">${String(e.stack).replace(/[<>&]/g, '')}</pre>`);
+});

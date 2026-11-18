@@ -122,10 +122,14 @@ const vec3 WB_GLOW = ${v3(F.palette.glow)};
 const float WB_LAVAY = ${F.lavaY.toFixed(3)};`;
 }
 
-function createTerrainMaterial(THREE, F, tx, shared) {
+// opts.tileMask: { texture, tiles, half } — discard fragments whose tile is flagged in the mask (the island's coarse
+// far-terrain hides itself under streamed fine chunks this way; see src/world/island/chunks.js).
+export function createTerrainMaterial(THREE, F, tx, shared, opts = {}) {
   const P = F.palette;
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, metalness: 0 });
   const uniforms = { ...shared, tBas: { value: tx.basalt }, tBasN: { value: tx.basaltN }, tFlow: { value: tx.flow }, tFlowN: { value: tx.flowN }, tSco: { value: tx.scoria }, tScoN: { value: tx.scoriaN }, tAsh: { value: tx.ash }, tAshN: { value: tx.ashN } };
+  const TM = opts.tileMask;
+  if (TM) Object.assign(uniforms, { tTileMask: { value: TM.texture }, uTileHalf: { value: TM.half } });
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, uniforms);
     sh.vertexShader = sh.vertexShader
@@ -136,10 +140,12 @@ function createTerrainMaterial(THREE, F, tx, shared) {
 varying vec3 vWPos; varying vec3 vWN;
 uniform sampler2D tBas, tBasN, tFlow, tFlowN, tSco, tScoN, tAsh, tAshN;
 ${macroGLSL(F)}
+${TM ? 'uniform sampler2D tTileMask; uniform float uTileHalf;' : ''}
 ${VOLC_GLSL}
 vec3 terrN; float terrRough; vec3 terrEmit;
 `)
-      .replace('#include <map_fragment>', `
+      .replace('#include <map_fragment>', `${TM ? `
+if (texture2D(tTileMask, (vWPos.xz + uTileHalf) / (2.0 * uTileHalf)).r > 0.5) discard;` : ''}
 {
   vec3 wn = normalize(vWN);
   vec4 a1 = wbM1(vWPos), a2 = wbM2(vWPos);
@@ -211,6 +217,6 @@ vec3 terrN; float terrRough; vec3 terrEmit;
       .replace('#include <normal_fragment_maps>', 'normal = normalize((viewMatrix * vec4(terrN, 0.0)).xyz);')
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += terrEmit;');
   };
-  mat.customProgramCacheKey = () => 'wb-volc-terrain-' + F.id;
+  mat.customProgramCacheKey = () => 'wb-volc-terrain-' + F.id + (TM ? '-masked' : '');
   return mat;
 }

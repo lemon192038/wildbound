@@ -1,0 +1,57 @@
+# Progress
+
+Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implemented · ❓ implemented but unverified on the target (iPad Safari / multiplayer at scale).
+
+## Stage 1: Foundation (2026-11-18)
+
+| Item | Status | Notes |
+|---|---|---|
+| Survey + CLAUDE.md / IMPLEMENTATION_PLAN.md / PROGRESS.md | ✅ | |
+| Open island field (analytic terrain, 10 regions, lava rivers/lakes, summit crater lake, sea) | ✅ | `src/world/island/islandField.js`, preview: `node tools/island-preview.mjs out.ppm` |
+| Chunk streaming (UNLOADED→REQUESTED→LOADING→BUILDING→READY→ACTIVE→UNLOADING, FAILED+retry, frame budget, view priority) | ✅ | `chunks.js`; the soak test walked about 4 km of route: 0 holes, 0 mask mismatches, collision height error ≤ 0.06 m |
+| Far-layer fallback (never transparent while streaming) | ✅ | tile-mask discard in terrain + lava shaders |
+| Seams | 🟡 | near-tile skirts hide cracks; a small step can show where a near tile meets the coarser far layer (at about 166 m, inside fog) |
+| Props (boulders, basalt columns, pines, dead trees, giant fungi, crystals) + colliders | ✅ | constant draw calls (one InstancedMesh per type) |
+| Caves / lava tubes / ruins / nests / gathering points on the island | ⬜ | stage 2 |
+| Bosses on the island | ⬜ | stage 2 (the arenas are unchanged and still used by quests) |
+| Island entry (world map → "火山島を探索（β）"), return to port from the pause menu, region toasts | ✅ | build OK; the world-map button was not clicked in a browser (needs a login) ❓ |
+| Loading screen: real weighted progress (no time-based easing), phase label, error + retry/back-to-port | ✅ | fields and island |
+| Perception (sight cone + terrain line of sight, hearing by noise, smell, awareness meter, chase end / leash / search / return) | ✅ | 8 unit tests; all 3 bosses notice a hunter standing about 36 m in front (Gorvath is slower: poor eyes) |
+| Bosses drop pursuit and walk home | ✅ | Cindral/Gorvath previously never dropped aggro; Gorvath's final ring phase never drops |
+| Debug overlay `?debug=1` (FPS, frame ms, draw calls, triangles, memory, chunks, AI senses, boot timings, log) + gizmos (`?debug=2`/F3) | ✅ | |
+| Throttled logging + WebGL context-loss logging | ✅ | `src/core/log.js` |
+| Spatial hash for monster↔hunter queries | ⬜ | perception accepts `game.spatial.queryHunters`; rooms are ≤4 players today |
+
+### Measurements (headless Chromium + SwiftShader, CPU rendering — NOT representative of iPad)
+- Island boot to first frame: about 2.8 s total.
+  - World setup 0.58 s, far terrain 0.33 s, macro splat 1.16 s, near tiles 0.15 s.
+- Near tile build: average 3.9 ms, maximum 19 ms. The work is spread across frames by generators, with a 3 ms (low) or 5 ms per-frame budget.
+- Renderer: 213 draw calls, about 250k triangles at the spawn view (desktop path, shadows on).
+- FPS under SwiftShader (5 fps) is meaningless. **The real iPad FPS is unmeasured.**
+
+### Tests run
+- `node server/test.mjs`: 66 passed.
+- `node --experimental-sqlite server/api.test.mjs`: 64 passed.
+- `node src/core/__perception.test.mjs`: 8 passed.
+- `node src/player/__test.mjs`: no errors.
+- `node tools/island-test.mjs`: passed.
+- Boss notice check (scratch script): passed.
+
+### Known issues / next
+- The macro splat build takes 1.2 s on desktop CPU and will be slower on iPad: move it to a worker or reduce its resolution (stage 9 / earlier if needed).
+- Far terrain is flat-coloured at 8 m texels; volcano flanks look uniform from afar.
+- No co-op on the island yet (offline only).
+
+## Not started (see IMPLEMENTATION_PLAN.md)
+- **Stages 2–9:**
+  - island content
+  - all new species
+  - part system v2
+  - materials, carving and gear expansion
+  - combat extras (sheathe/parry, full ailments, potions with drink time, jump, falling attack, grapple, roll i-frames)
+  - weapon categories
+  - enchanting
+  - ecosystem
+  - Volcano Slime event
+  - MMO world server and 100-player load tests
+  - iPad device verification

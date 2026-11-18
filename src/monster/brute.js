@@ -14,6 +14,8 @@ import * as THREE from 'three';
 import { t } from '../shared/i18n.js';
 import { buildBrute, growthTexture } from './bruteModel.js';
 import { createWyvernFx } from './wyvernFx.js';
+import { createPerception } from '../core/perception.js';
+import { senseProfile } from '../shared/senses.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -83,6 +85,7 @@ export async function createBrute(game) {
   const fwd = (yaw = m.yaw) => new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
   const partByName = (n) => m.parts.find((p) => p.name === n) || m.parts[5];
   const tpos = () => (m.target ? m.target.position.clone() : m.position.clone().add(fwd().multiplyScalar(8)));
+  m.perception = createPerception(game, m, senseProfile('brute'), { home: spawn });
   function hunters() { const l = []; if (game.player && !game.player.dead) l.push(game.player); for (const r of game.remotePlayers?.values?.() || []) if (r.position) l.push(r); return l; }
   function pickTarget() { let best = null, bs = -1e9; for (const h of hunters()) { const s = -h.position.distanceTo(m.position) + Math.min(22, (m.threat.get(String(h.id ?? 'local')) || 0) / 120) + (h === m.target ? 4 : 0); if (s > bs) { bs = s; best = h; } } m.target = best; }
   const toTarget = () => (m.target ? new THREE.Vector3().subVectors(m.target.position, m.position).setY(0) : fwd());
@@ -285,6 +288,7 @@ export async function createBrute(game) {
     m.hp = Math.max(0, m.hp - dmg); p.hp = Math.max(0, p.hp - dmg); p.acc += dmg;
     const aid = String(attackerId ?? game.player?.id ?? 'local'); m.threat.set(aid, (m.threat.get(aid) || 0) + dmg);
     if (!m.aggro) { m.aggro = true; pickTarget(); }
+    if (m.target) m.perception?.engage(m.target);
     // criticality & detach
     if (p.name in m.heat && m.size[p.name] > 0.8) {
       m.heat[p.name] = Math.min(1, m.heat[p.name] + dmg / 900);
@@ -372,7 +376,18 @@ export async function createBrute(game) {
     }
     if (m.remoteControlled) remoteUpdate(dt);
     else if (m.state !== 'dead' || m.action) {
-      if (!m.aggro) { if (hunters().some((h) => h.position.distanceTo(m.position) < 40) || dbgAttack) { m.aggro = true; pickTarget(); launch('roar'); } m.yaw += dt * 0.1; }
+      const perc = m.perception, hs = hunters();
+      if (m.aggro && !['AGGRESSIVE', 'SEARCH'].includes(perc.state) && m.target) perc.engage(m.target);
+      perc.update(dt, hs);
+      if (m.aggro && perc.lost && !m.action && !m.final) { m.aggro = false; m.target = null; } // the sealed ring holds the hunt
+      if (!m.aggro) {
+        if (perc.noticed || (dbgAttack && hs.length)) { m.aggro = true; pickTarget(); perc.engage(m.target); launch('roar'); }
+        else if (!m.action) {
+          const hd = Math.hypot(spawn.x - m.position.x, spawn.z - m.position.z);
+          if (hd > 5) { faceTarget(dt, 1.0, spawn); speed = lerp(speed, 2.6, dt * 2); m.position.addScaledVector(fwd(), speed * dt); m.state = 'roam'; }
+          else { speed = lerp(speed, 0, dt * 3); m.yaw += dt * 0.1; }
+        }
+      }
       if (m.action) { m.actionTime += dt; m.action.update(m.actionTime, dt); if (m.actionTime >= m.action.dur && m.actionName !== 'death') endAction(); speed = m.actionName === 'charge' ? speed : 0; }
       else if (m.aggro) {
         if (Math.random() < dt * 0.3) pickTarget();

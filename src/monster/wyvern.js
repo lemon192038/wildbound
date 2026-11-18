@@ -11,6 +11,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createWyvernFx } from './wyvernFx.js';
+import { createPerception } from '../core/perception.js';
+import { senseProfile } from '../shared/senses.js';
 
 const S = 16; // source mesh units → metres (wingspan ≈ 16 m)
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -86,6 +88,7 @@ export async function createWyvern(game) {
   const groundAt = (x, z) => world.getHeight(x, z);
   const fwd = (yaw = m.yaw) => new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
   const tpos = () => (m.target ? m.target.position.clone() : m.position.clone().add(fwd().multiplyScalar(8)).setY(groundAt(m.position.x, m.position.z)));
+  m.perception = createPerception(game, m, senseProfile('wyvern'), { home: spawn });
   function hunters() {
     const list = []; if (game.player && !game.player.dead) list.push(game.player);
     for (const r of game.remotePlayers?.values?.() || []) if (r.position) list.push(r);
@@ -340,6 +343,7 @@ export async function createWyvern(game) {
     m.hp = Math.max(0, m.hp - dmg); p.hp = Math.max(0, p.hp - dmg); p.acc += dmg;
     const aid = String(attackerId ?? game.player?.id ?? 'local'); m.threat.set(aid, (m.threat.get(aid) || 0) + dmg);
     if (!m.aggro) { m.aggro = true; pickTarget(); }
+    if (m.target) m.perception?.engage(m.target);
     let broke = false; if (p.breakable && !p.broken && p.hp <= 0) { applyBreak(p.name, true); broke = true; }
     if (m.hp <= 0) { die(); return { damage: dmg, part: p.name, hitzone: p.hitzone, killed: true }; }
     if (!m.enraged && m.hp < m.maxHp * 0.5) { m.enraged = true; if (!['topple', 'death'].includes(m.actionName)) { m.queue = []; launch('roar'); } }
@@ -412,10 +416,18 @@ export async function createWyvern(game) {
     dt = Math.max(0, dt); rawDt = Math.max(0, rawDt); tAlive += dt; roarCd -= dt;
     if (m.remoteControlled) remoteUpdate(dt);
     else if (m.state !== 'dead' || m.action) {
+      const perc = m.perception, hs = hunters();
+      if (m.aggro && !['AGGRESSIVE', 'SEARCH'].includes(perc.state) && m.target) perc.engage(m.target);
+      perc.update(dt, hs);
+      if (m.aggro && perc.lost && !m.action) { m.aggro = false; m.target = null; }
       if (!m.aggro) {
-        const near = hunters().some((h) => h.position.distanceTo(m.position) < 38);
-        if (near || dbgAttack) { m.aggro = true; pickTarget(); launch('roar'); }
-        m.yaw += dt * 0.15;
+        if (perc.noticed || (dbgAttack && hs.length)) { m.aggro = true; pickTarget(); perc.engage(m.target); launch('roar'); }
+        else if (!m.action) {
+          // unaware: drift back over the home ground, otherwise slowly scan the field
+          const hv = new THREE.Vector3(spawn.x - m.position.x, 0, spawn.z - m.position.z); const hd = hv.length();
+          if (hd > 6) { faceTarget(dt, 1.0, spawn); vel.lerp(hv.normalize().multiplyScalar(Math.min(6, hd)), Math.min(1, dt * 1.2)); m.position.addScaledVector(vel, dt); m.state = 'roam'; }
+          else { vel.multiplyScalar(Math.max(0, 1 - dt * 2)); m.yaw += dt * 0.15; }
+        }
       }
       if (m.action) {
         m.actionTime += dt; m.action.update(m.actionTime, dt);

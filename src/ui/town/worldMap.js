@@ -227,6 +227,7 @@ export function createWorldMap(ctx) {
       : q ? `<section><small>${esc(t('d.accepted'))} ${stars(q.stars)}</small><b>${esc(questName(act.qid))}</b>
         ${qd ? `<button class="wm-link" data-wm="focus" data-d="${qd}">${glyph('arrowR')} ${esc(t('wm.questLeads', { d: destName(qd) }))}</button>` : `<p class="wm-dim">${esc(t('d.deliverHint'))}</p>`}</section>`
       : `<section><small>${esc(t('wm.noQuest'))}</small><p class="wm-dim">${esc(t('wm.noQuestSub'))}</p></section>`}
+      ${ex ? '' : `<section class="wm-l-island"><small>${glyph('sail')} ${esc(t('wm.island'))}</small><p class="wm-dim">${esc(t('wm.islandSub'))}</p><button class="tw-btn tw-primary wm-l-btn" data-wm="island">${glyph('sail')} ${esc(t('wm.depart'))}</button></section>`}
       <section><small>${esc(ex ? t('d.supplies') : t('box.pouch'))} <em>${ex ? '' : esc(t('box.slots', { a: ids.length, b: s.pouchSlots }))}</em></small>
         <div class="wm-pouch">${ids.slice(0, 12).map((k) => `<span class="tw-tile static" title="${esc(itemName(k))}">${itemIcon(k, { count: bag[k], size: 'sm' })}</span>`).join('') || `<p class="tw-bad">${esc(t('d.pouchEmpty'))}</p>`}</div>
         ${ex ? '' : `<button class="wm-link" data-wm="storage">${glyph('storage')} ${esc(t('d.repack'))}</button>`}</section>
@@ -327,6 +328,7 @@ export function createWorldMap(ctx) {
     if (a === 'storage') return ctx.open('storage');
     if (a === 'focus') return select(b.dataset.d, true);
     if (a === 'mode') { mode[selected] = b.dataset.m; return renderDetail(); }
+    if (a === 'island') { ctx.navigate(fieldUrl('field', 'island'), t('ld.island')); return; } // open world (stage 1): no server expedition yet
     if (a === 'resume') { const ex = s?.quests?.expedition; if (ex) ctx.navigate(fieldUrl('quest', ex.iid), t('d.resuming')); return; }
     if (a === 'depart') return depart(selected);
   });

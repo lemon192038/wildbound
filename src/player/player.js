@@ -408,7 +408,13 @@ export async function createPlayer(game) {
     }
     const R = (world.bounds?.radius ?? 1e9) - 0.6, d = Math.hypot(P.position.x, P.position.z);
     if (d > R) { P.position.x *= R / d; P.position.z *= R / d; }
+    // open fields (island): no wading out to sea / off the map — snap back to the last walkable spot
+    if (world.canWalk) {
+      if (!world.canWalk(P.position.x, P.position.z)) { if (lastWalkable) { P.position.x = lastWalkable.x; P.position.z = lastWalkable.z; } }
+      else (lastWalkable ||= new THREE.Vector3()).copy(P.position);
+    }
   }
+  let lastWalkable = null;
 
   P.serialize = () => ({ sa: superArmor ? 1 : 0,
     p: [+P.position.x.toFixed(2), +P.position.y.toFixed(2), +P.position.z.toFixed(2)], f: +P.facing.toFixed(3), s: P.state, t: +t.toFixed(3),

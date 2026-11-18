@@ -27,6 +27,7 @@ jobs:
       - run: node server/test.mjs
       - run: node server/api.test.mjs
       - run: STORE=pgmem node server/api.test.mjs
+      - run: node src/core/__perception.test.mjs
       # Static build. GitHub Pages cannot run the WebSocket server, so co-op connects to the
       # server deployed on Render/Fly when the repo variable WILDBOUND_SERVER_URL is set
       # (Settings → Secrets and variables → Actions → Variables, e.g. wss://wildbound.onrender.com).

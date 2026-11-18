@@ -106,6 +106,7 @@ export function createUI(game) {
   const ctx = cvs.getContext('2d');
   const timer = el('div', 'wb-frame wb-timer', `<span class="wb-t-label">${t('f.quest')}</span><span class="wb-t-val wb-num">50:00</span>`, nav);
   const timerVal = timer.lastChild;
+  if (game.noQuestTimer) timer.style.display = 'none'; // open-world exploration: no time limit
   const status = el('div', 'wb-status', null, nav);
   const chip = (cls, icon, label) => el('div', `wb-frame wb-chip ${cls} wb-hidden`, `${icon}<span>${label}</span>`, status);
   const chipRage = chip('wb-chip-rage', SVG.rage, t('chip.rage')), chipTired = chip('wb-chip-tired', SVG.tired, t('chip.tired')), limp = chip('wb-chip-limp', SVG.limp, t('chip.limp'));
@@ -325,7 +326,7 @@ export function createUI(game) {
       <div class="wb-set"><label>${t('set.vol')}</label><input type="range" min="0" max="1" step="0.01" data-k="vol"><output class="wb-num"></output></div>
       <div class="wb-set"><label>${t('set.gfx')}</label><div class="wb-seg"><button class="wb-btn" data-q="high">${t('set.high')}</button><button class="wb-btn" data-q="low">${t('set.low')}</button></div></div>
       <div class="wb-set"><label>${t('set.lang')}</label>${langToggleHtml('wb-seg wb-lang-seg')}</div>
-      <div class="wb-actions"><button class="wb-btn wb-primary" data-a="resume">${t('pause.resume')}</button>${game.questRuntime ? `<button class="wb-btn" data-a="abandon">${t('pause.abandon')}</button>` : ''}</div>
+      <div class="wb-actions"><button class="wb-btn wb-primary" data-a="resume">${t('pause.resume')}</button>${game.questRuntime ? `<button class="wb-btn" data-a="abandon">${game.questRuntime.label || t('pause.abandon')}</button>` : ''}</div>
       <div class="wb-pause-hint">${game.net?.connected ? t('pause.online') : t('pause.offline')}</div>
       <div class="wb-keys">${CONTROLS.map(([k, v]) => `<span><span class="wb-kbd">${k}</span>${v}</span>`).join('')}</div></div>`, root);
     pause.querySelectorAll('input[type=range]').forEach((inp) => {
@@ -343,7 +344,7 @@ export function createUI(game) {
     });
     pause.querySelector('[data-a=resume]').addEventListener('click', closePause);
     bindLangToggle(pause);
-    pause.querySelector('[data-a=abandon]')?.addEventListener('click', () => { if (confirm(t('pause.abandonQ'))) { closePause(); game.questRuntime?.abandon(); } });
+    pause.querySelector('[data-a=abandon]')?.addEventListener('click', () => { if (confirm(game.questRuntime?.confirm || t('pause.abandonQ'))) { closePause(); game.questRuntime?.abandon(); } });
     pause.addEventListener('mousedown', (e) => { if (e.target === pause) closePause(); });
     if (!game.net?.connected && game.engine) { savedScale = game.engine.timeScale || 1; game.engine.timeScale = 0; }
   }
@@ -516,7 +517,7 @@ export function createUI(game) {
     set('qt', fmtTime(questTime), (v) => (timerVal.textContent = v));
     set('qw', questTime < 300, (v) => timer.classList.toggle('wb-warn', v));
     for (const mins of [10, 5, 1]) if (questTime < mins * 60 && !warned[mins] && started) { warned[mins] = 1; toast(t('f.minsLeft', { n: mins, s: mins > 1 ? 's' : '' })); }
-    if (questTime <= 0 && !questOver) showFailed();
+    if (questTime <= 0 && !questOver && !game.noQuestTimer) showFailed();
 
     // monster: card trigger, limp, lock-on
     if (mon && mon.position && p.position && !cardShown && started) {

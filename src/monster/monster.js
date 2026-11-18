@@ -5,6 +5,8 @@ import { buildRig } from './rig.js';
 import { Animator, POSE_DEFAULTS } from './anim.js';
 import { ACTIONS, COMBOS } from './attacks.js';
 import { createFx } from './fx.js';
+import { createPerception } from '../core/perception.js';
+import { senseProfile } from '../shared/senses.js';
 
 const TAU = Math.PI * 2;
 const wrapA = (a) => { a = (a + Math.PI) % TAU; if (a < 0) a += TAU; return a - Math.PI; };
@@ -85,10 +87,11 @@ export async function createMonster(game) {
     return out;
   };
 
+  m.perception = createPerception(game, m, senseProfile('varkhul'), { home: spawn });
   // ---------- hunters ----------
   const hunters = () => {
-    const list = []; if (game.player && !(game.player.hp <= 0)) list.push({ id: game.player.id ?? 'local', position: game.player.position, local: true });
-    if (game.remotePlayers) for (const [id, r] of game.remotePlayers) { const p = r.position || r.object3d?.position; if (p && !(r.hp <= 0)) list.push({ id, position: p }); }
+    const list = []; if (game.player && !(game.player.hp <= 0)) list.push({ id: game.player.id ?? 'local', position: game.player.position, state: game.player.state, local: true });
+    if (game.remotePlayers) for (const [id, r] of game.remotePlayers) { const p = r.position || r.object3d?.position; if (p && !(r.hp <= 0)) list.push({ id, position: p, state: r.state }); }
     return list;
   };
   const pickTarget = () => {
@@ -187,6 +190,7 @@ export async function createMonster(game) {
     if (p.name === 'head') m.jerk = Math.min(1.5, m.jerk + 0.6);
     if (legHit) { m.buckle = Math.min(1.5, m.buckle + 0.5); m.buckleFront = p.name === 'forelegs' || (lp && lp.z > 0); }
     if (!m.aggro) { m.aggro = true; pickTarget(); }
+    if (m.target) m.perception?.engage(m.target);
     let broke = false;
     if (p.breakable && !p.broken && p.hp <= 0) { applyBreak(p.name, true); broke = true; }
     if (m.hp <= 0) { die(); return { damage: dmg, part: p.name, hitzone: p.hitzone, killed: true }; }
@@ -292,11 +296,15 @@ export async function createMonster(game) {
     if (m.aggro && !m.exhausted && m.state !== 'dead') m.stamina = Math.max(0, m.stamina - dt * 0.06);
     if (m.exhausted) { m.exhaustTimer -= dt; if (m.exhaustTimer <= 0) leaveExhausted(); }
     else if (m.stamina <= 0 && !m.action) enterExhausted();
+    // senses (src/core/perception.js): sight cone + terrain LOS, hearing by noise, smell; bounded pursuit
+    const perc = m.perception, hs = hunters();
+    if (m.aggro && !['AGGRESSIVE', 'SEARCH'].includes(perc.state) && m.target) perc.engage(m.target);
+    perc.update(dt, hs);
+    if (!m.aggro && (perc.noticed || (dbgAttack && hs.length))) { m.aggro = true; pickTarget(); perc.engage(m.target); if (!m.action && !dbgAttack) launch('roar'); }
+    if (m.aggro && perc.lost && !m.action) { m.aggro = false; m.target = null; m.roamTarget = spawn.clone(); m.roamWait = 0; }
     if (targetTimer <= 0) {
-      targetTimer = 1.0; const prev = m.target; pickTarget();
-      if (m.target && !m.aggro && m.target.position.distanceTo(m.position) < 48) { m.aggro = true; if (!m.action && !dbgAttack) launch('roar'); }
-      if (m.target && m.target.position.distanceTo(m.position) > 90) { m.target = null; m.aggro = false; }
-      if (!m.aggro) m.target = null; else if (!m.target) m.target = prev;
+      targetTimer = 1.0;
+      if (m.aggro) { const prev = m.target; pickTarget(); if (!m.target) m.target = prev; } else m.target = null;
     }
     let desired = 0, turn = 1.5;
     if (m.action) {
