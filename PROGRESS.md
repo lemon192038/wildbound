@@ -59,6 +59,21 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
 | Gathering points, carving, rewards on the island; server expedition for the island | ⬜ | island is free exploration (no rewards) until stage 5 |
 | Boss death on the island | 🟡 | the carcass stays for the session; no respawn (breeding/migration = stage 6) |
 
+## Stage 3: Monsters (in progress, 2026-11-19)
+
+| Item | Status | Notes |
+|---|---|---|
+| Shared fauna base: species data, per-tile session census, spawn/despawn around hunters, spatial hash, AI LOD (near: every frame, far: every 4th), instanced rendering with shader animation (1 draw call per species) | ✅ | `src/fauna/` |
+| Magma Beetle: forage, antennae alert, curl on contact (armour ×0.3), burrow when struck, heat burst when cornered, hides from diving birds, burrows during eruptions | ✅ | unit-tested |
+| Magma Slime: graze/flatten, harmless until attacked, spit hot mucus + body slam, split on heavy hit (mature+), flatten near predators | ✅ | unit-tested |
+| Ash Bird: soar over home, land to sweep ash, hunt beetles / small slimes by diving (prey that curls/burrows escapes), takes off near hunters, flees below 40 % HP, climbs during eruptions | ✅ | unit-tested (predation observed in simulation) |
+| Fauna share the hunter's weapon hit pipeline (damage numbers, hit sfx) | ✅ | |
+| No instant respawn; regrowth +1 adult per stored tile every 3 min | 🟡 | provisional until the stage-6 breeding model |
+| Carving / drops from fauna | ⬜ | stage 5 (drop ids are already in `species.js`) |
+| Fauna in co-op | ⬜ | each client simulates its own fauna (stage 8) |
+| Bird nests, breeding-season aggression, juveniles staying at nests | ⬜ | stage 6 |
+| Remaining species: Lava Snake, Fire Lizard, Crystal Boar, Stone Mole, Magma Wolf pack, 燼皮, Flame Dragon / Venom-fang Dragon, Cindaryl, Golem | ⬜ | next |
+
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
   - island content

@@ -117,7 +117,9 @@ export async function createPlayer(game) {
     if (!prevBlade.length) prevBlade = curBlade.map((v) => v.clone());
     const lvl = P.state === 'heavy' || P.state === 'trueslash' ? heavyLevel : 0;
     const mv = Array.isArray(atk.mv) ? atk.mv[lvl] : atk.mv;
-    for (const m of game.monsters) {
+    // bosses + small fauna close to the hunter (open island) share the same hit pipeline
+    const targets = game.fauna ? game.monsters.concat(game.fauna.near(P.position, 7)) : game.monsters;
+    for (const m of targets) {
       if (!m || m.hp <= 0 || m.state === 'dead') continue;
       let set = hitSets.get(m); if (!set) hitSets.set(m, (set = new Set()));
       for (const hb of m.getHitboxes()) {

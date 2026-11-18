@@ -194,6 +194,7 @@ export default {
     'ld.island': '火山島', 'ld.islandRegion': '残り火の海 · 未踏の地', 'ld.explore': '探索', 'ld.islandSub': '島の全域を自由に歩ける', 'ld.failed': '読み込みに失敗しました', 'ld.retry': '再試行', 'ld.toTown': '港へ戻る',
     'ld.ph.prepare': '遠征の準備', 'ld.ph.world': '地形を生成', 'ld.ph.chunks': '周辺の地形を構築', 'ld.ph.player': 'ハンターを準備', 'ld.ph.monster': 'モンスターを準備', 'ld.ph.ui': '画面を準備',
     'region.caldera': '火口', 'region.core': '火山中央地帯', 'region.canyon': '溶岩渓谷', 'region.peaks': '火山山岳地帯', 'region.ashplain': '火山灰平原', 'region.fungal': '森林・菌類地帯', 'region.crystal': '巨大鉱物地帯', 'region.ruins': '古代遺跡', 'region.geotherm': '地熱地帯', 'region.coast': '海岸地帯', 'region.sea': '外海',
+    'fauna.sighted': '{n} を発見', 'fauna.beetle': 'マグマビートル', 'fauna.slime': 'マグマスライム', 'fauna.bird': 'アッシュバード',
     'island.return': '港へ戻る', 'island.returnQ': '探索を終えて港へ戻りますか？', 'island.enter': '{r} に入った', 'wm.island': '火山島を探索（β）', 'wm.islandSub': '島の全域を自由に探索します。報酬は出ません（開発中）。',
     'ld.tip.0': '燼に焼き締められた甲殻には、水と氷がよく通る。', 'ld.tip.1': '霜羊歯の軟膏は火やられを鎮め、しばらく炎を防ぐ。', 'ld.tip.2': '部位を壊せば素材が増える。切った尻尾は剥ぎ取れる。', 'ld.tip.3': '眩光の実は飛んでいる相手を地に落とす。', 'ld.tip.4': '使わなかった道具は、狩りのあとボックスへ戻る。',
     'dlg.d.where1': 'どこへでも連れてってやるぜ！', 'dlg.d.where2': 'さて、今日はどこへ向かうんだ？', 'dlg.d.where3': '海図は広げてある。潮もいい。行き先を言いな。',

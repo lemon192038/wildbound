@@ -169,7 +169,7 @@ export async function createIslandWorld(game) {
     chunks.want(P.x, P.z, camDir.x, camDir.z);
     chunks.pump();
     opts.props.update();
-    while (evIdx < events.length && events[evIdx] <= time) { evIdx++; lastFlash = time; fx.eruption(); }
+    while (evIdx < events.length && events[evIdx] <= time) { evIdx++; lastFlash = time; fx.eruption(); game.events?.emit('world:eruption', { time }); }
     const since = time - lastFlash;
     const flash = lastFlash > 0 ? Math.min(1, since / 0.25) * Math.exp(-Math.max(0, since - 0.25) / 2.6) * (0.75 + 0.25 * Math.sin(since * 23)) : 0;
     flashU.value = flash * 0.6; hemi.intensity = hemiBase * (1 + flash * 0.4);

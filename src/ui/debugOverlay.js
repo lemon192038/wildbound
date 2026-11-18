@@ -54,6 +54,7 @@ export function createDebugOverlay(game) {
       if (w.props) L.push(`props ${Object.entries(w.props.stats()).map(([k, v]) => `${k} ${v}`).join('  ')}  colliders ${w.colliders?.length ?? 0}`);
       if (w.stats?.boot) L.push(`world boot ${Object.entries(w.stats.boot).map(([k, v]) => `${k} ${Math.round(v)}`).join('  ')} ms`);
     }
+    if (game.fauna) { const f = game.fauna.debug(); L.push(`<b>FAUNA</b> live ${Object.entries(f.live).map(([k, v]) => `${k} ${v}`).join('  ')}  tiles ${f.tiles}/${f.census}  died ${f.died} (predation ${f.predation})  split ${f.split}  regen ${f.regen}`); L.push(`  ${Object.entries(f.ai).map(([k, v]) => `${k} ${v}`).join('  ')}`); }
     const P = game.player?.position;
     for (const m of game.monsters || []) {
       const d = m.perception?.debug?.();

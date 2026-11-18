@@ -157,6 +157,9 @@ async function bootIsland() {
   const { createIslandBosses } = await import('./field/islandBosses.js');
   const bosses = createIslandBosses(game, game.world.territories);
   game.islandBosses = bosses; game.focusMonster = bosses.focus;
+  const { createFauna } = await import('./fauna/fauna.js');
+  game.fauna = createFauna(game);                 // small fauna: Magma Beetle, Magma Slime, Ash Bird (local simulation)
+  game.events.on('fauna:sighted', ({ species }) => game.ui?.toast?.(t('fauna.sighted', { n: t('fauna.' + species) })));
   game.questRuntime = { label: t('island.return'), confirm: t('island.returnQ'), abandon: () => { const u = new URL(location.href); const k = new URLSearchParams(); for (const n of ['low', 'hq', 'touch', 'lang']) if (u.searchParams.has(n)) k.set(n, u.searchParams.get(n)); k.set('mode', 'town'); location.href = `${u.pathname}?${k}`; } };
   game.events.on('world:region', ({ id }) => game.ui?.toast?.(t('island.enter', { r: t('region.' + id) })));
   game.loading.set('ui', 1); bootMark('ui');
@@ -166,6 +169,7 @@ async function bootIsland() {
     game.world.update(dt, rawDt);
     game.player.update(dt, input, rawDt);
     bosses.update(dt, rawDt);                    // AI level of detail: far bosses rest (frozen + hidden)
+    game.fauna.update(dt, rawDt);
     for (const fn of game.updaters) fn(dt, rawDt);
     game.cameraRig.update(rawDt, input);
     game.net.update(dt, rawDt);
