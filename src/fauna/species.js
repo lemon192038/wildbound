@@ -60,6 +60,42 @@ export const SPECIES = {
     fleeHp: 0.25,
     drops: ['ls_core', 'ls_fang', 'ls_shell', 'ls_magma'],
   },
+  boar: {
+    name: { ja: 'クリスタルボア', en: 'Crystal Boar' }, threat: 'mid',
+    hp: 3800, defense: 0.88, speed: 2.0, runSpeed: 7, chargeSpeed: 13, size: 1.0,    // ≈2.6 m long; crystals on back/shoulders
+    senses: { sight: 26, hearing: 24, smell: 18 },
+    group: { min: 3, max: 6, special: 'tusk', specialChance: 0.5, juveniles: [0, 2] }, // herds of 3–6, sometimes led by a Crystal Tusk
+    regions: { coast: 0.07, fungal: 0.09, ashplain: 0.04, crystal: 0.07, core: 0.02 },     // herds per 64 m tile (island ≈ 25–50 boars)
+    eats: ['plant', 'root', 'mineral', 'insect'], fears: ['wolf_pack', 'boss'], rivals: [],
+    attacks: { charge: { damage: 28, knockback: 12, creature: 420 }, gore: { damage: 18, knockback: 6, creature: 260 } },
+    distances: { observe: 26, warn: 16, threat: 10, charge: 6 },                      // far → keep grazing … very close → charge
+    drops: ['cb_crystal', 'cb_hide', 'cb_tusk'],
+  },
+  tusk: { // special large individual of the Crystal Boar herd — NOT a separate species (stats from the design document)
+    name: { ja: 'クリスタルタスク', en: 'Crystal Tusk' }, epithet: { ja: 'クリスタルボアの大型個体', en: 'Great Crystal Boar' }, threat: 'midboss', of: 'boar',
+    hp: 8500, defense: 0.96, speed: 2.1, runSpeed: 7.5, chargeSpeed: 15, size: 1.45,
+    senses: { sight: 30, hearing: 30, smell: 24 }, regions: {},
+    attacks: { charge: { damage: 40, knockback: 14, creature: 700 }, gore: { damage: 26, knockback: 8, creature: 400 }, crystalCharge: { damage: 52, knockback: 16, creature: 900, rest: 3.5 } },
+    drops: ['cb_crystal_l', 'cb_tusk_great', 'cb_hide'],
+  },
+  wolf: {
+    name: { ja: 'マグマウルフ', en: 'Magma Wolf' }, threat: 'mid',
+    hp: 1600, defense: 0.6, speed: 3.2, runSpeed: 10, size: 1.0,                      // HP not given in the design document (assumed)
+    senses: { sight: 34, hearing: 36, smell: 40 },
+    group: { min: 4, max: 7, special: 'leader', specialChance: 1, juveniles: [0, 2] },  // ALWAYS in a pack with a leader; never spawned alone
+    regions: { fungal: 0.06, peaks: 0.04, coast: 0.02, ashplain: 0.03, ruins: 0.05 },       // packs per tile (island ≈ 4–6 packs)
+    eats: ['lizard', 'beetle', 'slime_small', 'boar_juvenile', 'bird_ground', 'carcass'], fears: ['boss', 'snake_lava', 'dragon'], rivals: ['varkhul', 'lizard'],
+    attacks: { bite: { damage: 14, knockback: 4, creature: 160 }, lunge: { damage: 20, knockback: 7, creature: 220 } },
+    territory: 140,
+    drops: ['mw_fang', 'mw_pelt', 'mw_core'],
+  },
+  leader: { // the pack's strong individual — a Magma Wolf, not a separate species (stats assumed)
+    name: { ja: 'マグマウルフ（リーダー）', en: 'Magma Wolf (Leader)' }, epithet: { ja: '群れを率いる個体', en: 'Pack Leader' }, threat: 'mid', of: 'wolf',
+    hp: 4200, defense: 0.7, speed: 3.2, runSpeed: 10.5, size: 1.3,
+    senses: { sight: 40, hearing: 40, smell: 44 }, regions: {},
+    attacks: { bite: { damage: 20, knockback: 6, creature: 260 }, lunge: { damage: 28, knockback: 10, creature: 340 } },
+    drops: ['mw_fang_l', 'mw_pelt_l', 'mw_core'],
+  },
 };
 // growth stages (mature slimes can split; juveniles stay near home)
 export const STAGES = [{ id: 'juvenile', scale: 0.55, hp: 0.35 }, { id: 'young', scale: 0.78, hp: 0.65 }, { id: 'adult', scale: 1, hp: 1 }, { id: 'large', scale: 1.28, hp: 1.5 }];

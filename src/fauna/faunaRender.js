@@ -16,6 +16,7 @@ function part(THREE, g, id, colorFn) {
   n.setAttribute('aGlow', new THREE.BufferAttribute(gl, 1));
   return n;
 }
+const ni = (g) => (g.index ? g.toNonIndexed() : g);
 const hash = (x, y, z) => { const s = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453; return s - Math.floor(s); };
 
 function beetleGeo(THREE) {
@@ -69,6 +70,45 @@ function lizardGeo(THREE) {
   const tail = new THREE.ConeGeometry(0.2, 1.5, 8, 6); tail.rotateX(-Math.PI / 2); tail.translate(0, 0.38, -1.25); parts.push(part(THREE, tail, 5, rock));
   return mergeGeometries(parts);
 }
+function quadruped(THREE, o) {
+  // shared four-legged body: aPart 1–4 legs, 5 tail, 6 head, 0 body/back; o: dims + colour/glow functions
+  const parts = [];
+  const body = new THREE.SphereGeometry(o.bodyR, 14, 10); body.scale(o.bodyW, o.bodyH, o.bodyL); body.translate(0, o.hip, 0); parts.push(part(THREE, body, 0, o.fur));
+  const chest = new THREE.SphereGeometry(o.bodyR * 0.95, 12, 8); chest.scale(o.bodyW * 1.05, o.bodyH * 1.1, o.bodyL * 0.55); chest.translate(0, o.hip + 0.05, o.bodyL * o.bodyR * 0.55); parts.push(part(THREE, chest, 0, o.fur));
+  const head = o.head(); parts.push(part(THREE, head, 6, o.headCol));
+  const legs = [[-1, o.legZ[0]], [1, o.legZ[0]], [-1, o.legZ[1]], [1, o.legZ[1]]];
+  legs.forEach(([sx, z], i) => { const l = new THREE.CylinderGeometry(o.legR * 0.7, o.legR, o.hip, 6); l.translate(sx * o.bodyR * o.bodyW * 0.6, o.hip / 2, z); parts.push(part(THREE, l, 1 + i, o.legCol)); });
+  if (o.tail) parts.push(part(THREE, o.tail(), 5, o.fur));
+  for (const extra of o.extras || []) parts.push(part(THREE, extra.g, extra.part ?? 0, extra.col));
+  return mergeGeometries(parts);
+}
+function wolfGeo(THREE) {
+  const fur = (x, y, z, o) => { const v = 0.035 + hash(x, y, z) * 0.025; const crack = Math.abs(Math.sin(z * 7 + x * 4)) < 0.07 && y > 0.75 ? 1 : 0; o[0] = crack ? 0.9 : v * 1.05; o[1] = crack ? 0.22 : v * 0.9; o[2] = crack ? 0.04 : v * 0.85; o[3] = crack * 0.9; };
+  return quadruped(THREE, {
+    bodyR: 0.36, bodyW: 0.85, bodyH: 0.85, bodyL: 1.9, hip: 0.72, legR: 0.07, legZ: [0.42, -0.42], fur,
+    head: () => { const h = new THREE.ConeGeometry(0.2, 0.62, 7); h.rotateX(Math.PI / 2); h.scale(1, 0.85, 1); h.translate(0, 0.95, 0.95); const ears = [-1, 1].map((s) => new THREE.ConeGeometry(0.06, 0.18, 4).translate(s * 0.1, 1.12, 0.78)); return mergeGeometries([ni(h), ...ears.map(ni)]); },
+    headCol: (x, y, z, o) => { const eye = Math.abs(Math.abs(x) - 0.08) < 0.04 && y > 0.98 && z > 0.85 && z < 1.0 ? 1 : 0; o[0] = eye ? 1 : 0.04; o[1] = eye ? 0.55 : 0.035; o[2] = eye ? 0.08 : 0.03; o[3] = eye; },
+    legCol: (x, y, z, o) => { o[0] = 0.03; o[1] = 0.028; o[2] = 0.026; o[3] = 0; },
+    tail: () => { const t = new THREE.ConeGeometry(0.12, 0.8, 6); t.rotateX(-Math.PI / 2 - 0.5); t.translate(0, 0.78, -0.95); return t; },
+    extras: [{ g: (() => { const m = new THREE.SphereGeometry(0.3, 8, 6); m.scale(0.9, 0.9, 1.1); m.translate(0, 0.98, 0.42); return m; })(), col: (x, y, z, o) => { o[0] = 0.8; o[1] = 0.22; o[2] = 0.04; o[3] = 0.5; } }], // ember mane
+  });
+}
+function boarGeo(THREE) {
+  const hide = (x, y, z, o) => { const v = 0.06 + hash(x, y, z) * 0.03; o[0] = v * 1.2; o[1] = v; o[2] = v * 0.85; o[3] = 0; };
+  const crystals = []; const r = (i) => hash(i, i * 1.7, i * 2.3);
+  for (let i = 0; i < 9; i++) { const c = new THREE.OctahedronGeometry(0.16, 0); c.scale(0.6, 2.2 + r(i) * 1.6, 0.6); c.rotateZ((r(i + 9) - 0.5) * 0.9); c.rotateX((r(i + 3) - 0.5) * 0.6); c.translate((r(i + 5) - 0.5) * 0.55, 1.18 + r(i + 7) * 0.12, 0.55 - i * 0.14); crystals.push(ni(c)); }
+  return quadruped(THREE, {
+    bodyR: 0.55, bodyW: 0.95, bodyH: 0.9, bodyL: 1.55, hip: 0.62, legR: 0.11, legZ: [0.5, -0.45], fur: hide,
+    head: () => { const h = new THREE.BoxGeometry(0.42, 0.42, 0.62, 2, 2, 3); h.translate(0, 0.62, 1.2); const snout = new THREE.CylinderGeometry(0.13, 0.16, 0.2, 8); snout.rotateX(Math.PI / 2); snout.translate(0, 0.55, 1.55); return mergeGeometries([ni(h), ni(snout)]); },
+    headCol: (x, y, z, o) => { const eye = Math.abs(Math.abs(x) - 0.17) < 0.05 && y > 0.68 && z > 1.25 && z < 1.4 ? 1 : 0; o[0] = eye ? 0.4 : 0.07; o[1] = eye ? 0.9 : 0.055; o[2] = eye ? 1 : 0.045; o[3] = eye * 0.6; },
+    legCol: (x, y, z, o) => { o[0] = 0.05; o[1] = 0.04; o[2] = 0.035; o[3] = 0; },
+    tail: () => { const t = new THREE.CylinderGeometry(0.02, 0.04, 0.3, 4); t.rotateX(0.6); t.translate(0, 0.75, -0.9); return t; },
+    extras: [
+      { g: mergeGeometries(crystals), col: (x, y, z, o) => { o[0] = 0.3; o[1] = 0.7; o[2] = 0.9; o[3] = 0.4; } },
+      ...[-1, 1].map((s) => ({ part: 6, g: (() => { const t = new THREE.ConeGeometry(0.05, 0.42, 5); t.rotateX(-0.7); t.rotateZ(s * 0.5); t.translate(s * 0.2, 0.62, 1.55); return t; })(), col: (x, y, z, o) => { o[0] = 0.8; o[1] = 0.78; o[2] = 0.7; o[3] = 0; } })),
+    ],
+  });
+}
 function snakeSegGeo(THREE) {
   // one body segment along +z (length 1): cooled black rock plates with molten seams between them
   const g = new THREE.CylinderGeometry(0.5, 0.5, 1.02, 10, 3, true); g.rotateX(Math.PI / 2); const p = g.attributes.position;
@@ -97,6 +137,20 @@ const VERT = {
   if (mode > 0.5 && mode < 1.5) { float f = clamp(transformed.z + 0.3, 0.0, 1.5); transformed.y += f * 0.35; }
   if (mode > 1.5 && mode < 2.5) transformed.y *= 0.8;
   if (mode > 2.5) { transformed.y += sin(ph * 14.0) * 0.03; }`,
+  wolf: `
+  float ph = aAnim.x, mv = aAnim.y, mode = aAnim.z;
+  float fast = mode > 2.5 ? 1.8 : 1.0;
+  if (aPart >= 1.0 && aPart <= 4.0) { float k = (aPart == 1.0 || aPart == 4.0) ? 0.0 : 3.14159; float sw = sin(ph * 9.0 * fast + k); transformed.z += sw * 0.28 * mv * (1.0 - transformed.y / 0.8); }
+  if (aPart == 5.0) { transformed.x += sin(ph * 5.0) * 0.12 * (0.3 + mv); }
+  if (mode > 0.5 && mode < 1.5) { transformed.y -= clamp(transformed.z + 0.2, 0.0, 1.5) * 0.18; }
+  if (mode > 1.5 && mode < 2.5) { transformed.y *= 0.45; }`,
+  boar: `
+  float ph = aAnim.x, mv = aAnim.y, mode = aAnim.z;
+  float fast = mode > 2.5 ? 2.0 : 1.0;
+  if (aPart >= 1.0 && aPart <= 4.0) { float k = (aPart == 1.0 || aPart == 4.0) ? 0.0 : 3.14159; transformed.z += sin(ph * 8.0 * fast + k) * 0.22 * mv * (1.0 - transformed.y / 0.7);
+    if (mode > 0.5 && mode < 1.5 && aPart == 1.0) transformed.z += sin(ph * 10.0) * 0.18 * (1.0 - transformed.y / 0.7); }
+  if (aPart == 6.0 && mode > 0.5 && mode < 1.5) { transformed.y -= 0.18; }
+  if (mode > 1.5 && mode < 2.5) { transformed.y *= 0.7; }`,
   snakeSeg: ``,
   snakeHead: `
   if (aPart == 1.0) { float a = aAnim.y * 0.7; float z = transformed.z; float y = transformed.y; transformed.y = y * cos(a) - z * sin(a); transformed.z = y * sin(a) + z * cos(a); }`,
@@ -126,9 +180,9 @@ const VERT = {
   if (aPart == 3.0) transformed.y += sin(ph * 3.0) * 0.05;`,
 };
 
-export function createFaunaRender(THREE, scene, { low = false, caps = { beetle: 220, slime: 180, bird: 60, lizard: 40, snakeSeg: 200, snakeHead: 10 } } = {}) {
-  const geos = { beetle: beetleGeo(THREE), slime: slimeGeo(THREE), bird: birdGeo(THREE), lizard: lizardGeo(THREE), snakeSeg: snakeSegGeo(THREE), snakeHead: snakeHeadGeo(THREE) };
-  const glowCol = { beetle: [1.0, 0.36, 0.05], slime: [1.0, 0.42, 0.06], bird: [1.0, 0.4, 0.08], lizard: [1.0, 0.32, 0.05], snakeSeg: [1.0, 0.34, 0.04], snakeHead: [1.0, 0.36, 0.05] };
+export function createFaunaRender(THREE, scene, { low = false, caps = { beetle: 220, slime: 180, bird: 60, lizard: 40, snakeSeg: 200, snakeHead: 10, wolf: 40, boar: 40 } } = {}) {
+  const geos = { beetle: beetleGeo(THREE), slime: slimeGeo(THREE), bird: birdGeo(THREE), lizard: lizardGeo(THREE), snakeSeg: snakeSegGeo(THREE), snakeHead: snakeHeadGeo(THREE), wolf: wolfGeo(THREE), boar: boarGeo(THREE) };
+  const glowCol = { beetle: [1.0, 0.36, 0.05], slime: [1.0, 0.42, 0.06], bird: [1.0, 0.4, 0.08], lizard: [1.0, 0.32, 0.05], snakeSeg: [1.0, 0.34, 0.04], snakeHead: [1.0, 0.36, 0.05], wolf: [1.0, 0.3, 0.05], boar: [0.35, 0.85, 1.0] };
   const meshes = {}; const anims = {};
   for (const sp of Object.keys(geos)) {
     const cap = Math.round(caps[sp] * (low ? 0.7 : 1));

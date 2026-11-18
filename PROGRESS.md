@@ -75,7 +75,12 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
 | Fire Lizard: rock-mimicry ambush at its home rock, short charge (no long pursuit), territory threat display → fight (hot bite, tail swipe at flankers, charge, fire spit with long cooldown), hides from bosses, flees a surfacing snake, retreats when badly hurt; hunts beetles / small slimes / grounded birds | ✅ | unit-tested; HP 2,800 |
 | Lava Snake: lives in the lava (spawns only in lava bodies), lurks head-up, swims fast along rivers, lunges ≤12 m onto the bank at prey/hunters then slides back, lava balls (also shoots low-flying birds), ignores hunters far from lava, dives untouchable when struck and resurfaces elsewhere; segmented body follows its swim path | ✅ | unit-tested; HP 8,500 |
 | HUD shows an engaged lizard / snake like a boss (name, HP, sighted card) | ✅ | |
-| Remaining species: Crystal Boar (+Tusk), Stone Mole (+Grand Mole), Magma Wolf pack, 燼皮, Flame Dragon / Venom-fang Dragon, Cindaryl, Golem | ⬜ | next |
+| Group framework: herds / packs as units (group brain + member roles), group census (stored packs keep composition and HP), creature-vs-creature damage through the shared hit() | ✅ | `src/fauna/herds.js` |
+| Crystal Boar herds (3–6, juveniles in the middle): graded warnings (observe → paw/snort → tusks → charge), ring around juveniles, whole herd hostile when one is struck, straight charges with poor turning, stand down when the hunter backs off | ✅ | unit-tested; HP 3,800 |
+| Crystal Tusk = a large boar individual (not a species): leads the defence, crystal charge + rest, stays by the juveniles | ✅ | HP 8,500 |
+| Magma Wolf packs (never alone, exactly one leader): den with juveniles, patrol behind the leader, alert on sighting, encircle and attack in turns from the flanks (leader head-on), leader's howl orders retreat (half down / leader hurt / boss near) | ✅ | unit-tested. Wolf HP 1,600 / leader 4,200 are ASSUMED: the design document gives no numbers |
+| Wolves hunt juvenile / weak boars (a guarding Tusk often makes them give up), lizards, beetles, small slimes, grounded birds; feed on carcasses; herds fight back | ✅ | observed in simulation |
+| Remaining species: Stone Mole (+Grand Mole), 燼皮, Flame Dragon / Venom-fang Dragon, Cindaryl, Golem | ⬜ | next |
 
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
@@ -126,3 +131,17 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
 - Visual tuning:
   - Snake glow reduced, so it reads as black rock with seams.
   - Island lava point lights halved: they flooded the narrow canyon walls.
+
+### Stage 3c tests (herds and packs, 2026-11-19)
+- `node src/fauna/__fauna.test.mjs`: 30 passed.
+- Wolves:
+  - Every wolf is in a pack with one leader (pack sizes 5, 7, 4).
+  - The pack engages the hunter and lands 4 bites (112 dmg).
+  - It retreats once half the pack is down.
+- Boars:
+  - The herd grazes while the hunter is far, warns at mid range, charges a close hunter (94 dmg) and stands down when the hunter leaves.
+  - The Tusk is a boar with 8,500 HP.
+  - One struck boar turns the whole herd hostile.
+- Ecology: a hungry pack killed an unguarded juvenile boar, and the herd defended against it.
+- Browser (headless): a herd and a pack interacted next to the hunter, with no errors.
+- Crystal glow was toned down after the screenshot.

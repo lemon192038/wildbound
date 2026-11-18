@@ -116,5 +116,43 @@ const alive = (f, sp) => f.list.filter((c) => !c.dead && (!sp || c.sp === sp));
     ok(S.ai === 'dive' && S.getHitboxes().length === 0, `struck snake dives (${S.ai}), untouchable while submerged`);
   }
 }
+{ // Magma Wolf: always a pack with exactly one leader; spots a hunter, encircles, attacks; retreats at half strength
+  const { fauna, player, damage, step } = setup('fungal');
+  player.position.set(0, 5, 0); step(1);
+  let packs = [...fauna.groups()].filter((g) => g.sp === 'wolf');
+  if (!packs.length) { fauna.spawnGroup('wolf', 40, 0); step(0.1); packs = [...fauna.groups()].filter((g) => g.sp === 'wolf'); }
+  const wolves = fauna.list.filter((c) => c.sp === 'wolf');
+  ok(wolves.length > 0 && wolves.every((w) => w.group), 'every wolf belongs to a pack (never alone)');
+  ok(packs.every((g) => g.members.filter((m) => m.role === 'leader').length === 1 && g.members.length >= 4), `each pack has one leader and ≥4 wolves (${packs.map((g) => g.members.length)})`);
+  const g = packs[0]; for (const o of fauna.list) if (o.group !== g && !o.dead) { o.dead = true; o.corpseT = 0.01; }
+  const L = g.members.find((m) => m.role === 'leader'); player.position.set(L.pos.x + 18, 5, L.pos.z); step(1.5);
+  ok(g.state === 'engage', `pack engages the hunter (${g.state})`);
+  step(15); ok(damage.taken > 0, `pack attacks in turns (${damage.hits} bites, ${damage.taken} dmg)`);
+  const ad = g.members.filter((m) => m.stage > 0); for (const w of ad.slice(0, Math.ceil(ad.length / 2))) w.receiveHit({ damage: 1e6, attackerId: 'local' });
+  step(1); ok(g.state === 'retreat', `pack retreats when half are down (${g.state})`);
+}
+{ // Crystal Boar herd: graded warnings, charge at close range, stands down when the hunter backs off; hitting one angers all
+  const { fauna, player, damage, step } = setup('coast');
+  player.position.set(0, 5, 0); step(0.2);
+  for (const o of [...fauna.list]) { o.dead = true; o.corpseT = 0.01; } step(0.1);
+  const g = fauna.spawnGroup('boar', 0, 60, [{ role: 'tusk', stage: 2 }, { role: 'member', stage: 2 }, { role: 'member', stage: 2 }, { role: 'member', stage: 0 }]);
+  player.position.set(0, 5, 0); step(2); ok(g.state === 'graze', `herd keeps grazing while the hunter is far (${g.state})`);
+  const C = g.center; player.position.set(C.x, 5, C.z - 14); step(1); ok(['warn', 'threat', 'observe'].includes(g.state), `herd warns at mid range (${g.state})`);
+  player.position.set(C.x, 5, C.z - 4); step(4); ok(g.state === 'defend' && damage.taken > 0, `close hunter gets charged (${g.state}, ${damage.taken} dmg)`);
+  player.position.set(C.x, 5, C.z - 60); step(12); ok(g.state !== 'defend', `herd stands down once the hunter leaves (${g.state})`);
+  const T = g.members.find((m) => m.role === 'tusk'); ok(T && T.maxHp === 8500 && T.sp === 'boar', 'Crystal Tusk is a large boar (8,500 HP), not a separate species');
+  const m = g.members.find((x) => x.role === 'member' && x.stage === 2); player.position.set(C.x, 5, C.z - 30); m.receiveHit({ damage: 50, attackerId: 'local' }); step(0.4);
+  ok(g.state === 'defend' && g.hostile, 'striking one boar turns the whole herd hostile');
+}
+{ // ecology: a wolf pack hunts an unguarded juvenile boar; the herd fights back
+  const { fauna, player, step } = setup('fungal');
+  player.position.set(0, 5, 0); step(0.2); for (const o of [...fauna.list]) { o.dead = true; o.corpseT = 0.01; } step(0.1);
+  player.position.set(0, 5, -150);
+  const herd = fauna.spawnGroup('boar', 0, 30, [{ role: 'member', stage: 2 }, { role: 'member', stage: 2 }, { role: 'member', stage: 0 }]);
+  const pack = fauna.spawnGroup('wolf', 0, 0); pack.hunger = 1; step(40, 1 / 15);
+  const juv = herd.members.find((m) => m.stage === 0);
+  ok(fauna.stats.predation > 0 || juv.hp < juv.maxHp, `wolves hunt the juvenile boar (pred ${fauna.stats.predation}, juv hp ${Math.round(juv.hp)})`);
+  ok(pack.members.some((w) => w.hp < w.maxHp) || herd.state === 'defend', `the herd defends against the pack (herd ${herd.state})`);
+}
 console.log(fails ? `${fails} FAILED` : 'all fauna tests passed');
 process.exit(fails ? 1 : 0);

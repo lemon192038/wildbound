@@ -15,6 +15,7 @@
 import { SPECIES, STAGES } from './species.js';
 import { createFaunaRender } from './faunaRender.js';
 import { createPredatorAI } from './predators.js';
+import { createHerdAI } from './herds.js';
 import { isJa } from '../shared/i18n.js';
 import { SpatialHash } from '../shared/spatialHash.js';
 import { mulberry32 } from '../world/noise.js';
@@ -65,8 +66,9 @@ export function createFauna(game) {
     const k = tkey(tx, tz); let C = census.get(k); if (C) return C;
     const x0 = -F.half + tx * TILE, z0 = -F.half + tz * TILE; const r = mulberry32(k * 31 + 7);
     const regs = [[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]].map(([a, b]) => F.regionAt(x0 + a * TILE, z0 + b * TILE));
-    C = { cap: {}, stored: {}, regenT: REGEN_S * (0.5 + r()) };
+    C = { cap: {}, stored: {}, groups: [], regenT: REGEN_S * (0.5 + r()) };
     for (const [sp, S] of Object.entries(SPECIES)) {
+      if (S.of) continue; // special individuals (Crystal Tusk, pack leader) are members of their species' groups
       const dens = regs.reduce((a, g) => a + (S.regions[g] || 0), 0) / 4; let n = Math.floor(dens * (0.6 + r() * 0.8)); if (r() < dens - Math.floor(dens)) n++;
       C.cap[sp] = n; C.stored[sp] = n;
     }
@@ -74,7 +76,15 @@ export function createFauna(game) {
   }
   function spawnTile(tx, tz) {
     const C = censusOf(tx, tz); const x0 = -F.half + tx * TILE, z0 = -F.half + tz * TILE;
+    // group species: stored groups come back with their composition; fresh groups for the rest of the census
+    for (const comp of C.groups.splice(0)) spawnGroup(comp.sp, comp.x, comp.z, comp.members);
     for (const sp of Object.keys(SPECIES)) {
+      const S = SPECIES[sp]; if (S.of) continue;
+      if (S.group) {
+        let n = C.stored[sp]; C.stored[sp] = 0;
+        while (n-- > 0) { let spot = null; for (let i = 0; i < 10 && !spot; i++) { const x = x0 + rnd() * TILE, z = z0 + rnd() * TILE; if (S.regions[F.regionAt(x, z)] && okSpot(x, z, sp) && !insideCollider(x, z, 2)) spot = [x, z]; } if (spot) spawnGroup(sp, spot[0], spot[1]); else C.stored[sp]++; }
+        continue;
+      }
       let n = C.stored[sp]; C.stored[sp] = 0;
       while (n-- > 0) {
         let spot = null;
@@ -88,9 +98,32 @@ export function createFauna(game) {
     }
     spawned.add(tkey(tx, tz));
   }
+  // a herd / pack: fresh composition from the species' group rules, or a stored one (survivors keep their HP)
+  function spawnGroup(sp, x, z, members = null) {
+    const S = SPECIES[sp], G = S.group; const g = HERD.newGroup(sp, new THREE.Vector3(x, 0, z));
+    if (!members) {
+      members = []; const n = G.min + Math.floor(rnd() * (G.max - G.min + 1));
+      if (rnd() < G.specialChance) members.push({ role: G.special, stage: 2 });
+      const j = G.juveniles[0] + Math.floor(rnd() * (G.juveniles[1] - G.juveniles[0] + 1));
+      for (let i = 0; i < j && members.length < n; i++) members.push({ role: 'member', stage: 0 });
+      while (members.length < n) members.push({ role: 'member', stage: rnd() < 0.3 ? 1 : 2 });
+    }
+    for (const m of members) {
+      const s = pickSpot(x, z, 0, 7, sp) || [x, z];
+      const c = create(sp, s[0], s[1], m.stage, { hp: m.hp, S: m.role === 'member' ? null : SPECIES[m.role] });
+      HERD.join(g, c, m.role);
+    }
+    return g;
+  }
+  function storeGroup(g) {
+    const live = HERD.alive(g); const C0 = HERD.centerOf(g); const [tx, tz] = W.chunks.tileOf(C0.x, C0.z);
+    if (live.length) censusOf(tx, tz).groups.push({ sp: g.sp, x: g.home.x, z: g.home.z, members: live.map((m) => ({ role: m.role, stage: m.stage, hp: m.hp })) });
+    for (const m of g.members) { const i = list.indexOf(m); if (i >= 0) list.splice(i, 1); }
+    HERD.groups.delete(g); stats.despawned += live.length;
+  }
   function rollStage() { const r = rnd(); return r < 0.15 ? 0 : r < 0.4 ? 1 : r < 0.9 ? 2 : 3; }
   function create(sp, x, z, stage, opts = {}) {
-    const S = SPECIES[sp], G = STAGES[stage];
+    const S = opts.S || SPECIES[sp], G = STAGES[stage];
     const c = {
       id: nextId++, sp, S, stage, scale: S.size * G.scale, maxHp: Math.round(S.hp * G.hp), hp: 0, pos: new THREE.Vector3(x, ground(x, z), z),
       home: new THREE.Vector3(x, 0, z), yaw: rnd() * TAU, pitch: 0, roll: 0, squash: 1, vel: new THREE.Vector3(), ai: 'roam', t: 0, dur: 2 + rnd() * 4,
@@ -112,14 +145,17 @@ export function createFauna(game) {
   // ------------------------------------------------------------------ combat interface (same shape as bosses)
   const _sph = new THREE.Sphere();
   function attach(c) {
-    c.parts = c.sp === 'lizard' ? [{ name: 'head', hitzone: 1.2 }, { name: 'body', hitzone: 1 }, { name: 'tail', hitzone: 0.9 }] : c.sp === 'snake' ? [{ name: 'head', hitzone: 1.25 }, { name: 'body', hitzone: 0.8 }] : [{ name: 'body', hitzone: 1 }];
-    const N = SPECIES[c.sp].name, E = SPECIES[c.sp].epithet; c.name = isJa() ? N.ja : N.en; if (E) c.epithet = isJa() ? E.ja : E.en; c.isFauna = true;
+    c.parts = c.sp === 'boar' ? [{ name: 'head', hitzone: 1.1 }, { name: 'body', hitzone: 0.9 }, { name: 'crystal', hitzone: 0.6 }] : c.sp === 'wolf' ? [{ name: 'head', hitzone: 1.2 }, { name: 'body', hitzone: 1 }] : c.sp === 'lizard' ? [{ name: 'head', hitzone: 1.2 }, { name: 'body', hitzone: 1 }, { name: 'tail', hitzone: 0.9 }] : c.sp === 'snake' ? [{ name: 'head', hitzone: 1.25 }, { name: 'body', hitzone: 0.8 }] : [{ name: 'body', hitzone: 1 }];
+    const N = c.S.name, E = c.S.epithet; c.name = isJa() ? N.ja : N.en; if (E) c.epithet = isJa() ? E.ja : E.en; c.isFauna = true;
     Object.defineProperty(c, 'position', { get() { return c.pos; } });
     Object.defineProperty(c, 'state', { get() { return c.dead ? 'dead' : c.ai; } });
     c.getHitboxes = () => {
       if (c.dead || c.ai === 'burrowed') return [];
       if (c.sp === 'lizard') { const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw), s = c.scale, y = c.pos.y + 0.45 * s;
         return [{ part: 'head', sphere: new THREE.Sphere(new THREE.Vector3(c.pos.x + fx * 0.9 * s, y, c.pos.z + fz * 0.9 * s), 0.35 * s) }, { part: 'body', sphere: new THREE.Sphere(new THREE.Vector3(c.pos.x, y, c.pos.z), 0.6 * s) }, { part: 'tail', sphere: new THREE.Sphere(new THREE.Vector3(c.pos.x - fx * 1.3 * s, y - 0.1, c.pos.z - fz * 1.3 * s), 0.35 * s) }]; }
+      if (c.sp === 'wolf' || c.sp === 'boar') { const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw), s = c.scale, big = c.sp === 'boar' ? 1.25 : 0.85, y = c.pos.y + (c.sp === 'boar' ? 0.85 : 0.7) * s;
+        const out = [{ part: 'head', sphere: new THREE.Sphere(new THREE.Vector3(c.pos.x + fx * 1.1 * big * s, y, c.pos.z + fz * 1.1 * big * s), 0.42 * big * s) }, { part: 'body', sphere: new THREE.Sphere(new THREE.Vector3(c.pos.x, y, c.pos.z), 0.62 * big * s) }];
+        if (c.sp === 'boar') out.push({ part: 'crystal', sphere: new THREE.Sphere(new THREE.Vector3(c.pos.x - fx * 0.3 * s, y + 0.6 * s, c.pos.z - fz * 0.3 * s), 0.45 * s) }); return out; }
       if (c.sp === 'snake') { if (c.ai === 'dive' || c.ai === 'hideDeep') return []; const s = c.scale; const out = [{ part: 'head', sphere: new THREE.Sphere(c.pos.clone(), 0.75 * s) }];
         for (let i = 2; i <= 8; i += 3) { const p = c.trail[i * 2]; if (p) out.push({ part: 'body', sphere: new THREE.Sphere(p.clone(), 0.6 * s) }); } return out; }
       if (c.sp === 'bird' && c.alt > 3.5) return []; // out of a great sword's reach while airborne
@@ -129,17 +165,18 @@ export function createFauna(game) {
     };
     c.receiveHit = (h) => hit(c, h);
   }
-  function hit(c, { damage = 0, point, attackerId, part = 'body' } = {}) {
+  function hit(c, { damage = 0, point, attackerId, part = 'body', by = null } = {}) {
     if (c.dead) return { damage: 0, part };
-    let mult = c.sp === 'beetle' ? 0.55 : c.sp === 'slime' ? 0.85 : c.sp === 'lizard' ? 0.7 : c.sp === 'snake' ? 0.45 : 0.95;
+    let mult = c.sp === 'beetle' ? 0.55 : c.sp === 'slime' ? 0.85 : c.sp === 'lizard' ? 0.7 : c.sp === 'snake' ? 0.45 : c.sp === 'boar' ? (1 - c.S.defense * 0.45) : c.sp === 'wolf' ? 0.8 : 0.95;
     mult *= c.parts.find((p) => p.name === part)?.hitzone ?? 1;
     if (c.ai === 'curl') mult *= SPECIES.beetle.curlDefense;
     if (c.ai === 'flatten') mult *= SPECIES.slime.flatDefense;
     const dealt = Math.max(1, Math.round(damage * mult));
     c.hp -= dealt; c.flash = 1; c.hits++; c.lastHitAt = clock; c.aggroT = 10;
-    const atk = attackerId === 'local' || attackerId == null ? game.player : game.remotePlayers?.get?.(String(attackerId));
-    c.hunter = atk || game.player;
-    if (c.hp <= 0) { die(c, 'hunted', c.hunter); return { damage: dealt, part: 'body', killed: true }; }
+    const atk = by ? null : attackerId === 'local' || attackerId == null ? game.player : game.remotePlayers?.get?.(String(attackerId));
+    c.hunter = atk || (by ? c.hunter : game.player);
+    if (c.hp <= 0) { die(c, by ? (by.sp === 'wolf' ? 'predation' : 'fight') : 'hunted', by || c.hunter); if (c.group) HERD.onHit(c, dealt, by || atk); return { damage: dealt, part, killed: true }; }
+    if (c.group) { HERD.onHit(c, dealt, by || atk); return { damage: dealt, part }; }
     if (c.sp === 'beetle') {
       const cornered = c.ai === 'curl' || c.hp < c.maxHp * 0.35;
       if (cornered && c.burstCd <= 0) heatBurst(c);
@@ -154,7 +191,7 @@ export function createFauna(game) {
   }
   function die(c, cause, by) {
     if (c.dead) return; c.dead = true; c.hp = 0; c.corpseT = cause === 'predation' ? 30 : 90; c.ai = 'dead'; c.move = 0;
-    if (c.sp === 'lizard') c.roll = 2.6; if (c.sp === 'snake') { c.jaw = 0.6; c.pos.y = F.lava(c.pos.x, c.pos.z, Ls).level - 0.05; }
+    if (c.sp === 'lizard') c.roll = 2.6; if (c.sp === 'wolf' || c.sp === 'boar') { c.roll = 1.5; c.mode = 2; } if (c.sp === 'snake') { c.jaw = 0.6; c.pos.y = F.lava(c.pos.x, c.pos.z, Ls).level - 0.05; }
     if (c.sp === 'beetle') c.roll = Math.PI; if (c.sp === 'bird') { c.alt = 0; c.roll = 1.3; } if (c.sp === 'slime') c.squash = 0.55;
     stats.died++; if (cause === 'predation') stats.predation++;
     game.events?.emit?.('fauna:died', { creature: c, species: c.sp, cause, by });
@@ -205,6 +242,9 @@ export function createFauna(game) {
 
   // ------------------------------------------------------------------ AI
   function setAi(c, ai) { c.ai = ai; c.t = 0; c.dur = 0; c.target = null; }
+  // creature → creature damage (pack bites, boar charges); bosses are left alone
+  function hitCreature(target, damage, byCreature) { if (target?.isFauna) return hit(target, { damage, by: byCreature, part: 'body' }); return null; }
+  const HERD = createHerdAI({ game, rnd, setAi, steer: (...a) => steer(...a), nearestOf: (...a) => nearestOf(...a), nearestHunter, die, ground, wrapA, pickSpot, hitCreature, okSpot: (...a) => okSpot(...a) });
   const PRED = createPredatorAI({ game, W, F, rnd, setAi, steer: (...a) => steer(...a), nearestOf: (...a) => nearestOf(...a), nearestHunter, noiseOf, die, shoot, ground, wrapA, pickSpot });
   function steer(c, tx, tz, speed, dt, turn = 3) {
     const dx = tx - c.pos.x, dz = tz - c.pos.z, d = Math.hypot(dx, dz); if (d < 0.2) { c.move = 0; return d; }
@@ -346,14 +386,16 @@ export function createFauna(game) {
         }
       }
       for (let i = list.length - 1; i >= 0; i--) {
-        const c = list[i]; const [, d] = nearestHunter(c.pos.x, c.pos.z);
+        const c = list[i]; if (c.group) continue; const [, d] = nearestHunter(c.pos.x, c.pos.z);
         if (d > DESPAWN_R) { if (!c.dead) despawn(c); list.splice(i, 1); }
       }
+      for (const g of [...HERD.groups]) { const far = g.members.every((m) => m.dead || nearestHunter(m.pos.x, m.pos.z)[1] > DESPAWN_R); if (far) storeGroup(g); }
       for (const k of [...spawned]) { const tx = k % 1000, tz = Math.floor(k / 1000); const mx = -F.half + (tx + 0.5) * TILE, mz = -F.half + (tz + 0.5) * TILE; let far = true; for (const h of hunters) if (Math.hypot(mx - h.pos.x, mz - h.pos.z) < DESPAWN_R - 20) far = false; if (far) spawned.delete(k); }
       // provisional regrowth in stored (unobserved) tiles
-      for (const [k, C] of census) { if (spawned.has(k)) continue; C.regenT -= 0.5; if (C.regenT > 0) continue; C.regenT = REGEN_S; for (const sp of Object.keys(C.cap)) if (C.stored[sp] < C.cap[sp]) { C.stored[sp]++; stats.regen++; break; } }
+      for (const [k, C] of census) { if (spawned.has(k)) continue; C.regenT -= 0.5; if (C.regenT > 0) continue; C.regenT = REGEN_S; for (const sp of Object.keys(C.cap)) if (!SPECIES[sp].group && C.stored[sp] < C.cap[sp]) { C.stored[sp]++; stats.regen++; break; } }
     }
     hash.clear(); for (const c of list) hash.insert(c, c.pos.x, c.pos.z);
+    for (const g of [...HERD.groups]) HERD.thinkGroup(g, dt);
     // think (near: every frame; far: every 4th frame with accumulated dt)
     for (let i = list.length - 1; i >= 0; i--) {
       const c = list[i];
@@ -362,6 +404,7 @@ export function createFauna(game) {
       c.acc += dt; if (d > LOD_NEAR && (frame + c.id) % 4) continue; const sdt = Math.min(c.acc, 0.25); c.acc = 0;
       c.t += sdt; c.flash = Math.max(0, c.flash - sdt * 4); c.heat = Math.max(0, c.heat - sdt); c.burstCd -= sdt;
       if (c.sp === 'beetle') thinkBeetle(c, sdt); else if (c.sp === 'slime') thinkSlime(c, sdt); else if (c.sp === 'bird') thinkBird(c, sdt);
+      else if (c.sp === 'boar') HERD.thinkBoar(c, sdt); else if (c.sp === 'wolf') HERD.thinkWolf(c, sdt);
       else if (c.sp === 'lizard') thinkLizardSafe(c, sdt); else if (c.sp === 'snake') thinkSnakeSafe(c, sdt);
       if (c.sp !== 'snake') c.pos.y = ground(c.pos.x, c.pos.z) + (c.sp === 'bird' ? c.alt + 0.36 * c.scale : 0);
       else trailStep(c);
@@ -384,9 +427,9 @@ export function createFauna(game) {
   const _near = [];
   function near(p, r) { hash.query(p.x, p.z, r, _near); return _near.filter((c) => !c.dead && Math.hypot(c.pos.x - p.x, c.pos.z - p.z) < r); }
   // mid-tier fauna currently fighting the local hunter (the HUD can show them like bosses)
-  function engaged() { return list.filter((c) => !c.dead && c.engaged && (c.sp === 'lizard' || c.sp === 'snake')); }
+  function engaged() { return list.filter((c) => !c.dead && ((c.engaged && (c.sp === 'lizard' || c.sp === 'snake')) || (c.group && (c.role === 'leader' || c.role === 'tusk') && ((c.group.state === 'engage' && c.group.target === game.player) || (c.group.state === 'defend' && c.group.threat === game.player))))); }
   return {
-    update, near, list, census, stats, render, engaged,
-    debug: () => { const by = { beetle: 0, slime: 0, bird: 0, lizard: 0, snake: 0 }; const ai = {}; for (const c of list) if (!c.dead) { by[c.sp]++; ai[c.sp + ':' + c.ai] = (ai[c.sp + ':' + c.ai] || 0) + 1; } return { live: by, ai, tiles: spawned.size, census: census.size, ...stats, shots: shots.length }; },
+    update, near, list, census, stats, render, engaged, groups: () => HERD.groups, spawnGroup,
+    debug: () => { const by = { beetle: 0, slime: 0, bird: 0, lizard: 0, snake: 0, boar: 0, wolf: 0 }; const ai = {}; for (const c of list) if (!c.dead) { by[c.sp]++; ai[c.sp + ':' + c.ai] = (ai[c.sp + ':' + c.ai] || 0) + 1; } return { live: by, ai, groups: [...HERD.groups].map((g) => `${g.sp}#${g.id}:${g.state}(${HERD.alive(g).length})`), tiles: spawned.size, census: census.size, ...stats, shots: shots.length }; },
   };
 }
