@@ -5,12 +5,13 @@ import { createFauna } from './fauna.js';
 let fails = 0;
 const ok = (c, msg) => { if (!c) { fails++; console.log('FAIL', msg); } else console.log('ok  ', msg); };
 
-function setup(region = 'ashplain') {
+function setup(region = 'ashplain', { river = false } = {}) {
   const handlers = {};
   const events = { on: (k, f) => (handlers[k] ||= []).push(f), emit: (k, e) => (handlers[k] || []).forEach((f) => f(e)) };
   const half = 1152;
-  const F = { half, seed: 1337, regionAt: () => region, lava: (x, z, o = {}) => { o.sd = 100; o.level = -10; return o; } };
-  const world = { island: F, low: true, colliders: [], getHeight: () => 5, canWalk: () => true, spawnDust() {}, spawnSplash() {}, chunks: { tileOf: (x, z) => [Math.floor((x + half) / 64), Math.floor((z + half) / 64)] } };
+  // optional lava river along the z axis: |x| < 6 is lava (surface y = 3, bed y = 1), banks at y = 5
+  const F = { half, seed: 1337, regionAt: () => region, lava: (x, z, o = {}) => { if (river) { o.sd = Math.abs(x) - 6; o.level = 3; } else { o.sd = 100; o.level = -10; } return o; } };
+  const world = { island: F, low: true, colliders: [], getHeight: (x) => (river && Math.abs(x) < 6 ? 1 : 5), canWalk: () => true, spawnDust() {}, spawnSplash() {}, chunks: { tileOf: (x, z) => [Math.floor((x + half) / 64), Math.floor((z + half) / 64)] } };
   const damage = { taken: 0, hits: 0 };
   const player = { position: new THREE.Vector3(0, 5, 0), state: 'idle', hp: 150, maxHp: 150, receiveHit({ damage: d }) { damage.taken += d; damage.hits++; this.hp -= d; return true; } };
   const status = { list: [], apply(k, l) { this.list.push(k + ':' + l); } };
@@ -81,6 +82,39 @@ const alive = (f, sp) => f.list.filter((c) => !c.dead && (!sp || c.sp === sp));
   player.position.set(0, 5, 0); step(2);                // come back right away
   const back = alive(fauna).filter((c) => Math.hypot(c.pos.x, c.pos.z) < 200);
   ok(back.filter((c) => c.sp === 'beetle').length === 0, `killed beetles do not instantly respawn (${back.length} back, ${killed} killed)`);
+}
+{ // Fire Lizard: territory → threat display → fight (hunter gets hurt); gives up when the hunter leaves
+  const { fauna, player, damage, step } = setup('canyon'); step(1);
+  const L = alive(fauna, 'lizard')[0];
+  if (!L) ok(false, 'no lizard spawned in canyon'); else {
+    for (const o of alive(fauna)) if (o !== L) { o.dead = true; o.corpseT = 0.01; } // isolate it
+    player.position.set(L.home.x + Math.sin(L.yaw) * 12, 5, L.home.z + Math.cos(L.yaw) * 12); step(0.6);
+    ok(['threat', 'fight'].includes(L.ai), `lizard threatens an intruder (${L.ai})`);
+    step(10); ok(damage.taken > 0, `lizard fights: hunter took ${damage.taken} dmg`);
+    player.position.set(L.pos.x + 60, 5, L.pos.z); step(6);
+    ok(!['fight', 'charge'].includes(L.ai), `lizard does not chase far (${L.ai})`);
+  }
+}
+{ // Fire Lizard ambushes prey that wanders close
+  const { fauna, player, step } = setup('canyon'); step(1);
+  const L = alive(fauna, 'lizard')[0]; const b = alive(fauna, 'beetle')[0];
+  if (!L || !b) ok(true, 'lizard/beetle not both present (skipped)'); else {
+    player.position.set(L.pos.x + 90, 5, L.pos.z); L.hunger = 1; step(0.1);
+    b.pos.set(L.pos.x + 5, 5, L.pos.z); b.home.copy(b.pos); b.ai = 'feed'; b.dur = 99; step(3);
+    ok(b.dead && fauna.stats.predation >= 1, `lizard catches a beetle by ambush (${b.ai})`);
+  }
+}
+{ // Lava Snake: lives in the lava, lunges at a hunter on the bank, returns to the lava; ignores hunters far away
+  const { fauna, player, damage, step } = setup('caldera', { river: true }); step(1);
+  const S = alive(fauna, 'snake')[0];
+  if (!S) ok(false, 'no snake spawned in the river'); else {
+    ok(Math.abs(S.pos.x) < 6, `snake spawned inside the lava (x=${S.pos.x.toFixed(1)})`);
+    player.position.set(40, 5, S.pos.z); step(5); ok(damage.taken === 0 && Math.abs(S.pos.x) < 6, 'snake ignores a hunter far from the lava');
+    player.position.set(9, 5, S.pos.z); step(4); ok(damage.hits > 0, `snake lunges / spits at a hunter on the bank (${damage.taken} dmg)`);
+    step(3); ok(Math.abs(S.pos.x) < 6.5, `snake slides back into the lava (x=${S.pos.x.toFixed(1)})`);
+    S.receiveHit({ damage: S.maxHp * 0.2, part: 'head', attackerId: 'local' }); step(0.1);
+    ok(S.ai === 'dive' && S.getHitboxes().length === 0, `struck snake dives (${S.ai}), untouchable while submerged`);
+  }
 }
 console.log(fails ? `${fails} FAILED` : 'all fauna tests passed');
 process.exit(fails ? 1 : 0);

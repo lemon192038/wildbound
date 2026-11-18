@@ -38,6 +38,28 @@ export const SPECIES = {
     altitude: [14, 30], fleeHp: 0.4,                           // escapes actively below 40 % HP
     drops: ['ab_feather', 'ab_flight', 'ab_beak', 'ab_core'],
   },
+  lizard: {
+    name: { ja: 'ファイアリザード', en: 'Fire Lizard' }, epithet: { ja: '岩陰の待ち伏せ者', en: 'Ambusher of the Rocks' }, threat: 'mid',
+    hp: 2800, defense: 0.65, speed: 2.2, chargeSpeed: 15, size: 1.0,     // 全長 1.8–2.8 m; 突進 ≈ 65 km/h, short range
+    senses: { sight: 16, hearing: 18, smell: 8 },                        // heat / vibration ambush sensing
+    regions: { canyon: 0.6, core: 0.35, peaks: 0.3, ashplain: 0.25, geotherm: 0.35, crystal: 0.2 },
+    eats: ['beetle', 'slime_small', 'bird_ground', 'beetle_larva'], fears: ['snake', 'wolf', 'boss'], rivals: ['bird', 'snake'],
+    territory: 28, giveUp: 22,                                           // poor long-distance chaser: gives up quickly
+    attacks: { bite: { damage: 18, status: ['burn', 'small'] }, tail: { damage: 14, knockback: 7 }, charge: { damage: 22, knockback: 10 }, fire: { damage: 16, status: ['burn', 'large'], speed: 18, cooldown: 9, range: [5, 14] } },
+    fleeHp: 0.3,
+    drops: ['fl_scale', 'fl_fang', 'fl_spine', 'fl_gland'],
+  },
+  snake: {
+    name: { ja: 'ラヴァスネーク', en: 'Lava Snake' }, epithet: { ja: '溶岩を泳ぐ者', en: 'Swimmer of the Molten Rivers' }, threat: 'midboss',
+    hp: 8500, defense: 0.92, speed: 3.2, lavaSpeed: 10, size: 1.0,      // 全長 5–15 m; slow on land, very fast in lava
+    senses: { sight: 22, hearing: 26, smell: 0 },
+    habitat: 'lava', regions: { caldera: 0.5, canyon: 0.45, core: 0.25, ashplain: 0.15 },
+    eats: ['lizard', 'beetle', 'bird', 'slime', 'boar_juvenile'], fears: ['dragon', 'golem', 'wolf_pack'], rivals: ['lizard', 'varkhul'],
+    attacks: { lunge: { damage: 30, knockback: 10, status: ['burn', 'large'] }, lavaBall: { damage: 20, status: ['burn', 'large'], speed: 22, cooldown: 6, range: [9, 30] } },
+    landReach: 12,                                                       // how far it lunges out of the lava
+    fleeHp: 0.25,
+    drops: ['ls_core', 'ls_fang', 'ls_shell', 'ls_magma'],
+  },
 };
 // growth stages (mature slimes can split; juveniles stay near home)
 export const STAGES = [{ id: 'juvenile', scale: 0.55, hp: 0.35 }, { id: 'young', scale: 0.78, hp: 0.65 }, { id: 'adult', scale: 1, hp: 1 }, { id: 'large', scale: 1.28, hp: 1.5 }];

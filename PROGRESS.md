@@ -72,7 +72,10 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
 | Carving / drops from fauna | ⬜ | stage 5 (drop ids are already in `species.js`) |
 | Fauna in co-op | ⬜ | each client simulates its own fauna (stage 8) |
 | Bird nests, breeding-season aggression, juveniles staying at nests | ⬜ | stage 6 |
-| Remaining species: Lava Snake, Fire Lizard, Crystal Boar, Stone Mole, Magma Wolf pack, 燼皮, Flame Dragon / Venom-fang Dragon, Cindaryl, Golem | ⬜ | next |
+| Fire Lizard: rock-mimicry ambush at its home rock, short charge (no long pursuit), territory threat display → fight (hot bite, tail swipe at flankers, charge, fire spit with long cooldown), hides from bosses, flees a surfacing snake, retreats when badly hurt; hunts beetles / small slimes / grounded birds | ✅ | unit-tested; HP 2,800 |
+| Lava Snake: lives in the lava (spawns only in lava bodies), lurks head-up, swims fast along rivers, lunges ≤12 m onto the bank at prey/hunters then slides back, lava balls (also shoots low-flying birds), ignores hunters far from lava, dives untouchable when struck and resurfaces elsewhere; segmented body follows its swim path | ✅ | unit-tested; HP 8,500 |
+| HUD shows an engaged lizard / snake like a boss (name, HP, sighted card) | ✅ | |
+| Remaining species: Crystal Boar (+Tusk), Stone Mole (+Grand Mole), Magma Wolf pack, 燼皮, Flame Dragon / Venom-fang Dragon, Cindaryl, Golem | ⬜ | next |
 
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
@@ -114,3 +117,12 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
   - Eruptions are frequent, so only some beetles burrow each time, more often nearer the summit (before, all beetles stayed underground).
   - Birds may still hunt during eruptions.
   - Slime glow toned down.
+
+### Stage 3b tests (Lizard / Snake, 2026-11-19)
+- `node src/fauna/__fauna.test.mjs`: 21 passed.
+  - Lizard: threat display → fight (56 dmg to the hunter); gives up a hunter 60 m away; ambushes a beetle.
+  - Snake: spawns in the lava; ignores a hunter far from it; lunges at a hunter on the bank (50 dmg); slides back into the lava; dives untouchable when struck.
+- Browser (headless), standing on a lava riverbank: the snake lunged out, knocked the hunter down and applied burn. No errors.
+- Visual tuning:
+  - Snake glow reduced, so it reads as black rock with seams.
+  - Island lava point lights halved: they flooded the narrow canyon walls.

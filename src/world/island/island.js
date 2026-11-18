@@ -124,7 +124,7 @@ export async function createIslandWorld(game) {
   function placeLights(px, pz) {
     const picks = []; const sorted = lavaCells.map((c) => [c, (c[0] - px) ** 2 + (c[2] - pz) ** 2]).filter((a) => a[1] < 160 * 160).sort((a, b) => a[1] - b[1]);
     for (const [c] of sorted) { if (picks.length >= lights.length) break; if (picks.every((p) => Math.hypot(p[0] - c[0], p[2] - c[2]) > 30)) picks.push(c); }
-    lights.forEach((L, i) => { const c = picks[i]; if (c) { L.position.set(c[0], c[1] + 3.5, c[2]); L.userData.base = 520; } else L.userData.base = 0; });
+    lights.forEach((L, i) => { const c = picks[i]; if (c) { L.position.set(c[0], c[1] + 3.5, c[2]); L.userData.base = 260; } else L.userData.base = 0; });
   }
   placeLights(sp.x, sp.z);
 

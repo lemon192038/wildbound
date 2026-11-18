@@ -74,6 +74,8 @@ export function createIslandBosses(game, homes) {
     const P = game.player?.position; if (!P) return null; let best = null, bd = Infinity;
     for (const m of game.monsters) { if (!m.aggro || m.state === 'dead') continue; const d = m.position.distanceTo(P); if (d < 150 && d < bd) { bd = d; best = m; } }
     if (best) return best;
+    for (const c of game.fauna?.engaged?.() || []) { const d = c.position.distanceTo(P); if (d < 40 && d < bd) { bd = d; best = c; } } // a lizard / lava snake fighting you
+    if (best) return best;
     for (const m of game.monsters) { const d = m.position.distanceTo(P); if (d < 70 && d < bd) { bd = d; best = m; } }
     return best;
   }
