@@ -56,7 +56,7 @@ function buildGeometries(THREE, seed) {
   return { boulder: b, pillar, pine, deadtree, fungus, crystal };
 }
 
-export function createIslandProps(THREE, scene, F, { low = false, seed = 1337, clear = [] } = {}) {
+export function createIslandProps(THREE, scene, F, { low = false, seed = 1337, clear = [], staticColliders = [] } = {}) {
   const geos = buildGeometries(THREE, seed);
   const mats = {
     boulder: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0 }),
@@ -116,7 +116,7 @@ export function createIslandProps(THREE, scene, F, { low = false, seed = 1337, c
       for (const T of live) { const a = T.props?.types[k]; if (!a) continue; const c = Math.min(a.length / 16, cap - n); if (c <= 0) break; dst.set(c === a.length / 16 ? a : a.subarray(0, c * 16), n * 16); n += c; }
       m.count = n; m.instanceMatrix.needsUpdate = true;
     }
-    colliders.length = 0; for (const T of live) if (T.props) for (const c of T.props.colliders) colliders.push(c);
+    colliders.length = 0; for (const c of staticColliders) colliders.push(c); for (const T of live) if (T.props) for (const c of T.props.colliders) colliders.push(c);
   }
-  return { scatter, add, remove, update, colliders, meshes, stats: () => Object.fromEntries(Object.entries(meshes).map(([k, m]) => [k, m.count])) };
+  return { scatter, add, remove, update, colliders, staticColliders, markDirty: () => { dirty = true; }, meshes, stats: () => Object.fromEntries(Object.entries(meshes).map(([k, m]) => [k, m.count])) };
 }

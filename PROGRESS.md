@@ -42,6 +42,22 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
 - Far terrain is flat-coloured at 8 m texels; volcano flanks look uniform from afar.
 - No co-op on the island yet (offline only).
 
+## Stage 2: Island content (partial, 2026-11-19)
+
+| Item | Status | Notes |
+|---|---|---|
+| The 3 existing bosses live in island territories (Varkhul: southern heartland, Cindral: ash plain, Gorvath: northern highlands) | ✅ | `src/field/islandBosses.js`; homes come from `F.findSite` (flat, dry, away from lava); the boss arenas are unchanged for quests |
+| Staged boss loading (the hunter can move first; one boss per frame batch, fixed order for co-op indices) | ✅ | |
+| AI level of detail: a boss farther than 260 m from every hunter is frozen and hidden | ✅ | far bosses do not simulate yet (ecosystem simulation = stage 6) |
+| Lava avoidance for walking bosses on the island | ✅ | |
+| HUD follows the engaged / nearest boss (`game.focusMonster`), one "sighted" card per boss | ✅ | |
+| Gorvath's final ring forms around its home on the island (arena behaviour unchanged) | ✅ | |
+| Set pieces: Ancient Ruins, giant crystal spires, boss nests, landing camp (tent, crates, fire) + colliders | ✅ | `src/world/island/landmarks.js` |
+| Island co-op: separate room kind `island`, host simulates all bosses, late-loaded bosses handled | 🟡 | server test added; a two-browser island session was not run here ❓ |
+| Caves / lava tubes (need non-heightfield meshes) | ⬜ | |
+| Gathering points, carving, rewards on the island; server expedition for the island | ⬜ | island is free exploration (no rewards) until stage 5 |
+| Boss death on the island | 🟡 | the carcass stays for the session; no respawn (breeding/migration = stage 6) |
+
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
   - island content

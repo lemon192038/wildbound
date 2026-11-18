@@ -181,10 +181,25 @@ export function createIslandField(seed = 1337) {
   for (let i = 0; i < 14; i++) { const a = 0.15 + i * 0.09, r = 640 + (i % 3) * 40; vents.push([Math.cos(a) * r, Math.sin(a) * r]); }
   for (let i = 0; i < 6; i++) { const a = i * 1.05; vents.push([Math.cos(a) * (CR - 20), Math.sin(a) * (CR - 20)]); }
 
+  // Nearest flat, dry, lava-free spot to (x,z): spiral search. Used for territories, nests and set pieces.
+  function findSite(x, z, { minSd = 25, maxSlope = 0.22, minH = 6, flatR = 10, maxR = 260 } = {}) {
+    const ok = (px, pz) => {
+      const h = height(px, pz); if (h < minH) return false;
+      if (lava(px, pz, L0).sd < minSd) return false;
+      for (let a = 0; a < 6; a++) { const qx = px + Math.cos(a * 1.047) * flatR, qz = pz + Math.sin(a * 1.047) * flatR; if (Math.abs(height(qx, qz) - h) / flatR > maxSlope) return false; }
+      return true;
+    };
+    for (let r = 0; r <= maxR; r += 8) {
+      const n = Math.max(1, Math.round((r * TAU) / 10));
+      for (let i = 0; i < n; i++) { const a = (i / n) * TAU, px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (ok(px, pz)) return [px, pz]; }
+    }
+    return [x, z];
+  }
+
   const spawnZ = 800; // south beach camp (where the expedition boat lands)
   return {
     id: 'island', name: 'Volcanic Island', seed, size: ISLAND.size, half: ISLAND.half,
-    macro, height, sample, lava, regionAt, surface, coastR, rivers, lakes, vents,
+    macro, height, sample, lava, regionAt, findSite, surface, coastR, rivers, lakes, vents,
     crater: { x: 0, z: 0, r: CR, floor: CRATER_FLOOR, lake: LAKE },
     spawn: { player: [40, spawnZ - 30] },
     lavaY: 0, // unused by the island (lava level is per body) — kept for shared shader code

@@ -78,6 +78,11 @@ try {
   ok(wd.r === wa.r && we.r !== wa.r, `room capped at 4 (5th went to ${we.r})`);
   const named = client('Fay', 'MyHunt'); const wf = await named.hello();
   ok(wf.r === 'myhunt' && wf.h === wf.i, '?room=NAME joins/creates named room');
+  { // open-world island rooms never mix with boss-field rooms
+    const i1 = client('Isla'); await i1.open; i1.send({ t: 'hello', n: 'Isla', k: 'island' }); const wi = await i1.wait((m) => m.t === 'welcome');
+    ok(wi && wi.r !== wa.r && wi.r !== we.r && wi.h === wi.i, `island hunter gets its own room (${wi?.r})`);
+    i1.ws.close();
+  }
 
   console.log('relay');
   a.send({ t: 'p', x: [1, 2, 3, 0.5], s: { st: 'run', hp: 90, __proto__x: 1, ['__proto__']: { polluted: true }, nested: { constructor: 1, ok: 2 } } });

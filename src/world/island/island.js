@@ -5,6 +5,8 @@
 import { createIslandField } from './islandField.js';
 import { createChunkStreamer, TILE } from './chunks.js';
 import { createIslandProps } from './props.js';
+import { createIslandLandmarks } from './landmarks.js';
+import { territoryHomes } from '../../field/islandBosses.js';
 import { createVolcanicTextures } from '../volcanicTextures.js';
 import { createTerrainMaterial } from '../volcanicTerrain.js';
 import { installVolcanicFog, createVolcanicSky, buildVolcanicEnvironment } from '../volcanicSky.js';
@@ -65,7 +67,11 @@ export async function createIslandWorld(game) {
   opts.farTerrainMat = createTerrainMaterial(THREE, F, textures, shared, { tileMask: { texture: chunks.maskTex, half: HALF } });
   opts.lavaMat = createLavaMaterial(THREE);
   opts.farLavaMat = maskLava(createLavaMaterial(THREE), chunks.maskTex, HALF);
-  opts.props = createIslandProps(THREE, scene, F, { low, seed, clear: [{ x: sp.x, z: sp.z, r: 16 }] });
+  const homes = territoryHomes(F);
+  const sites = { camp: [sp.x, sp.z], ruins: F.findSite(430, -470), crystal: F.findSite(-640, 40), nests: Object.fromEntries(homes.map((h) => [h.kind, h.home])) };
+  const clear = [{ x: sp.x, z: sp.z, r: 16 }, { x: sites.ruins[0], z: sites.ruins[1], r: 48 }, ...homes.map((h) => ({ x: h.home[0], z: h.home[1], r: 24 }))];
+  const landmarks = createIslandLandmarks(THREE, scene, F, { seed, sites, low });
+  opts.props = createIslandProps(THREE, scene, F, { low, seed, clear, staticColliders: landmarks.colliders });
   timings.setup = performance.now() - T0;
   { // far terrain: sampled in slices so the loading screen stays alive
     const g = chunks.buildFar(); let r; let t = performance.now();
@@ -189,7 +195,7 @@ export async function createIslandWorld(game) {
     regionAt: F.regionAt, region: F.regionAt(sp.x, sp.z), field: 'island', fieldName: F.name, island: F,
     bounds: { radius: HALF * 1.5, arenaRadius: 45 }, sun, spawn, colliders: opts.props.colliders,
     spawnDust: fx.spawnDust, spawnSplash: fx.spawnSplash, waterLevel: 0, waterHeightAt: () => 0, waterSources: [], // the sea: y = 0 everywhere
-    sunDirection: sunDir.clone(), heatHaze: 0, low, chunks, props: opts.props,
+    sunDirection: sunDir.clone(), heatHaze: 0, low, chunks, props: opts.props, territories: homes, sites: landmarks.sites,
     stats: { boot: timings, lavaCells: lavaCells.length },
   };
   region = world.region;

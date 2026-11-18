@@ -153,7 +153,10 @@ async function bootIsland() {
   game.cameraRig = createCameraRig(game);
   game.audio = createAudio(game);
   game.ui = createUI(game);
-  game.net = { update() {}, connected: false, id: 'local', roomPlayers: [] }; // island co-op: stage 8 (see PROGRESS.md)
+  game.net = createNet(game);                    // co-op: island rooms (kind 'island'); the host simulates every boss
+  const { createIslandBosses } = await import('./field/islandBosses.js');
+  const bosses = createIslandBosses(game, game.world.territories);
+  game.islandBosses = bosses; game.focusMonster = bosses.focus;
   game.questRuntime = { label: t('island.return'), confirm: t('island.returnQ'), abandon: () => { const u = new URL(location.href); const k = new URLSearchParams(); for (const n of ['low', 'hq', 'touch', 'lang']) if (u.searchParams.has(n)) k.set(n, u.searchParams.get(n)); k.set('mode', 'town'); location.href = `${u.pathname}?${k}`; } };
   game.events.on('world:region', ({ id }) => game.ui?.toast?.(t('island.enter', { r: t('region.' + id) })));
   game.loading.set('ui', 1); bootMark('ui');
@@ -162,11 +165,14 @@ async function bootIsland() {
   startLoop((dt, rawDt, input) => {
     game.world.update(dt, rawDt);
     game.player.update(dt, input, rawDt);
+    bosses.update(dt, rawDt);                    // AI level of detail: far bosses rest (frozen + hidden)
     for (const fn of game.updaters) fn(dt, rawDt);
     game.cameraRig.update(rawDt, input);
+    game.net.update(dt, rawDt);
     game.audio.update(dt, rawDt);
     game.ui.update(dt, rawDt);
   });
+  bosses.spawnAll();                             // priority 2: bosses stream in after the hunter can already move
 }
 
 (game.mode === 'island' ? bootIsland() : game.mode === 'field' ? bootField() : bootTown()).catch((e) => {

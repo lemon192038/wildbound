@@ -139,7 +139,7 @@ function startOnline(game, net, params, remote = '') {
   function connect() {
     clearTimeout(reconnectTimer);
     try { ws = new WebSocket(url); } catch (e) { return scheduleReconnect(); }
-    ws.onopen = () => { backoff = 1000; tx({ t: 'hello', n: name || undefined, r: currentRoom || undefined, k: game.hunt && game.hunt !== 'varkhul' ? game.hunt : undefined }); };
+    ws.onopen = () => { backoff = 1000; tx({ t: 'hello', n: name || undefined, r: currentRoom || undefined, k: game.fieldId === 'island' ? 'island' : game.hunt && game.hunt !== 'varkhul' ? game.hunt : undefined }); };
     ws.onmessage = (ev) => {
       if (typeof ev.data !== 'string' || ev.data.length > 65536) return;
       let m; try { m = JSON.parse(ev.data); } catch { return; }
@@ -220,7 +220,8 @@ function startOnline(game, net, params, remote = '') {
       }
       case 'ev': {
         if (net.isHost) return;
-        const mon = game.monsters[Math.trunc(num(m.mi))] || game.monsters[0];
+        const mon = game.monsters[Math.trunc(num(m.mi))] || (game.fieldId === 'island' ? null : game.monsters[0]);
+        if (!mon) return; // open world: that boss has not streamed in on this client yet
         if (m.e === 'break') {
           const part = (mon?.parts || []).find((p) => p.name === m.pt) || m.pt;
           game.events?.emit?.('monster:partBreak', { monster: mon, part, remote: true });
@@ -256,7 +257,7 @@ function startOnline(game, net, params, remote = '') {
       if (r && newest < h.t + 120 && now - h.arrive < 250) { i++; continue; }
       pendingHits.splice(i, 1);
       if (!r) continue;
-      const mon = game.monsters[h.mi] || game.monsters[0];
+      const mon = game.monsters[h.mi] || (game.fieldId === 'island' ? null : game.monsters[0]);
       if (!mon?.receiveHit) continue;
       const hitboxes = [];
       try {

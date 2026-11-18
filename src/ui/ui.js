@@ -70,7 +70,8 @@ export function createUI(game) {
   addEventListener('resize', () => { W = innerWidth; H = innerHeight; fs = parseFloat(getComputedStyle(root).fontSize) || 13; });
 
   const P = () => game.player || {};
-  const M = () => (game.monsters && game.monsters[0]) || null;
+  // open world: game.focusMonster() picks the monster the HUD should show (engaged / nearest); boss fields: the only one
+  const M = () => (game.focusMonster ? game.focusMonster() : game.monsters && game.monsters[0]) || null;
 
   // ---------------------------------------------------------------- vitals
   const vit = el('div', 'wb-vitals', null, hud);
@@ -273,7 +274,7 @@ export function createUI(game) {
     return { name, title };
   }
   function showCard() {
-    const mon = M(); if (cardShown || !mon) return; cardShown = true;
+    const mon = M(); if (!mon || cardShown === mon) return; cardShown = mon; // one card per monster (several on the island)
     const { name, title } = parseName(mon.name);
     card.querySelector('.wb-card-name').textContent = name.toUpperCase();
     card.querySelector('.wb-card-title').textContent = title.replace(/^the\b/i, 'The'); card.querySelector('.wb-card-kicker').textContent = t('f.sighted');
@@ -520,7 +521,7 @@ export function createUI(game) {
     if (questTime <= 0 && !questOver && !game.noQuestTimer) showFailed();
 
     // monster: card trigger, limp, lock-on
-    if (mon && mon.position && p.position && !cardShown && started) {
+    if (mon && mon.position && p.position && cardShown !== mon && started) {
       const dx = mon.position.x - p.position.x, dz = mon.position.z - p.position.z;
       if (dx * dx + dz * dz < 1600) showCard();
     }

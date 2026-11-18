@@ -231,7 +231,7 @@ export async function createBrute(game) {
         else { rearUp = lerp(0.45, -0.1, smooth((t - 2.6) / 0.25)); P.arm.L.sh = P.arm.R.sh = lerp(-2.5, -0.1, smooth((t - 2.6) / 0.25)); P.jaw = 0.3; P.neck = 0;
           if (t > 2.85 && !this._s) { this._s = true; shake(1.2, 1.0); fx.windBlast(m.position, 12, 1.6); for (const s of ['L', 'R']) { const p = fistGround(s); fx.explode(p, { radius: 5, damage: 40, knockback: 14, status: ['burn', 'large'], patchOpts: { ...SEA, r: 4, life: 60 } }); } enterFinal(this._c); } }
       },
-      reset() { this._r = this._s = false; this._from = null; this._c = m.position.clone().lerp(new THREE.Vector3(0, 0, 0), 0.6); const pl = game.player; if (pl && pl.position.distanceTo(this._c) > RING - 3) this._c.lerp(pl.position, 0.3); },
+      reset() { this._r = this._s = false; this._from = null; this._c = m.position.clone().lerp(world.island ? new THREE.Vector3(spawn.x, 0, spawn.z) : new THREE.Vector3(0, 0, 0), 0.6); /* arena centre; on the open island: its home ground */ const pl = game.player; if (pl && pl.position.distanceTo(this._c) > RING - 3) this._c.lerp(pl.position, 0.3); },
     },
     cataclysm: { // final ultimate: rear up, roar, detonate every pool and lump in a chain
       dur: 6.0, recover: 2.5,
