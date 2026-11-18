@@ -33,8 +33,11 @@ export function createIslandBosses(game, homes) {
       try {
         const saved = W.spawn.monster;
         W.spawn.monster = new THREE.Vector3(home[0], F.height(home[0], home[1]), home[1]);
+        const before = new Set(game.scene.children);
         const m = await MAKERS[kind](game);
         W.spawn.monster = saved;
+        // everything this boss added at the scene root (its lights, particle/fx systems) rests with it when far away
+        m.islandExtras = game.scene.children.filter((o) => !before.has(o) && o !== m.object3d);
         m.kind = kind; m.islandHome = new THREE.Vector3(home[0], 0, home[1]);
         if (game.net?.connected && !game.net.isHost) m.remoteControlled = true; // the host simulates every boss
         game.monsters.push(m); state.loaded++;
@@ -59,7 +62,7 @@ export function createIslandBosses(game, homes) {
       let d = Infinity; for (const h of hs) d = Math.min(d, Math.hypot(h.x - m.position.x, h.z - m.position.z));
       const on = state.active.has(m) ? d < AI_FAR : d < AI_NEAR;
       if (on) state.active.add(m); else state.active.delete(m);
-      if (m.object3d) m.object3d.visible = on;
+      if (m.object3d && m.object3d.visible !== on) { m.object3d.visible = on; for (const o of m.islandExtras || []) o.visible = on; }
       if (!on) continue;
       m.update(dt, rawDt);
       if (!m.remoteControlled && m.state !== 'dead') keepOffLava(m);

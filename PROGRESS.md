@@ -54,6 +54,7 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
 | Gorvath's final ring forms around its home on the island (arena behaviour unchanged) | ✅ | |
 | Set pieces: Ancient Ruins, giant crystal spires, boss nests, landing camp (tent, crates, fire) + colliders | ✅ | `src/world/island/landmarks.js` |
 | Island co-op: separate room kind `island`, host simulates all bosses, late-loaded bosses handled | 🟡 | server test added; a two-browser island session was not run here ❓ |
+| Far bosses also hide the lights / fx they added to the scene | ✅ | 7 boss point lights are hidden while their owners rest |
 | Caves / lava tubes (need non-heightfield meshes) | ⬜ | |
 | Gathering points, carving, rewards on the island; server expedition for the island | ⬜ | island is free exploration (no rewards) until stage 5 |
 | Boss death on the island | 🟡 | the carcass stays for the session; no respawn (breeding/migration = stage 6) |
@@ -71,3 +72,13 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
   - Volcano Slime event
   - MMO world server and 100-player load tests
   - iPad device verification
+
+### Stage 2 tests (2026-11-19)
+- Headless island run:
+  - All 3 bosses load in about 3 s after the first frame, with no errors.
+  - Each boss notices a hunter placed 30 m in front of it (1.0–2.5 s of game time).
+  - The HUD focuses the right boss.
+  - Each boss rests hidden again once the hunter leaves.
+- `tools/island-test.mjs`: 0 holes, 0 mask mismatches, maximum height error 0.03 m.
+- Server tests: 67 passed. API tests: 64 + 64 passed. Perception tests: 8 passed. Combat test: no errors.
+- SwiftShader FPS varies between runs (2–4 fps) and cannot be used for comparisons. A real-device measurement is still needed.
