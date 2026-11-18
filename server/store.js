@@ -14,6 +14,14 @@ export async function openStore({ url = process.env.DATABASE_URL, file = process
   await db.exec(`CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at BIGINT NOT NULL, expires_at BIGINT NOT NULL)`);
   await db.exec(`CREATE TABLE IF NOT EXISTS saves (user_id TEXT PRIMARY KEY, version INTEGER NOT NULL, data TEXT NOT NULL, updated_at BIGINT NOT NULL)`);
   await db.exec(`CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id)`);
+  if (db.kind === 'postgres') {
+    // Supabase (and any Postgres exposed through PostgREST): keep these tables away from the public API.
+    // RLS on with no policies + revoke from the API roles; the server's own role is unaffected.
+    for (const t of ['users', 'sessions', 'saves']) {
+      try { await db.exec(`ALTER TABLE ${t} ENABLE ROW LEVEL SECURITY`); } catch { /* not supported (e.g. pg-mem) */ }
+    }
+    try { await db.exec(`REVOKE ALL ON TABLE users, sessions, saves FROM anon, authenticated`); } catch { /* roles exist only on Supabase */ }
+  }
 
   const locks = new Map(); // userId → tail promise
   const withLock = (key, fn) => {
@@ -80,7 +88,10 @@ async function openSqlite(file) {
 
 async function openPg(url, pgModule) {
   let pg = pgModule; if (!pg) try { pg = (await import('pg')).default; } catch { throw new Error('DATABASE_URL is set but the "pg" package is not installed (npm i pg)'); }
-  const pool = new pg.Pool(pgModule ? {} : { connectionString: url, max: 8, ssl: /sslmode=disable|localhost|127\.0\.0\.1/.test(url) ? false : { rejectUnauthorized: false } });
+  // Supabase: use the connection *pooler* URL (Supavisor, IPv4). Plain queries only (no named prepared
+  // statements), so both session (5432) and transaction (6543) pooler modes work.
+  const pool = new pg.Pool(pgModule ? {} : { connectionString: url, max: 6, idleTimeoutMillis: 30000, connectionTimeoutMillis: 15000, ssl: /sslmode=disable|localhost|127\.0\.0\.1/.test(url) ? false : { rejectUnauthorized: false } });
+  pool.on?.('error', (e) => console.warn('[wildbound] postgres pool error:', e.message)); // a dropped idle connection must not crash the server
   const conv = (sql) => { let i = 0; return sql.replace(/\?/g, () => '$' + ++i); };
   const wrap = (q) => ({
     kind: 'postgres',

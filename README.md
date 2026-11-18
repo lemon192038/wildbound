@@ -87,3 +87,11 @@ Static offline build (no co-op server): `VITE_STATIC=1 npx vite build --outDir <
 **Fly.io (alternative):** `fly launch --copy-config --no-deploy` (choose a unique app name), then `fly deploy`. It uses `Dockerfile` and `fly.toml`.
 
 Server env: `PORT`, `ALLOWED_ORIGINS` (comma-separated page origins), `TRUST_PROXY=1` (client IP from X-Forwarded-For), `ALLOW_ANY_ORIGIN=1`.
+
+## Database: Supabase
+
+Accounts and saves are stored in **Supabase (PostgreSQL)**. The game server (co-op WebSocket plus account API) stays on Render; Supabase is the database only.
+
+- **Schema:** `supabase/schema.sql`, already applied to the project. It creates `users`, `sessions` and `saves`, enables RLS with no policies, and revokes all access from `anon` and `authenticated`. Only the game server's DB role can read or write. Players' data never goes through Supabase's public API.
+- **Server:** the game server uses Supabase when `DATABASE_URL` is set. Use the **Session pooler** connection string, which is IPv4-friendly: Supabase dashboard → *Connect* → *Session pooler*. It looks like `postgresql://postgres.<ref>:<DB password>@aws-…pooler.supabase.com:5432/postgres`. Set it in Render → wildbound → *Environment* as `DATABASE_URL` (it is marked `sync: false` in `render.yaml`).
+- **Without `DATABASE_URL`:** the server falls back to SQLite in `./data`, which is wiped on every Render deploy.
