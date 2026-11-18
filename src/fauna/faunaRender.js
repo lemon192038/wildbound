@@ -22,7 +22,7 @@ function beetleGeo(THREE) {
   const parts = [];
   // shell: domed, segmented by glowing cracks (cracks = hash bands)
   const sh = new THREE.SphereGeometry(0.55, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.55); sh.scale(1, 0.62, 1.35); sh.translate(0, 0.32, 0);
-  parts.push(part(THREE, sh, 0, (x, y, z, o) => { const crack = Math.abs(Math.sin(z * 9 + Math.sin(x * 7) * 1.5)) < 0.14 || Math.abs(x) < 0.03 ? 1 : 0; const v = 0.035 + hash(x, y, z) * 0.025; o[0] = crack ? 0.4 : v; o[1] = crack ? 0.12 : v * 0.95; o[2] = crack ? 0.03 : v * 0.9; o[3] = crack; }));
+  parts.push(part(THREE, sh, 0, (x, y, z, o) => { const crack = Math.abs(Math.sin(z * 9 + Math.sin(x * 7) * 1.5)) < 0.07 || Math.abs(x) < 0.025 ? 1 : 0; const v = 0.035 + hash(x, y, z) * 0.025; o[0] = crack ? 0.4 : v; o[1] = crack ? 0.12 : v * 0.95; o[2] = crack ? 0.03 : v * 0.9; o[3] = crack; }));
   const head = new THREE.SphereGeometry(0.24, 10, 6); head.scale(1.1, 0.75, 1); head.translate(0, 0.28, 0.72);
   parts.push(part(THREE, head, 0, (x, y, z, o) => { const eye = Math.abs(Math.abs(x) - 0.15) < 0.06 && y > 0.3 && z > 0.85 ? 1 : 0; o[0] = eye ? 1 : 0.05; o[1] = eye ? 0.6 : 0.045; o[2] = eye ? 0.1 : 0.04; o[3] = eye; }));
   for (let i = 0; i < 6; i++) {
@@ -35,7 +35,7 @@ function beetleGeo(THREE) {
 }
 function slimeGeo(THREE) {
   const g = new THREE.SphereGeometry(0.6, 18, 12); g.scale(1, 0.7, 1); g.translate(0, 0.38, 0);
-  return part(THREE, g, 0, (x, y, z, o) => { const crust = hash(Math.floor(x * 9), Math.floor(y * 9), Math.floor(z * 9)) > 0.62 ? 1 : 0; o[0] = crust ? 0.06 : 0.9; o[1] = crust ? 0.04 : 0.28; o[2] = crust ? 0.03 : 0.05; o[3] = crust ? 0 : 0.75; });
+  return part(THREE, g, 0, (x, y, z, o) => { const crust = hash(Math.floor(x * 7), Math.floor(y * 7), Math.floor(z * 7)) > 0.42 || y > 0.62 ? 1 : 0; o[0] = crust ? 0.07 : 0.85; o[1] = crust ? 0.045 : 0.26; o[2] = crust ? 0.035 : 0.05; o[3] = crust ? 0.05 : 0.6; });
 }
 function birdGeo(THREE) {
   const parts = [];
@@ -69,7 +69,7 @@ const VERT = {
   float ph = aAnim.x, mv = aAnim.y, mode = aAnim.z;
   float wob = sin(ph * 3.0 + position.x * 6.0) * 0.06 + sin(ph * 4.3 + position.z * 7.0) * 0.05;
   transformed += normal * wob * (1.0 + mv);
-  if (mode > 0.5 && mode < 1.5) { transformed.y *= 0.45; transformed.xz *= 1.3; }
+  if (mode > 0.5 && mode < 1.5) { transformed.y *= 0.72; transformed.xz *= 1.12; }
   if (mode > 1.5) { float s = 1.0 + 0.18 * sin(ph * 14.0); transformed *= s; }
   transformed.z += mv * 0.12 * sin(ph * 5.0) * transformed.y;`,
   bird: `
@@ -94,7 +94,7 @@ export function createFaunaRender(THREE, scene, { low = false, caps = { beetle: 
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aPart; attribute float aGlow; attribute vec4 aAnim; varying float vGlow;')
         .replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT[sp]}\nvGlow = aGlow * (0.35 + aAnim.w);`);
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vGlow;')
-        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += vec3(${glowCol[sp].join(',')}) * vGlow * 2.4;`);
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += vec3(${glowCol[sp].join(',')}) * vGlow * ${sp === 'slime' ? '1.3' : '1.9'};`);
     };
     mat.customProgramCacheKey = () => 'wb-fauna-' + sp;
     const anim = new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4); anim.setUsage(THREE.DynamicDrawUsage);

@@ -97,3 +97,20 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
 - `tools/island-test.mjs`: 0 holes, 0 mask mismatches, maximum height error 0.03 m.
 - Server tests: 67 passed. API tests: 64 + 64 passed. Perception tests: 8 passed. Combat test: no errors.
 - SwiftShader FPS varies between runs (2–4 fps) and cannot be used for comparisons. A real-device measurement is still needed.
+
+### Stage 3 tests (2026-11-19)
+- `node src/fauna/__fauna.test.mjs`: 15 passed.
+  - Spawning stays local to hunters.
+  - Beetle: curl / burrow / re-emerge / heat burst.
+  - Slime: split into two halves, spit only when provoked.
+  - Bird: predation (3 kills in 3 simulated minutes), flees when wounded.
+  - Despawn conserves the census, and killed animals do not respawn instantly.
+- Headless browser run on the island, 0 errors:
+  - About 70 creatures live around the hunter.
+  - Beetle curls on contact; a provoked slime spits.
+  - A slime split into two halves.
+  - Cindral (whose territory is nearby) attacked the hunter on its own.
+- Tuning after the browser run:
+  - Eruptions are frequent, so only some beetles burrow each time, more often nearer the summit (before, all beetles stayed underground).
+  - Birds may still hunt during eruptions.
+  - Slime glow toned down.

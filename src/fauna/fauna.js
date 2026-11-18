@@ -31,7 +31,8 @@ export function createFauna(game) {
   const rnd = mulberry32((F.seed || 1337) + 4141);
   const stats = { spawned: 0, despawned: 0, died: 0, predation: 0, split: 0, regen: 0 };
   let eruptT = 0, frame = 0, spawnT = 0, nextId = 1;
-  game.events?.on?.('world:eruption', () => { eruptT = 20; for (const c of list) if (c.sp === 'beetle' && !c.dead && c.ai !== 'burrowed') setAi(c, 'burrow'); });
+  // eruptions are frequent on this island: only some beetles (the ones nearer the summit, more often) dive deep each time
+  game.events?.on?.('world:eruption', () => { eruptT = 12; for (const c of list) if (c.sp === 'beetle' && !c.dead && c.ai !== 'burrowed' && rnd() < 0.15 + 0.35 * Math.max(0, 1 - Math.hypot(c.pos.x, c.pos.z) / 600)) setAi(c, 'burrow'); });
 
   // ------------------------------------------------------------------ hunters
   const hunters = [];
@@ -201,8 +202,8 @@ export function createFauna(game) {
 
   function thinkBeetle(c, dt) {
     const S = c.S; const [h, dH] = nearestHunter(c.pos.x, c.pos.z);
-    if (c.ai === 'burrow') { c.move = 0; c.squash = Math.max(0.05, 1 - c.t / 1.0); if (c.t > 1) { setAi(c, 'burrowed'); c.dur = (eruptT > 0 ? 25 : 15) + rnd() * 10; } return; }
-    if (c.ai === 'burrowed') { if (c.t > c.dur && eruptT <= 0) { const s = pickSpot(c.pos.x, c.pos.z, 8, 18, 'beetle'); if (s) { c.pos.set(s[0], ground(s[0], s[1]), s[1]); } setAi(c, 'emerge'); } return; }
+    if (c.ai === 'burrow') { c.move = 0; c.squash = Math.max(0.05, 1 - c.t / 1.0); if (c.t > 1) { setAi(c, 'burrowed'); c.dur = (eruptT > 0 ? 20 : 12) + rnd() * 10; } return; }
+    if (c.ai === 'burrowed') { if (c.t > c.dur) { const s = pickSpot(c.pos.x, c.pos.z, 8, 18, 'beetle'); if (s) { c.pos.set(s[0], ground(s[0], s[1]), s[1]); } setAi(c, 'emerge'); } return; }
     if (c.ai === 'emerge') { c.squash = Math.min(1, c.t / 0.8); if (c.t > 0.8) { c.squash = 1; setAi(c, 'roam'); } return; }
     if (c.ai === 'curl') { c.move = 0; c.mode = 1; c.curlT -= dt; if (c.curlT <= 0 && !(dH < 2.6)) { c.mode = 0; c.hits = 0; setAi(c, 'roam'); } return; }
     // predators: a bird diving at it (or landing next to it)
@@ -275,7 +276,7 @@ export function createFauna(game) {
     const want = eruptT > 0 ? S.altitude[1] + 15 : S.altitude[0] + (S.altitude[1] - S.altitude[0]) * (0.5 + 0.5 * Math.sin(clock * 0.05 + c.id));
     fly(tx, tz, S.speed, h && dH < 22 ? Math.max(want, 22) : want);
     c.roll = -o.dir * 0.35;
-    if (c.t > 6 && c.hunger > 0.55 && eruptT <= 0) {
+    if (c.t > 6 && c.hunger > 0.55) {
       const prey = nearestOf(c, 45, (q) => !q.dead && ((q.sp === 'beetle' && q.ai !== 'burrowed' && q.ai !== 'curl') || (q.sp === 'slime' && q.stage <= 1)));
       if (prey) { setAi(c, 'hunt'); c.prey = prey; return; }
     }
