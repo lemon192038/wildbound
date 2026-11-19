@@ -126,6 +126,17 @@ export const SPECIES = {
     territory: 25,
     drops: ['bg_stone', 'bg_core', 'bg_ore'],
   },
+  drake: { // 燼皮: a low-ranking dragon that has lost the power of flight (wings no longer usable); crawls low. HP assumed.
+    name: { ja: '燼皮', en: 'Cinderskin Drake' }, epithet: { ja: '飛べない竜', en: 'The Flightless Dragon' }, threat: 'mid',
+    hp: 5200, defense: 0.75, speed: 2.6, chargeSpeed: 11, size: 2.2,
+    senses: { sight: 24, hearing: 22, smell: 30 },
+    regions: { core: 0.08, ashplain: 0.06, geotherm: 0.06, canyon: 0.05 },
+    eats: ['bird_ground', 'beetle', 'slime', 'lizard_juvenile', 'carcass'], fears: ['wolf_pack', 'tusk', 'dragon', 'gorvath'], rivals: [],
+    roams: true, scavenger: true, territory: 40, giveUp: 26,
+    attacks: { bite: { damage: 24, status: ['burn', 'small'] }, tail: { damage: 20, knockback: 9 }, charge: { damage: 30, knockback: 12 }, fire: { damage: 22, status: ['burn', 'large'], speed: 16, cooldown: 10, range: [5, 13] } },
+    fleeHp: 0.3,
+    drops: ['jp_scale', 'jp_claw', 'jp_wing'],
+  },
 };
 // growth stages (mature slimes can split; juveniles stay near home)
 export const STAGES = [{ id: 'juvenile', scale: 0.55, hp: 0.35 }, { id: 'young', scale: 0.78, hp: 0.65 }, { id: 'adult', scale: 1, hp: 1 }, { id: 'large', scale: 1.28, hp: 1.5 }];

@@ -10,11 +10,12 @@
 // Hazards/effects live in wyvernFx.js.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { createWyvernFx } from './wyvernFx.js';
 import { createPerception } from '../core/perception.js';
 import { senseProfile } from '../shared/senses.js';
 
-const S = 16; // source mesh units → metres (wingspan ≈ 16 m)
+const S0 = 16; // source mesh units → metres (wingspan ≈ 16 m at scale 1)
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -29,20 +30,36 @@ const PART_DEFS = [
   { name: 'body', hp: 99999, hitzone: 0.8, breakable: false, flinch: 1300 },
 ];
 const STATE_CODES = ['idle', 'roam', 'chase', 'attack', 'flinch', 'topple', 'dead', 'exhausted', 'recover'];
-const HOVER = 6.2, LANDED = 3.55, HIGH = 13;
+const HOVER0 = 6.2, LANDED0 = 3.55, HIGH0 = 13;
+// The mesh is loaded once and cloned per individual (shared geometry + textures, own skeleton + materials).
+let gltfPromise = null;
+const loadWyvernGLB = () => (gltfPromise ||= new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}models/wyvern.glb`));
+// Variants of the same dragon species (design document): Cindral is the special male of the Flame Dragon (火焔龍 ♂);
+// regular Flame Dragons fight in the air with fire; Venom-fang Dragons (毒牙龍 ♀) can fly but prefer the ground
+// and poison; Cindaryl (猛毒姫) is the special female — nearly every attack is venomous.
+const VARIANTS = {
+  cindral: { palette: 'fire', ground: false, tint: null },
+  flame: { palette: 'fire', ground: false, tint: { color: [0.85, 0.78, 0.74], emissive: [1, 0.5, 0.15], ei: 0.12 }, mapStatus: (s) => (s && s[0] === 'poison' ? ['burn', 'large'] : s) },
+  venom: { palette: 'venom', ground: true, tint: { color: [0.55, 0.72, 0.5], emissive: [0.45, 1, 0.3], ei: 0.15 }, mapStatus: (s) => (s ? ['poison', 'normal'] : s) },
+  cindaryl: { palette: 'venom', ground: true, tint: { color: [0.62, 0.5, 0.78], emissive: [0.65, 1, 0.35], ei: 0.25 }, mapStatus: (s) => (!s ? ['poison', 'deadly'] : s[0] === 'poison' ? ['poison', 'lethal'] : ['poison', 'deadly']) },
+};
 
-export async function createWyvern(game) {
+// opts (island individuals): { variant: 'cindral'|'flame'|'venom'|'cindaryl', scale, hp, name, title }
+export async function createWyvern(game, opts = {}) {
   const { scene, events, world } = game;
   const params = game.params || new URLSearchParams();
-  const gltf = await new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}models/wyvern.glb`); // served from public/
-  const model = gltf.scene; model.scale.setScalar(S);
+  const VK = VARIANTS[opts.variant] ? opts.variant : 'cindral', VD = VARIANTS[VK], K = opts.scale ?? 1;
+  const S = S0 * K, HOVER = HOVER0 * K, LANDED = LANDED0 * K, HIGH = HIGH0 * K;
+  const gltf = await loadWyvernGLB(); // served from public/
+  const model = cloneSkinned(gltf.scene); model.scale.setScalar(S);
   const obj = new THREE.Group(); obj.name = 'Cindral'; obj.rotation.order = 'YXZ'; obj.add(model); scene.add(obj);
   let skinned = null;
   model.traverse((o) => {
     if (o.isSkinnedMesh) {
       skinned = o; o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
-      const mat = o.material; mat.metalness = 0.12; mat.roughness = 0.85;
+      const mat = (o.material = o.material.clone()); mat.metalness = 0.12; mat.roughness = 0.85;
       mat.emissive = new THREE.Color(1.0, 0.42, 0.12); mat.emissiveMap = mat.map; mat.emissiveIntensity = 0.18;
+      if (VD.tint) { mat.color.setRGB(...VD.tint.color); mat.emissive.setRGB(...VD.tint.emissive); mat.emissiveIntensity = VD.tint.ei; }
     }
   });
   const B = {}; model.traverse((o) => { if (o.name && !o.isMesh) B[o.name] = o; });
@@ -66,15 +83,15 @@ export async function createWyvern(game) {
   const hitboxes = HB.map(([part, bone, off, r, flag]) => ({ part, bone: B[bone], off: new THREE.Vector3(...off), flag, out: { part, sphere: new THREE.Sphere(new THREE.Vector3(), r * S) } }));
 
   const m = {
-    kind: 'wyvern', name: 'Cindral, the Ashwing', title: 'Ashwing', object3d: obj, position: obj.position, center: new THREE.Vector3(),
-    hp: 19000, maxHp: 19000, state: 'idle', enraged: false, remoteControlled: false, limping: false,
-    parts: PART_DEFS.map((d) => ({ name: d.name, hp: d.hp, maxHp: d.hp, broken: false, hitzone: d.hitzone, breakable: d.breakable, _flinch: d.flinch, acc: 0 })),
+    kind: 'wyvern', variant: VK, name: opts.name || 'Cindral, the Ashwing', title: opts.title || 'Ashwing', epithet: opts.epithet, object3d: obj, position: obj.position, center: new THREE.Vector3(),
+    hp: opts.hp || 19000, maxHp: opts.hp || 19000, state: 'idle', enraged: false, remoteControlled: false, limping: false,
+    parts: PART_DEFS.map((d) => { const hp = d.hp >= 99999 ? d.hp : Math.round(d.hp * (opts.hp || 19000) / 19000); return { name: d.name, hp, maxHp: hp, broken: false, hitzone: d.hitzone, breakable: d.breakable, _flinch: d.flinch * K, acc: 0 }; }),
     yaw: Math.atan2(-spawn.x, -spawn.z) || Math.PI, alt: HOVER, target: null, aggro: false,
     action: null, actionName: '', actionTime: 0, actionSeq: 0, cooldown: 2.5, hitDone: false, queue: [], diveIdx: 0, divesLeft: 0,
     stamina: 100, maxStamina: 100, exhausted: false, threat: new Map(), tailSevered: false,
   };
   obj.rotation.y = m.yaw;
-  const fx = createWyvernFx(game, m);
+  const fx = createWyvernFx(game, m, { palette: VD.palette, mapStatus: VD.mapStatus });
   const vel = new THREE.Vector3(); let pitch = 0, roll = 0, flap = 0, flapAmp = 0.55, flapRate = 1.25, flash = 0, neckPitch = 0, neckYaw = 0, neckYawOverride = null, jaw = 0, tailPhase = 0, roarCd = 0, tAlive = 0, lastState = '';
   let R = rng(1); // per-action seeded RNG → identical rock scatter on every co-op client
   const dbgAttack = params.get('monsterAttack');
@@ -310,14 +327,25 @@ export async function createWyvern(game) {
     if (name === 'exhausted') { m.exhausted = false; m.stamina = m.maxStamina; startAction('takeoff'); return; }
     if (name === 'topple') { startAction('takeoff'); return; }
     if (a?.recover) { startAction('recover'); ACTIONS.recover.dur = a.recover; return; }
-    if (name === 'recover' && m.alt < LANDED + 0.8 && Math.random() < 0.55) { startAction(nearDist() < 7 && Math.random() < 0.5 ? 'backjumpRock' : 'bite'); return; }
+    if (name === 'recover' && m.alt < LANDED + 0.8 && Math.random() < 0.55) { startAction(nearDist() < 7 && Math.random() < 0.5 && VK === 'cindral' ? 'backjumpRock' : 'bite'); return; }
     if (name === 'recover' && m.alt < HOVER - 1) { startAction('takeoff'); return; }
     m.state = 'chase'; m.cooldown = m.enraged ? 0.5 : 1.0;
   }
   const nearDist = () => toTarget().length();
   function beginDive() { m.diveIdx = 0; m.divesLeft = m.enraged ? 2 : Math.random() < 0.55 ? 1 : 0; startAction('talonDive'); }
   function chooseAttack() {
-    const d = nearDist(); const W = []; const rocks = fx.liveRocks().filter((r) => r.set);
+    const d = nearDist(); const W = [];
+    if (VK === 'flame') { // air combat with fire: no rock bombs (that is Cindral's own craft)
+      if (roarCd <= 0 && d < 24) W.push(['roar', 0.35]);
+      W.push(['sweepBreath', d > 4 && d < 19 ? 1.2 : 0.3], ['talonDive', d > 6 ? 1.2 : 0.4], ['fireball', 0.8], ['wingGust', d < 12 ? 0.6 : 0.15], ['tailSpin', d < 8 ? 0.7 : 0.05]);
+      if (m.alt < LANDED + 1 && d < 7) W.push(['bite', 1.0]);
+    } else if (VK === 'venom' || VK === 'cindaryl') { // ground fighters: fangs, tail, charge/landing strike; Cindaryl also breathes venom
+      if (roarCd <= 0 && d < 24) W.push(['roar', 0.35]);
+      W.push(['bite', d < 7 ? 1.6 : 0.2], ['tailSpin', d < 9 ? 1.3 : 0.1], ['talonDive', d > 8 ? 1.0 : 0.3], ['wingGust', d < 10 ? 0.4 : 0.1]);
+      if (VK === 'cindaryl') W.push(['sweepBreath', d > 6 && d < 20 ? 1.3 : 0.2], ['fireball', d > 10 ? 0.7 : 0.1]);
+    }
+    if (W.length) { const sum = W.reduce((s, w) => s + w[1], 0); let r = Math.random() * sum; for (const [n, w] of W) { if ((r -= w) <= 0) return n; } return W[0][0]; }
+    const rocks = fx.liveRocks().filter((r) => r.set);
     const rockNearTarget = rocks.some((r) => r.mesh.position.distanceTo(tpos()) < 12);
     if (roarCd <= 0 && d < 24) W.push(['roar', 0.45]);
     if (fx.liveRocks().length < 5) W.push(['rockBomb', 1.0]);
@@ -330,7 +358,7 @@ export async function createWyvern(game) {
   }
   function launch(name) {
     if (name === 'talonDive') return beginDive();
-    if (name === 'roar') { roarCd = m.enraged ? 40 : 60; m.queue = [Math.random() < 0.5 ? 'backjumpRock' : 'talonDive']; }
+    if (name === 'roar') { roarCd = m.enraged ? 40 : 60; m.queue = [VK !== 'cindral' ? (Math.random() < 0.5 ? 'bite' : 'talonDive') : Math.random() < 0.5 ? 'backjumpRock' : 'talonDive']; }
     startAction(name);
   }
 
@@ -435,10 +463,10 @@ export async function createWyvern(game) {
       } else if (m.aggro) {
         if (Math.random() < dt * 0.3) pickTarget();
         const v = toTarget(); const d = v.length(); faceTarget(dt, 1.6);
-        const want = d > 13 ? 1 : d < 8 ? -1 : 0; const side = new THREE.Vector3(Math.cos(m.yaw), 0, -Math.sin(m.yaw));
+        const want = VD.ground ? (d > 6 * K ? 1 : d < 3 * K ? -1 : 0) : d > 13 ? 1 : d < 8 ? -1 : 0; const side = new THREE.Vector3(Math.cos(m.yaw), 0, -Math.sin(m.yaw));
         const sp = m.enraged ? 7 : 5.2; const desired = v.normalize().multiplyScalar(want * sp).addScaledVector(side, Math.sin(tAlive * 0.4) * 2.5);
         vel.lerp(desired, Math.min(1, dt * 1.5)); m.position.addScaledVector(vel, dt);
-        m.alt = lerp(m.alt, HOVER, dt * 1.2); flapAmp = lerp(flapAmp, 0.55, dt * 2); flapRate = lerp(flapRate, 1.25, dt * 2);
+        m.alt = lerp(m.alt, VD.ground && d < 14 ? LANDED : HOVER, dt * 1.2); flapAmp = lerp(flapAmp, VD.ground && d < 14 ? 0.08 : 0.55, dt * 2); flapRate = lerp(flapRate, 1.25, dt * 2); // venom dragons land to fight, fly to close distance
         pitch = lerp(pitch, clamp(vel.length() * 0.03, -0.2, 0.25), dt * 2); roll = lerp(roll, clamp(-vel.dot(side) * 0.05, -0.35, 0.35), dt * 2);
         neckPitch = lerp(neckPitch, 0, dt * 2); jaw = lerp(jaw, 0.1, dt * 3); m.state = 'chase';
         m.stamina = Math.max(0, m.stamina - dt * 0.12); m.cooldown -= dt;

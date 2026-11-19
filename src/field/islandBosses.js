@@ -11,16 +11,24 @@ import { createMonster } from '../monster/monster.js';
 import { createWyvern } from '../monster/wyvern.js';
 import { createBrute } from '../monster/brute.js';
 import { log } from '../core/log.js';
+import { t } from '../shared/i18n.js';
 
 export const TERRITORIES = [
   { kind: 'varkhul', near: [150, 400], site: {} },
   { kind: 'wyvern', near: [560, -80], site: { flatR: 18 } },
   { kind: 'brute', near: [-120, -560], site: { maxSlope: 0.3 } },
+  // Dragons of one species (design document): Flame Dragons ♂ (lower / upper individuals) and Venom-fang Dragons ♀,
+  // each solitary with its own territory; Cindaryl is the special female (Cindral, above, is the special male).
+  // HP values are ASSUMED (the design document gives none): lower < upper < Cindral (19,000) ≈ Cindaryl.
+  { kind: 'wyvern', id: 'flame', near: [-420, -380], site: { flatR: 18, maxSlope: 0.3 }, opts: { variant: 'flame', scale: 0.78, hp: 11000, nameKey: 'dragon.flame' } },
+  { kind: 'wyvern', id: 'flameUpper', near: [250, -650], site: { flatR: 18, maxSlope: 0.3 }, opts: { variant: 'flame', scale: 0.92, hp: 15500, nameKey: 'dragon.flameUpper' } },
+  { kind: 'wyvern', id: 'venom', near: [-380, 300], site: { flatR: 16, maxSlope: 0.3 }, opts: { variant: 'venom', scale: 0.85, hp: 13000, nameKey: 'dragon.venom' } },
+  { kind: 'wyvern', id: 'cindaryl', near: [-660, -260], site: { flatR: 18, maxSlope: 0.3 }, opts: { variant: 'cindaryl', scale: 1.02, hp: 19500, nameKey: 'dragon.cindaryl', epithetKey: 'dragon.cindaryl.title' } },
 ];
 const MAKERS = { varkhul: createMonster, wyvern: createWyvern, brute: createBrute };
 const AI_FAR = 260, AI_NEAR = 240; // hysteresis
 
-export function territoryHomes(F) { return TERRITORIES.map((T) => ({ kind: T.kind, home: F.findSite(T.near[0], T.near[1], T.site) })); }
+export function territoryHomes(F) { return TERRITORIES.map((T) => ({ kind: T.kind, id: T.id || T.kind, opts: T.opts, home: F.findSite(T.near[0], T.near[1], T.site) })); }
 
 export function createIslandBosses(game, homes) {
   const { THREE } = game; const W = game.world, F = W.island;
@@ -28,20 +36,21 @@ export function createIslandBosses(game, homes) {
   const hunters = () => { const l = []; if (game.player?.position) l.push(game.player.position); for (const r of game.remotePlayers?.values?.() || []) { const p = r.position || r.object3d?.position; if (p) l.push(p); } return l; };
 
   async function spawnAll() {
-    for (const { kind, home } of homes) {
+    for (const { kind, id, opts, home } of homes) {
       const t0 = performance.now();
       try {
         const saved = W.spawn.monster;
         W.spawn.monster = new THREE.Vector3(home[0], F.height(home[0], home[1]), home[1]);
         const before = new Set(game.scene.children);
-        const m = await MAKERS[kind](game);
+        const o = opts ? { ...opts, name: opts.nameKey ? t(opts.nameKey) : undefined, epithet: opts.epithetKey ? t(opts.epithetKey) : undefined } : undefined;
+        const m = await MAKERS[kind](game, o);
         W.spawn.monster = saved;
         // everything this boss added at the scene root (its lights, particle/fx systems) rests with it when far away
         m.islandExtras = game.scene.children.filter((o) => !before.has(o) && o !== m.object3d);
-        m.kind = kind; m.islandHome = new THREE.Vector3(home[0], 0, home[1]);
+        m.kind = kind; m.islandId = id; m.islandHome = new THREE.Vector3(home[0], 0, home[1]);
         if (game.net?.connected && !game.net.isHost) m.remoteControlled = true; // the host simulates every boss
         game.monsters.push(m); state.loaded++;
-        game.bootTimings[`boss_${kind}`] = Math.round(performance.now() - t0);
+        game.bootTimings[`boss_${id}`] = Math.round(performance.now() - t0);
       } catch (e) { state.failed++; log.error('boss-spawn', `${kind} failed to spawn: ${e.message}`, e); }
       await new Promise((r) => requestAnimationFrame(() => r())); // one boss per frame batch
     }

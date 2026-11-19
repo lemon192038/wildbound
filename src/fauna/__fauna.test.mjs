@@ -186,5 +186,18 @@ const alive = (f, sp) => f.list.filter((c) => !c.dead && (!sp || c.sp === sp));
   ok(!!b.perchOn, `an Ash Bird perches on the dormant golem (${b.ai})`);
   G3.receiveHit({ damage: 50, attackerId: 'local' }); step(0.3); ok(!b.perchOn && b.ai === 'takeoff', `…and bursts away when the "rock" moves (${b.ai})`);
 }
+{ // 燼皮 (flightless drake): roams (no ambush), scavenges carcasses, flees a wolf pack, fights an intruder
+  const { fauna, player, damage, step } = setup('core');
+  player.position.set(0, 5, -120); step(0.2); for (const o of [...fauna.list]) { o.dead = true; o.corpseT = 0.01; } step(0.1);
+  const D = fauna.spawnOne('drake', 0, 0); step(2);
+  ok(D.sp === 'drake' && D.ai !== 'ambush' && D.maxHp === 5200, `drake roams instead of lying in ambush (${D.ai})`);
+  const carcass = fauna.spawnOne('beetle', 12, 0); carcass.receiveHit({ damage: 1e6, attackerId: 'local' }); D.hunger = 1; step(8);
+  ok(D.ai === 'eat' || D.ai === 'scavenge' || carcass.eaten, `drake scavenges a carcass (${D.ai})`);
+  const pack = fauna.spawnGroup('wolf', D.pos.x + 12, D.pos.z); step(0.5);
+  ok(D.ai === 'flee', `drake flees a wolf pack (${D.ai})`);
+  for (const w of pack.members) { w.dead = true; w.corpseT = 0.01; } step(6);
+  player.position.set(D.home.x + 10, 5, D.home.z); D.hunger = 0; step(12);
+  ok(damage.taken > 0, `drake fights an intruder in its territory (${damage.taken} dmg)`);
+}
 console.log(fails ? `${fails} FAILED` : 'all fauna tests passed');
 process.exit(fails ? 1 : 0);

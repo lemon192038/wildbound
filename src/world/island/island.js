@@ -68,7 +68,7 @@ export async function createIslandWorld(game) {
   opts.lavaMat = createLavaMaterial(THREE);
   opts.farLavaMat = maskLava(createLavaMaterial(THREE), chunks.maskTex, HALF);
   const homes = territoryHomes(F);
-  const sites = { camp: [sp.x, sp.z], ruins: F.findSite(430, -470), crystal: F.findSite(-640, 40), nests: Object.fromEntries(homes.map((h) => [h.kind, h.home])) };
+  const sites = { camp: [sp.x, sp.z], ruins: F.findSite(430, -470), crystal: F.findSite(-640, 40), nests: Object.fromEntries(homes.map((h) => [h.id, h.home])) };
   const clear = [{ x: sp.x, z: sp.z, r: 16 }, { x: sites.ruins[0], z: sites.ruins[1], r: 48 }, ...homes.map((h) => ({ x: h.home[0], z: h.home[1], r: 24 }))];
   const landmarks = createIslandLandmarks(THREE, scene, F, { seed, sites, low });
   opts.props = createIslandProps(THREE, scene, F, { low, seed, clear, staticColliders: landmarks.colliders });

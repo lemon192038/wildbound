@@ -7,7 +7,7 @@
 export function createStatus(game) {
   const DEF = {
     burn: { small: { t: 8, dps: 2.5 }, large: { t: 14, dps: 4.5 } },
-    poison: { normal: { t: 14, dps: 2.5 }, deadly: { t: 16, dps: 6 } },
+    poison: { normal: { t: 14, dps: 2.5 }, deadly: { t: 16, dps: 6 }, lethal: { t: 24, dps: 8 } }, // lethal: Cindaryl (致死性の猛毒)
     // blastblight: no drain; when the timer runs out it detonates on the hunter (dodge rolls shake it off)
     blast: { normal: { t: 9, dps: 0, burst: 32 } },
   };
@@ -57,7 +57,7 @@ export function createStatus(game) {
       if (tick > 0.25) { tick = 0; if (active.has('burn')) game.world?.spawnDust?.(P.position.clone().setY(P.position.y + 1.1), 0.15); }
     },
   };
-  game.events.on('item:used', (e) => { if (e?.kind === 'potion' && active.has('poison')) { const p = active.get('poison'); p.t *= 0.5; } });
+  game.events.on('item:used', (e) => { if (e?.kind === 'potion' && active.has('poison')) { const p = active.get('poison'); p.t *= p.level === 'lethal' ? 0.85 : 0.5; } });
   game.events.on('player:died', () => api.clear());
   game.events.on('quest:start', () => api.clear());
   return (game.status = api);

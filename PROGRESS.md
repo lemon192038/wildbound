@@ -83,7 +83,10 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
 | Stone Mole: lives underground (no hitboxes, a moving mound + dust when near), tracks footsteps by vibration, waits below a still hunter, bursts up under a hunter moving above it / when the mound is struck / on heavy-hit tremors; claw swipes and digging charge on the surface, digs back down after a while or when hurt; eats burrowed beetles; avoids lava snakes | ✅ | unit-tested; HP 7,200 |
 | Grand Mole = old giant Stone Mole individual (≈8 % of moles): back crystals, longer chases | ✅ | HP 15,000 |
 | Boulder Golem: rock mimicry with distance-graded wake-up (alert → faint core glow → rises → hostile); some wait until the hunter has passed; rock fist, ground slam, rock throw, short charge; defends its territory only, then walks home and settles back into a rock; Ash Birds perch on dormant golems and burst away when they wake | ✅ | unit-tested; HP 12,000 (Gorvath stays the existing mutant boss) |
-| Remaining species: 燼皮 (ground drake, no flight), Flame Dragon ♂ / Venom-fang Dragon ♀ (one species), Cindaryl (special ♀) | ⬜ | next |
+| 燼皮 (Cinderskin Drake): flightless low dragon (wings unusable, flare in threat display), roams its territory, hunts grounded birds / beetles / slimes / juvenile lizards, scavenges carcasses, flees wolf packs and Crystal Tusks, fights intruders (bite, tail, charge, ember spit) | ✅ | unit-tested; HP 5,200 ASSUMED |
+| One dragon species, 4 new island individuals with their own territories, built on Cindral's mesh (loaded once, cloned per individual): Flame Dragon ♂ lower (11,000) and elder (15,500) — air combat with fire, no rock bombs; Venom-fang Dragon ♀ (13,000) — flies to close in, lands to fight, fangs / tail / landing strike all poison; Cindaryl 猛毒姫 (19,500) — nearly every attack venomous (deadly poison), tail/charge-type hits lethal venom, venom breath; Cindral stays the special ♂ | ✅ | dragon HP values ASSUMED; venom fx tinted green-violet |
+| New ailment tier: lethal venom (`poison:lethal`, 8 HP/s for 24 s; a draught only trims it) | ✅ | dedicated cure = stage 5 potions |
+| Dragons hunting fauna, dragon-vs-dragon territory disputes, mating season contact | ⬜ | stage 6 |
 
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
@@ -162,3 +165,16 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
   - A bird perched on a golem bursts away when the golem moves.
 - Bug found and fixed: the mole's surface timer did not run while it was attacking, so a mole fighting a hunter at close range never dug back down.
 - Browser (headless): the mole burst out and knocked the hunter down; the woken golem fought; the far golem stayed a rock. No errors.
+
+### Stage 3e tests (dragons / 燼皮, 2026-11-19)
+- `node src/fauna/__fauna.test.mjs`: 55 passed.
+  - 燼皮: roams instead of ambushing, scavenges a carcass, flees a wolf pack, fights an intruder.
+- Browser (headless):
+  - All 7 island bosses load (Varkhul, Cindral, Gorvath, Flame Dragon, Flame Dragon elder, Venom-fang Dragon, Cindaryl). No errors.
+  - The 4 new dragons are cloned from the shared mesh in 1–3 ms each.
+- Combat over 30 s of game time per dragon:
+  - Venom-fang lands to fight and applies normal poison.
+  - Cindaryl applies deadly poison and lethal venom.
+  - The Flame Dragon only burns.
+  - Cindral is unchanged (burns plus deadly-poison talon dive).
+- The original Cindral boss field (`?hunt=wyvern`) still loads normally with its original colours, with no errors.

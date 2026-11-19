@@ -88,7 +88,7 @@ export function createUI(game) {
   const bladeFill = blade.querySelector('.wb-blade-fill'), bladeTier = blade.querySelector('.wb-blade-tier');
   // Status ailments (src/core/status.js): chips under the bars, tinted HP bar.
   const ailRow = el('div', 'wb-ail-row', null, bars);
-  const AIL = { burn: { cls: 'wb-ail-burn', label: { small: t('ail.burn'), large: t('ail.blaze') } }, poison: { cls: 'wb-ail-poison', label: { normal: t('ail.poison'), deadly: t('ail.deadly') } }, blast: { cls: 'wb-ail-blast', label: { normal: t('ail.blast') } } };
+  const AIL = { burn: { cls: 'wb-ail-burn', label: { small: t('ail.burn'), large: t('ail.blaze') } }, poison: { cls: 'wb-ail-poison', label: { normal: t('ail.poison'), deadly: t('ail.deadly'), lethal: t('ail.lethal') } }, blast: { cls: 'wb-ail-blast', label: { normal: t('ail.blast') } } };
   const ailEls = {};
 
   // ---------------------------------------------------------------- nav: minimap, timer, limp

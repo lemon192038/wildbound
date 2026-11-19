@@ -22,7 +22,9 @@ function scorchTexture() {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
-export function createWyvernFx(game, monster) {
+// fxOpts: { palette: 'fire' | 'venom', mapStatus(status) → status }  (Venom-fang dragons / Cindaryl reuse this module)
+export function createWyvernFx(game, monster, fxOpts = {}) {
+  const venom = fxOpts.palette === 'venom'; const mapS = (s) => (s && fxOpts.mapStatus ? fxOpts.mapStatus(s) : s);
   const { scene, world, events } = game;
   const ground = (x, z) => world.getHeight(x, z);
   const tex = radialTexture(), scorch = scorchTexture();
@@ -49,7 +51,7 @@ export function createWyvernFx(game, monster) {
 
   // ---------------------------------------------------------------- light pool
   const LIGHTS = 3; const pool = [];
-  for (let i = 0; i < LIGHTS; i++) { const L = new THREE.PointLight(0xff6a20, 0, 26, 2); scene.add(L); pool.push(L); }
+  for (let i = 0; i < LIGHTS; i++) { const L = new THREE.PointLight(venom ? 0x66ff44 : 0xff6a20, 0, 26, 2); scene.add(L); pool.push(L); }
   const flashes = []; // {pos, i0, t, dur}
   let requests = [];
   const requestLight = (p, intensity, color = 0xff6a20) => requests.push({ p, intensity, color });
@@ -58,7 +60,7 @@ export function createWyvernFx(game, monster) {
   const hurt = (opts, status) => {
     const pl = game.player; if (!pl?.receiveHit) return false;
     const r = pl.receiveHit({ ...opts, source: monster });
-    if (r !== false && status) game.status?.apply(...status);
+    if (r !== false && status) game.status?.apply(...mapS(status));
     return r !== false;
   };
 
@@ -68,7 +70,7 @@ export function createWyvernFx(game, monster) {
   // opts: { status: [kind, level] (default small burn), drain (HP per 0.5 s tick), tint (hex), max (pool cap) }
   function addPatch(p, r = 2, l = 6, opts = {}) {
     if (patches.length > (opts.max || 40)) { const old = patches.shift(); scene.remove(old.mesh); old.mesh.material.dispose(); }
-    const mesh = new THREE.Mesh(patchGeo, new THREE.MeshBasicMaterial({ map: scorch, color: opts.tint ?? 0xffffff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+    const mesh = new THREE.Mesh(patchGeo, new THREE.MeshBasicMaterial({ map: scorch, color: opts.tint ?? (venom ? 0x77ff66 : 0xffffff), transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
     mesh.scale.setScalar(r * 1.25); mesh.rotation.y = Math.random() * Math.PI * 2; mesh.position.set(p.x, ground(p.x, p.z) + 0.08, p.z); mesh.renderOrder = 2; scene.add(mesh);
     const patch = { mesh, r, t: 0, life: l, tick: 0, status: opts.status || ['burn', 'small'], drain: opts.drain ?? 2, kind: opts.kind || 'fire' };
     patches.push(patch); return patch;
@@ -112,7 +114,7 @@ export function createWyvernFx(game, monster) {
   const liveRocks = () => rocks.filter((r) => !r.dead);
 
   // ---------------------------------------------------------------- fireballs
-  const ballGeo = new THREE.SphereGeometry(0.75, 14, 10), ballMat = new THREE.MeshBasicMaterial({ color: 0xffc070 });
+  const ballGeo = new THREE.SphereGeometry(0.75, 14, 10), ballMat = new THREE.MeshBasicMaterial({ color: venom ? 0xa8ff70 : 0xffc070 });
   const balls = [];
   function spitFireball(from, to, { onImpact } = {}) {
     const mesh = new THREE.Mesh(ballGeo, ballMat); mesh.position.copy(from); scene.add(mesh);
@@ -143,6 +145,7 @@ export function createWyvernFx(game, monster) {
       // hot yellow core → orange → deep red, kept below white so additive overlap + bloom doesn't blow out
       const f2 = f * 0.62;
       if (u < 0.12) { col[k] = f2; col[k + 1] = 0.72 * f2; col[k + 2] = 0.28 * f2; } else if (u < 0.5) { const t = (u - 0.12) / 0.38; col[k] = f2; col[k + 1] = (0.72 - 0.47 * t) * f2; col[k + 2] = (0.28 - 0.25 * t) * f2; } else { col[k] = 0.7 * f2; col[k + 1] = 0.13 * f2; col[k + 2] = 0.02 * f2; }
+      if (venom) { const r = col[k], g = col[k + 1], b = col[k + 2]; col[k] = g * 0.45 + b * 0.8; col[k + 1] = r * 0.95; col[k + 2] = r * 0.35 + b; } // sickly green-violet venom
     }
     g.attributes.position.needsUpdate = true; g.attributes.color.needsUpdate = true;
     // sparks
@@ -190,7 +193,7 @@ export function createWyvernFx(game, monster) {
       f.mesh.material.opacity = (0.8 + Math.sin(f.t * 11 + i) * 0.15) * (1 - u * u);
       if (Math.random() < dt * 7 * f.r) emitFlame(f.mesh.position.clone().add(_v.set((Math.random() - 0.5) * f.r * 1.6, 0.2, (Math.random() - 0.5) * f.r * 1.6)), _v.set(0, 2.2, 0), 0.6);
       if (pl && !pl.dead && pl.position.distanceTo(f.mesh.position) < f.r + 0.3 && Math.abs(pl.position.y - f.mesh.position.y) < 1.5) {
-        f.tick -= dt; if (f.tick <= 0) { f.tick = 0.5; game.status?.apply(...f.status); pl.drain?.(f.drain); }
+        f.tick -= dt; if (f.tick <= 0) { f.tick = 0.5; game.status?.apply(...mapS(f.status)); pl.drain?.(f.drain); }
       }
       if (f.t >= f.life) { scene.remove(f.mesh); f.mesh.material.dispose(); patches.splice(i, 1); }
     }

@@ -140,6 +140,15 @@ function moundGeo(THREE) {
   const g = new THREE.SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2);
   return part(THREE, g, 0, (x, y, z, o) => { const v = 0.07 + hash(Math.floor(x * 6), y, Math.floor(z * 6)) * 0.05; o[0] = v * 1.1; o[1] = v; o[2] = v * 0.9; o[3] = 0; });
 }
+function drakeGeo(THREE) {
+  const base = lizardGeo(THREE); const parts = [base];
+  for (const s of [-1, 1]) {
+    const w = new THREE.PlaneGeometry(1.1, 0.7, 4, 2); w.rotateX(-Math.PI / 2); const wp = w.attributes.position;
+    for (let i = 0; i < wp.count; i++) { const x = wp.getX(i) + 0.55, z = wp.getZ(i); wp.setXYZ(i, s * (0.22 + x * 0.55), 0.66 + x * 0.12, 0.2 + z * 0.6 - x * 0.35); }
+    parts.push(part(THREE, w, 7, (x, y, z, o) => { const t = Math.min(1, Math.abs(x) / 0.8); const tear = hash(Math.floor(x * 9), 0, Math.floor(z * 9)) > 0.8 ? 1 : 0; o[0] = 0.06 + t * 0.3; o[1] = 0.035 + t * 0.06; o[2] = 0.03; o[3] = tear * 0.4 + (t > 0.85 ? 0.3 : 0); }));
+  }
+  return mergeGeometries(parts);
+}
 function snakeSegGeo(THREE) {
   // one body segment along +z (length 1): cooled black rock plates with molten seams between them
   const g = new THREE.CylinderGeometry(0.5, 0.5, 1.02, 10, 3, true); g.rotateX(Math.PI / 2); const p = g.attributes.position;
@@ -196,6 +205,14 @@ const VERT = {
     transformed.z += sin(ph * 2.0 + aPart * 3.14159) * 0.15 * k; }
   if (aPart >= 3.0 && aPart <= 4.0) { transformed.z += sin(ph * 2.0 + aPart * 3.14159) * 0.25 * k; transformed.y *= mix(0.6, 1.0, k); }
   if (aPart == 0.0 || aPart == 6.0 || aPart == 7.0) { transformed.y = mix(transformed.y * 0.55, transformed.y, k); if (aPart == 6.0) transformed.y -= (1.0 - k) * 0.6; }`,
+  drake: `
+  float ph = aAnim.x, mv = aAnim.y, mode = aAnim.z;
+  if (aPart >= 1.0 && aPart <= 4.0) { float k = (aPart == 1.0 || aPart == 4.0) ? 0.0 : 3.14159; transformed.z += sin(ph * 8.0 + k) * 0.22 * mv; transformed.y += max(0.0, sin(ph * 8.0 + k)) * 0.08 * mv; }
+  if (aPart == 5.0) { float w = clamp(-transformed.z - 0.5, 0.0, 2.0); transformed.x += sin(ph * (mode > 1.5 && mode < 2.5 ? 1.0 : 4.0) - w * 1.6) * 0.18 * w * (0.4 + mv); if (mode > 0.5 && mode < 1.5) transformed.y += w * w * 0.12 * (0.5 + 0.5 * sin(ph * 6.0)); }
+  if (mode > 0.5 && mode < 1.5) { float f = clamp(transformed.z + 0.3, 0.0, 1.5); transformed.y += f * 0.35; }
+  if (mode > 1.5 && mode < 2.5) transformed.y *= 0.8;
+  if (mode > 2.5) { transformed.y += sin(ph * 14.0) * 0.03; }
+  if (aPart == 7.0) { float flare = (mode > 0.5 && mode < 1.5) ? 1.0 : 0.0; transformed.y += flare * abs(transformed.x) * 0.9; transformed.x *= 1.0 + flare * 0.6; }`,
   mound: ``,
   snakeSeg: ``,
   snakeHead: `
@@ -226,9 +243,9 @@ const VERT = {
   if (aPart == 3.0) transformed.y += sin(ph * 3.0) * 0.05;`,
 };
 
-export function createFaunaRender(THREE, scene, { low = false, caps = { beetle: 220, slime: 180, bird: 60, lizard: 40, snakeSeg: 200, snakeHead: 10, wolf: 40, boar: 40, mole: 12, golem: 16, mound: 12 } } = {}) {
-  const geos = { beetle: beetleGeo(THREE), slime: slimeGeo(THREE), bird: birdGeo(THREE), lizard: lizardGeo(THREE), snakeSeg: snakeSegGeo(THREE), snakeHead: snakeHeadGeo(THREE), wolf: wolfGeo(THREE), boar: boarGeo(THREE), mole: moleGeo(THREE), golem: golemGeo(THREE), mound: moundGeo(THREE) };
-  const glowCol = { beetle: [1.0, 0.36, 0.05], slime: [1.0, 0.42, 0.06], bird: [1.0, 0.4, 0.08], lizard: [1.0, 0.32, 0.05], snakeSeg: [1.0, 0.34, 0.04], snakeHead: [1.0, 0.36, 0.05], wolf: [1.0, 0.3, 0.05], boar: [0.35, 0.85, 1.0], mole: [1.0, 0.45, 0.15], golem: [1.0, 0.36, 0.05], mound: [0, 0, 0] };
+export function createFaunaRender(THREE, scene, { low = false, caps = { beetle: 220, slime: 180, bird: 60, lizard: 40, snakeSeg: 200, snakeHead: 10, wolf: 40, boar: 40, mole: 12, golem: 16, mound: 12, drake: 16 } } = {}) {
+  const geos = { beetle: beetleGeo(THREE), slime: slimeGeo(THREE), bird: birdGeo(THREE), lizard: lizardGeo(THREE), snakeSeg: snakeSegGeo(THREE), snakeHead: snakeHeadGeo(THREE), wolf: wolfGeo(THREE), boar: boarGeo(THREE), mole: moleGeo(THREE), golem: golemGeo(THREE), mound: moundGeo(THREE), drake: drakeGeo(THREE) };
+  const glowCol = { beetle: [1.0, 0.36, 0.05], slime: [1.0, 0.42, 0.06], bird: [1.0, 0.4, 0.08], lizard: [1.0, 0.32, 0.05], snakeSeg: [1.0, 0.34, 0.04], snakeHead: [1.0, 0.36, 0.05], wolf: [1.0, 0.3, 0.05], boar: [0.35, 0.85, 1.0], mole: [1.0, 0.45, 0.15], golem: [1.0, 0.36, 0.05], mound: [0, 0, 0], drake: [1.0, 0.32, 0.06] };
   const meshes = {}; const anims = {};
   for (const sp of Object.keys(geos)) {
     const cap = Math.round(caps[sp] * (low ? 0.7 : 1));

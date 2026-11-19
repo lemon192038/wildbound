@@ -31,6 +31,11 @@ export function createPredatorAI(ctx) {
     // dangers first: a surfacing snake or a boss nearby
     const snake = nearestOf(c, 16, (o) => o.sp === 'snake' && !o.dead && o.ai !== 'dive' && o.ai !== 'lurk');
     if (snake && c.ai !== 'flee') { setAi(c, 'flee'); c.fleeFrom = snake.pos.clone(); }
+    if (S.roams && c.ai !== 'flee') { // 燼皮: wolf packs and Crystal Tusks are too much for it
+      const wolves = ctx.countNear(c, 22, (o) => o.sp === 'wolf' && !o.dead && o.stage > 0);
+      const tusk = nearestOf(c, 15, (o) => o.sp === 'boar' && !o.dead && o.role === 'tusk');
+      if (wolves >= 2 || tusk) { setAi(c, 'flee'); c.fleeFrom = (tusk || nearestOf(c, 22, (o) => o.sp === 'wolf' && !o.dead)).pos.clone(); }
+    }
     if (c.ai === 'flee') {
       const from = c.fleeFrom || (h ? h.pos : c.pos); const a = Math.atan2(c.pos.x - from.x, c.pos.z - from.z);
       steer(c, c.pos.x + Math.sin(a) * 6, c.pos.z + Math.cos(a) * 6, S.speed * 2.6, dt, 3); c.mode = 3;
@@ -76,10 +81,14 @@ export function createPredatorAI(ctx) {
     }
     if (inTerr && senses) { setAi(c, 'threat'); return; }
     // prey: ambush from the home rock
-    const prey = nearestOf(c, 10, (o) => !o.dead && ((o.sp === 'beetle' && o.ai !== 'burrowed' && o.ai !== 'curl') || (o.sp === 'slime' && o.stage <= 1) || (o.sp === 'bird' && o.alt < 1)));
+    const prey = nearestOf(c, S.roams ? 14 : 10, (o) => !o.dead && ((o.sp === 'beetle' && o.ai !== 'burrowed' && o.ai !== 'curl') || (o.sp === 'slime' && (o.stage <= 1 || S.roams)) || (o.sp === 'bird' && o.alt < 1) || (S.roams && o.sp === 'lizard' && o.stage === 0)));
     if (prey && c.hunger > 0.3) { setAi(c, 'charge'); c.prey = prey; c.chargeAt = prey.pos.clone(); return; }
-    if (c.ai === 'return') { const d = steer(c, c.home.x, c.home.z, S.speed, dt, 2.5); c.mode = 0; if (d < 1) setAi(c, 'ambush'); return; }
+    if (c.ai === 'scavenge') { const p = c.prey; if (!p || p.eaten || (!p.dead)) { c.prey = null; setAi(c, 'patrol'); return; } const d = steer(c, p.pos.x, p.pos.z, S.speed, dt, 2.5); c.mode = 0; if (d < 1.6 * c.scale) { setAi(c, 'eat'); c.prey = p; c.dur = 10; } return; }
+    if (S.scavenger && c.hunger > 0.35) { const carcass = nearestOf(c, 40, (o) => o.dead && !o.eaten && o.corpseT > 6); if (carcass) { setAi(c, 'scavenge'); c.prey = carcass; return; } }
+    if (c.ai === 'return') { const d = steer(c, c.home.x, c.home.z, S.speed, dt, 2.5); c.mode = 0; if (d < 1) setAi(c, S.roams ? 'patrol' : 'ambush'); return; }
+    if (c.ai === 'patrol' && S.roams) c.hunger = Math.min(1, c.hunger + dt / 150);
     if (c.ai === 'patrol') { if (!c.target) c.target = ctx.pickSpot(c.home.x, c.home.z, 8, S.territory, 'lizard') || [c.home.x, c.home.z]; const d = steer(c, c.target[0], c.target[1], S.speed * 0.8, dt, 2); c.mode = 0; if (d < 1 || c.t > 25) setAi(c, 'return'); return; }
+    if (S.roams) { setAi(c, 'patrol'); c.hunger = Math.min(1, c.hunger + dt / 150); return; } // the drake roams instead of lying in ambush
     // ambush (default): flat and dim against the rock, tail still
     c.ai = c.ai === 'ambush' ? 'ambush' : 'ambush'; c.move = 0; c.mode = 2; c.heat = 0;
     c.hunger = Math.min(1, c.hunger + dt / 150);
