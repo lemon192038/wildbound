@@ -9,6 +9,9 @@ import {
 } from '../src/shared/gamedata.js';
 
 import { ISLAND_LOOT, ISLAND_LIMITS } from '../src/shared/islandLoot.js';
+import { pointByGid, rollGather, GATHER_KINDS, GATHER_LIMITS } from '../src/shared/islandGather.js';
+import { createIslandField } from '../src/world/island/islandField.js';
+let FIELD = null; const islandField = () => (FIELD ||= createIslandField(1337)); // gather points are re-derived from the island itself
 export class GameError extends Error { constructor(code, message) { super(message || code); this.code = code; } }
 const fail = (code, msg) => { throw new GameError(code, msg); };
 const int = (v, lo, hi) => (Number.isInteger(v) && v >= lo && v <= hi ? v : fail('bad_qty', 'Invalid quantity'));
@@ -174,7 +177,8 @@ export const ACTIONS = {
     } else fail('bad_mode', 'Unknown expedition type');
     const carried = { ...d.pouch }; d.pouch = {};
     const iid = crypto.randomBytes(9).toString('base64url');
-    d.quests.expedition = { iid, qid, dest, free: mode === 'free', at: now, carried };
+    // every expedition now lands on the open island (the ship drops you near the quarry); the old fields stay for ?hunt=
+    d.quests.expedition = { iid, qid, dest, free: mode === 'free', at: now, carried, onIsland: true, carved: {}, kills: {}, n: 0, gathered: {}, g: {}, gn: 0, gLast: 0 };
     return { msg: qid ? `Departing for “${q.name}”` : `Setting sail for ${DESTINATIONS[dest].name}`, iid, quest: qid, dest, mode, carried, stats: loadoutStats(d.equip, d.loadout) };
   },
   completeQuest(d, { iid, report }, { now, rand }) {
@@ -182,13 +186,14 @@ export const ACTIONS = {
     if (ex.island) fail('island', 'Island expeditions end with returnIsland');
     if (ex.free) return completeFree(d, ex, report, now, rand);
     const q = QUESTS[ex.qid]; const elapsed = (now - ex.at) / 1000; const r = sanitizeReport(report, q);
+    if (ex.onIsland) r.gathered = { ...(ex.gathered || {}) }; // gathering on the island is counted by the server itself (islandGather)
     // Too early: refuse WITHOUT consuming the expedition, so an honest (fast) client can simply retry later.
     if (elapsed < q.minClear) fail('too_early', `Report again in ${Math.ceil(q.minClear - elapsed)}s`);
     const verdict = judge(q, r, elapsed);
     returnCarried(d, ex.carried, r.used);
     d.quests.expedition = null; d.quests.active = null;
     if (!verdict.ok) { pushHistory(d, { t: now, qid: ex.qid, ok: false, why: verdict.why, s: Math.round(elapsed) }); return { msg: `Quest failed: ${verdict.why}`, ok: false, why: verdict.why }; }
-    const rewards = grant(d, q, ex.qid, r, now, rand);
+    const rewards = grant(d, q, ex.qid, ex.onIsland ? { ...r, gathered: {} } : r, now, rand); // island gathering was already put in the box
     pushHistory(d, { t: now, qid: ex.qid, ok: true, s: Math.round(elapsed) });
     return { msg: `Quest complete: ${q.name}`, ok: true, rewards, elapsed: Math.round(elapsed) };
   },
@@ -206,7 +211,7 @@ export const ACTIONS = {
     return { msg: 'Setting sail for the Volcanic Island', iid, dest: 'island', carried };
   },
   islandCarve(d, { iid, cid, src, part } = {}, { now, rand }) {
-    const ex = d.quests.expedition; if (!ex || !ex.island || ex.iid !== iid) fail('no_expedition', 'Not on an island expedition');
+    const ex = d.quests.expedition; if (!ex || !(ex.island || ex.onIsland) || ex.iid !== iid) fail('no_expedition', 'Not on an island expedition');
     if (typeof cid !== 'string' || !/^[A-Za-z0-9._:-]{3,64}$/.test(cid)) fail('bad_carve', 'Bad carve id');
     if (ex.carved[cid]) return { dup: true, item: ex.carved[cid], msg: 'Already carved' };            // idempotent retry
     const L = has(ISLAND_LOOT, src) ? ISLAND_LOOT[src] : null; if (!L) fail('bad_source', 'Unknown creature');
@@ -230,6 +235,21 @@ export const ACTIONS = {
     const item = partItem || (table ? weighted(table.carves, rand) : weighted(L.body, rand));
     give(d.box, item, 1); ex.carved[cid] = item; ex.n++;
     return { item, msg: `Carved ${ITEMS[item]?.name || item}` };
+  },
+  // gather from an island point: the server re-derives the point from its id (tile + index), checks its uses, the pace and a
+  // per-expedition cap, then rolls the item itself. Idempotent per (point, use).
+  islandGather(d, { iid, gid, use } = {}, { now, rand }) {
+    const ex = d.quests.expedition; if (!ex || !(ex.island || ex.onIsland) || ex.iid !== iid) fail('no_expedition', 'Not on an island expedition');
+    const pt = pointByGid(islandField(), gid); if (!pt) fail('bad_point', 'Nothing to gather there');
+    ex.g ||= {}; ex.gathered ||= {}; ex.gn ||= 0; ex.gr ||= {};
+    const key = `${gid}#${use | 0}`; if (ex.gr[key]) return { dup: true, ...ex.gr[key] };
+    if ((ex.g[gid] || 0) >= GATHER_KINDS[pt.kind].uses) fail('empty', 'Nothing left here');
+    if (ex.gn >= GATHER_LIMITS.perExpedition) fail('full', 'Your pouch of materials is full — return to port');
+    if ((now - (ex.gLast || 0)) / 1000 < GATHER_LIMITS.minInterval) fail('rate', 'Gathering too fast');
+    const got = rollGather(pt, rand); if (!got || !ITEMS[got.item]) fail('bad_point', 'Nothing to gather there');
+    give(d.box, got.item, got.qty); ex.g[gid] = (ex.g[gid] || 0) + 1; ex.gn++; ex.gLast = now; ex.gathered[got.item] = (ex.gathered[got.item] || 0) + got.qty;
+    ex.gr[key] = got; const ks = Object.keys(ex.gr); if (ks.length > 400) delete ex.gr[ks[0]];
+    return { ...got, msg: `Gathered ${ITEMS[got.item].name}` };
   },
   returnIsland(d, { iid, used } = {}, { now }) {
     const ex = d.quests.expedition; if (!ex || !ex.island || ex.iid !== iid) fail('no_expedition', 'Not on an island expedition');
@@ -262,8 +282,9 @@ function completeFree(d, ex, report, now, rand) {
   returnCarried(d, ex.carried, r.used);
   const items = {}; const add = (k, n) => { if (n > 0) items[k] = (items[k] || 0) + n; };
   const mon = MONSTERS[dest.monster];
+  if (ex.onIsland) { r.gathered = {}; r.parts = []; } // on the island you carve and gather on the spot (already in the box)
   if (hunted && mon && elapsed <= FREE_EXPEDITION.timeLimit + 120) {
-    for (let i = 0; i < (r.captured ? 4 : 3); i++) add(weighted(mon.carves, rand), 1);
+    if (!ex.onIsland) for (let i = 0; i < (r.captured ? 4 : 3); i++) add(weighted(mon.carves, rand), 1);
     for (const p of r.parts) if (mon.breaks[p]) add(mon.breaks[p], 1);
     const h = (d.hunts[dest.monster] ||= { slain: 0, captured: 0 }); r.captured ? h.captured++ : h.slain++;
   }
@@ -279,11 +300,12 @@ function sanitizeReport(rep, q) {
   const r = rep && typeof rep === 'object' ? rep : {};
   const cap = (n, hi) => (Number.isFinite(n) ? Math.max(0, Math.min(hi, Math.floor(n))) : 0);
   const gathered = {}; const gmax = {}; for (const o of q.objectives) if (o.k === 'gather') gmax[o.item] = Math.max(o.qty * 2, 10);
-  for (const [k, v] of Object.entries(r.gathered || {})) if (ITEMS[k] && ITEMS[k].kind === 'material' && has(GATHERABLE, k)) gathered[k] = cap(v, gmax[k] || 8);
+  for (const [k, v] of Object.entries(r.gathered || {})) if (ITEMS[k] && ITEMS[k].kind === 'material' && (has(GATHERABLE, k) || ITEMS[k].gather)) gathered[k] = cap(v, gmax[k] || 8);
   const breaks = MONSTERS[q.monster]?.breaks || {};
   const parts = [...new Set((Array.isArray(r.parts) ? r.parts : []).filter((p) => typeof p === 'string' && has(breaks, p)))];
   const used = {}; for (const [k, v] of Object.entries(r.used || {})) if (ITEMS[k]) used[k] = cap(v, 99);
-  return { slain: r.slain === true, captured: r.captured === true, gathered, parts, faints: cap(r.faints, 9), used };
+  const kills = {}; for (const o of q.objectives) if (o.k === 'slayN') { const key = o.role || o.sp; kills[key] = cap(r.kills?.[key], o.qty * 3); }
+  return { slain: r.slain === true, captured: r.captured === true, gathered, parts, faints: cap(r.faints, 9), used, kills };
 }
 export const GATHERABLE = { sunpetal: 1, glowcap: 1, tidecap: 1, honey: 1, ironOre: 1, crimsonOre: 1, stormquartz: 1, monsterBone: 1 };
 function judge(q, r, elapsed) {
@@ -295,6 +317,7 @@ function judge(q, r, elapsed) {
     if (o.k === 'slayOrCapture' && !(r.slain || r.captured)) return { ok: false, why: 'Target not hunted' };
     if (o.k === 'gather' && (r.gathered[o.item] || 0) < o.qty) return { ok: false, why: `Need ${o.qty}× ${ITEMS[o.item].name}` };
     if (o.k === 'break' && !o.parts.every((p) => r.parts.includes(p))) return { ok: false, why: 'Required parts not broken' };
+    if (o.k === 'slayN' && (r.kills[o.role || o.sp] || 0) < o.qty) return { ok: false, why: 'Not enough targets hunted' };
     if (o.k === 'noFaint' && r.faints > 0) return { ok: false, why: 'Fainted' };
     if (o.k === 'within' && elapsed > o.s + 10) return { ok: false, why: 'Too slow' };
   }

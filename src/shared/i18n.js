@@ -7,6 +7,7 @@
 //   serverMsg(message, error) → server/API English message translated (templates + embedded names)
 import { ITEMS, WEAPONS, ARMOR, SKILLS, QUESTS, MONSTERS, DESTINATIONS } from './gamedata.js';
 import EN from './i18n-en.js';
+import { SPECIES } from '../fauna/species.js';
 import JA from './i18n-ja.js';
 
 const PACKS = { en: EN, ja: JA };
@@ -58,9 +59,11 @@ export const questDesc = (id) => pick('quests', id, 1) ?? QUESTS[id]?.desc ?? ''
 const monsterIdOf = (x) => (MONSTERS[x] ? x : Object.keys(MONSTERS).find((k) => MONSTERS[k].name === x || MONSTERS[k].name.split(',')[0] === x) || null);
 const monEntry = (id) => P().monsters?.[id] || EN.monsters[id];
 /** Full name ("Varkhul, the Emberhide" / 「燼皮のヴァルクル」). Accepts an id or the English full/short name. */
-export function monsterName(x) { const id = monsterIdOf(x); return id ? monEntry(id).full : String(x || ''); }
+export function monsterName(x) { const id = monsterIdOf(x); return id ? monEntry(id).full : islandName(x) ?? String(x || ''); }
 /** Short name ("Varkhul" / 「ヴァルクル」). */
-export function monsterShort(x) { const id = monsterIdOf(x); return id ? monEntry(id).short : String(x || '').split(',')[0]; }
+const ISLAND_NAME = { tusk: 'fauna.tusk', leader: 'fauna.leader', grandmole: 'fauna.grandmole', flame: 'dragon.flame', flameUpper: 'dragon.flameUpper', venom: 'dragon.venom', cindaryl: 'dragon.cindaryl' };
+const islandName = (x) => { if (SPECIES[x]) return SPECIES[x].name[isJa() ? 'ja' : 'en']; const k = ISLAND_NAME[x]; if (!k) return null; const v = t(k); return v !== k ? v : null; };
+export function monsterShort(x) { const id = monsterIdOf(x); return id ? monEntry(id).short : islandName(x) ?? String(x || '').split(',')[0]; }
 /** Epithet ("The Emberhide" / 「燼皮」). */
 export function monsterTitle(x) { const id = monsterIdOf(x); return id ? monEntry(id).title : ''; }
 export const partName = (p) => P().parts?.[p] ?? EN.parts[p] ?? String(p).replace(/[_-]/g, ' ');

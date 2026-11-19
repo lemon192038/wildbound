@@ -1,4 +1,5 @@
 import { ISLAND_ITEMS } from './islandLoot.js';
+import { GATHER_ITEMS } from './islandGather.js';
 import { ISLAND_WEAPONS, ISLAND_ARMOR_SETS } from './islandGear.js';
 import { CLASS_WEAPONS } from './classGear.js';
 import { LINE_WEAPONS } from './lineGear.js';
@@ -70,6 +71,7 @@ export const ITEMS = {
 // Each skill has max points; effects are applied by the field runtime/player.
 // island materials (stage 5): src/shared/islandLoot.js
 for (const [k, v] of Object.entries(ISLAND_ITEMS)) { const { ja, jaDesc, ...def } = v; ITEMS[k] = def; }
+for (const [k, v] of Object.entries(GATHER_ITEMS)) { const { ja, jaDesc, ...def } = v; ITEMS[k] = def; } // island gathering (src/shared/islandGather.js)
 
 export const SKILLS = {
   attackBoost: { name: 'Attack Boost', max: 5, desc: '+3% attack per level.' },
@@ -217,6 +219,8 @@ export const QUESTS = {
     desc: 'A tempered Gorvath, burning itself out in fury. Survive its final rage — and end it.',
     objectives: [{ k: 'slay' }], coins: 9000, xp: 2000, rewards: [['gv_core', 1, 25], ['gv_knuckle', 2, 100]] },
 };
+import { ISLAND_QUESTS } from './islandQuests.js';
+for (const [k, v] of Object.entries(ISLAND_QUESTS)) { const { ja, ...q } = v; QUESTS[k] = q; } // quests for every island monster
 
 // ---------------------------------------------------------------- shop
 // stock: per-player stock that refills every `restockMinutes`.
@@ -267,6 +271,8 @@ export function questAvailable(qid, save) {
 // game.fieldId), `monster` the boss that lives there. map: normalised position on the world map (0..1).
 // Quests travel to the destination of their monster (destForMonster); free expeditions pick any destination.
 export const DESTINATIONS = {
+  volcanic_island: { monster: null, field: 'island', name: 'Volcanic Island', region: 'The Cinder Reach', map: { x: 0.62, y: 0.56 }, danger: 3, recHR: 1,
+    desc: 'The whole island: the ship drops you near your quarry and the base camp is set up there.' },
   ember_foothills: { monster: 'varkhul', field: 'foothills', name: 'Emberfall Foothills', region: 'The Cinder Reach', map: { x: 0.585, y: 0.64 }, danger: 2, recHR: 1,
     desc: 'The open flanks of Mount Kaldrith: black lava plains, steaming vents and old basalt ridges under a smouldering summit. Varkhul hunts the foothills.' },
   ashfang_wastes: { monster: 'wyvern', field: 'wastes', name: 'Ashfang Wastes', region: 'The Cinder Reach', map: { x: 0.69, y: 0.5 }, danger: 4, recHR: 3,
@@ -274,7 +280,7 @@ export const DESTINATIONS = {
   cinderdeep_hollow: { monster: 'brute', field: 'hollow', name: 'Cinderdeep Hollow', region: 'The Cinder Reach', map: { x: 0.55, y: 0.44 }, danger: 6, recHR: 5,
     desc: 'A vast cavern beneath the volcano, lit by lavafalls and choked with steam. The ground trembles with Gorvath\'s footsteps.' },
 };
-export const destForMonster = (m) => Object.keys(DESTINATIONS).find((k) => DESTINATIONS[k].monster === m) || 'ember_foothills';
+export const destForMonster = (m) => Object.keys(DESTINATIONS).find((k) => DESTINATIONS[k].monster === m) || (m === undefined ? 'ember_foothills' : 'volcanic_island');
 export const FREE_EXPEDITION = { timeLimit: 3000, minClear: 20, slayMinClear: 60, gatherCap: 10 };
 
 // Field-guide entries (shown in the world map's boss details). Facts mirror the implemented AI in src/monster.

@@ -18,7 +18,7 @@ import { createAccount } from './account/client.js';
 import { prepareQuest, startQuestRuntime } from './field/questRuntime.js';
 import { createStatus } from './core/status.js';
 import { showLoadingScreen, createLoadingProgress } from './ui/loadingScreen.js';
-import { t } from './shared/i18n.js';
+import { t, monsterShort } from './shared/i18n.js';
 
 // The shared `game` context. Every module receives it; see CONTRACTS.md.
 const engine = new Engine();
@@ -63,6 +63,8 @@ function startLoop(step) {
 }
 
 async function bootField() {
+  // quests and expeditions now play on the open island (the ship drops you near the quarry); the old boss fields remain for ?hunt=
+  if (game.params.get('quest')) return bootIsland({ quest: true });
   game.loading = createLoadingProgress({ prepare: 1, world: 4, player: 1.5, monster: 2, ui: 1 });
   loader = showLoadingScreen(game);              // region/destination/boss card until window.__ready (src/ui/loadingScreen.js)
   game.loading.set('prepare', 0.2);
@@ -140,10 +142,18 @@ async function bootTown() {
 
 // Open volcanic island (free exploration, ?mode=field&field=island). Stage 1 of the open-world plan
 // (IMPLEMENTATION_PLAN.md): streamed terrain + regions, no monsters / co-op on the island yet.
-async function bootIsland() {
-  game.fieldId = 'island'; game.expeditionFree = true; game.noQuestTimer = true;
+async function bootIsland({ quest = false } = {}) {
   game.loading = createLoadingProgress({ world: 5, chunks: 3, player: 1, ui: 1 });
   loader = showLoadingScreen(game);
+  let questCtx = null;
+  if (quest) { // server-validated expedition: target, carried items, time limit; then the base camp near the quarry
+    questCtx = await prepareQuest(game);
+    const { campFor } = await import('./field/islandCamp.js'); const { createIslandField } = await import('./world/island/islandField.js');
+    const camp = campFor(createIslandField(parseInt(game.params.get('seed') || '1337', 10) || 1337), questCtx.q, questCtx.iid);
+    if (camp) { game.campAt = camp; game.questTargetAt = camp.target; }
+    game.islandQuest = true; game.questTargetId = questCtx.q.monster; game.expeditionIid = questCtx.iid;
+  }
+  game.fieldId = 'island'; game.expeditionFree = !questCtx || questCtx.free; game.noQuestTimer = !questCtx || questCtx.free;
   const { createIslandWorld } = await import('./world/island/island.js');
   game.world = await createIslandWorld(game);    // reports 'world' + 'chunks' progress itself
   bootMark('world');
@@ -162,8 +172,9 @@ async function bootIsland() {
   game.events.on('fauna:sighted', ({ species }) => game.ui?.toast?.(t('fauna.sighted', { n: t('fauna.' + species) })));
   // island expedition (server): ?iid=… from the world map. Resolved in the background (a sleeping server must not
   // delay landing); carving checks it at carve time. Without it the island is playable but nothing is recorded.
-  const expedition = { iid: null };
+  const expedition = { iid: questCtx?.iid || null };
   (async () => {
+    if (questCtx) return; // the quest runtime already applied the loadout
     const st = await game.account.restore().catch(() => null); const ex = st?.quests?.expedition;
     if (st?.stats) game.player.setGear?.(st.stats); // the equipped loadout (weapon class, attack, armour) from the server
     if (ex?.island && (!game.params.get('iid') || game.params.get('iid') === ex.iid)) expedition.iid = ex.iid;
@@ -173,13 +184,17 @@ async function bootIsland() {
   const volcano = createVolcanoEvent(game); game.volcano = volcano; game.addUpdater((dt, rawDt) => volcano.update(dt, rawDt));
   const { createCarving } = await import('./field/carving.js');
   const carving = createCarving(game, { expedition }); game.carving = carving; game.addUpdater((dt, rawDt) => carving.update(rawDt));
+  const { createIslandGather } = await import('./field/islandGather.js');
+  const igather = createIslandGather(game, { expedition }); game.islandGather = igather; game.addUpdater((dt, rawDt) => igather.update(rawDt));
+  if (game.campAt) { const { buildCamp } = await import('./field/campProps.js'); buildCamp(game, game.campAt); }
   const toTown = () => { const u = new URL(location.href); const k = new URLSearchParams(); for (const n of ['low', 'hq', 'touch', 'lang']) if (u.searchParams.has(n)) k.set(n, u.searchParams.get(n)); k.set('mode', 'town'); location.href = `${u.pathname}?${k}`; };
-  game.questRuntime = { label: t('island.return'), confirm: t('island.returnQ'), abandon: async () => {
+  if (!questCtx) game.questRuntime = { label: t('island.return'), confirm: t('island.returnQ'), abandon: async () => {
     if (expedition.iid) { const r = await game.account.act('returnIsland', { iid: expedition.iid, used: {} }); if (r.ok) game.ui?.toast?.(t('isl.returned', { n: r.result.carves })); }
     setTimeout(toTown, 600);
   } };
   game.events.on('world:region', ({ id }) => game.ui?.toast?.(t('island.enter', { r: t('region.' + id) })));
   game.loading.set('ui', 1); bootMark('ui');
+  if (questCtx) { startQuestRuntime(game, questCtx); setTimeout(() => game.ui?.toast?.(questCtx.q.monster ? t('camp.dropped', { m: monsterShort(questCtx.q.monster) }) : t('camp.droppedAt', { r: t('region.' + (questCtx.q.region || 'coast')) })), 1500); }
   if (game.input.touch) { if (game.params.get('shot') === '1') game.input.touch.show(); else game.events.on('ui:start', () => game.input.touch.show()); }
   game.events.on('hitstop', ({ duration }) => { engine.hitstop = Math.max(engine.hitstop, duration); });
   startLoop((dt, rawDt, input) => {

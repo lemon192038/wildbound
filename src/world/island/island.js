@@ -53,7 +53,8 @@ export async function createIslandWorld(game) {
   progress(game, 'world', 0.05);
 
   // ---- spawn: south beach camp (walk inland until on dry ground) ----
-  const sp = new THREE.Vector3(F.spawn.player[0], 0, F.spawn.player[1]);
+  // a quest's base camp (src/field/islandCamp.js) replaces the beach camp
+  const sp = game.campAt ? new THREE.Vector3(game.campAt.x, 0, game.campAt.z) : new THREE.Vector3(F.spawn.player[0], 0, F.spawn.player[1]);
   for (let i = 0; i < 80 && F.height(sp.x, sp.z) < 1.5; i++) sp.z -= 4;
   sp.y = F.height(sp.x, sp.z);
   const spawn = { player: sp, monster: new THREE.Vector3(sp.x, sp.y, sp.z - 60) };

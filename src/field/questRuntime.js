@@ -56,7 +56,7 @@ export async function prepareQuest(game) {
   const free = !!ex.free; const destId = ex.dest || destForMonster(QUESTS[ex.qid]?.monster); const dest = DESTINATIONS[destId] || DESTINATIONS.ember_foothills;
   const q = free ? { name: dest.name, monster: dest.monster, free: true, objectives: [{ k: 'slayOrCapture' }], timeLimit: FREE_EXPEDITION.timeLimit, maxFaints: 3, minClear: FREE_EXPEDITION.slayMinClear } : QUESTS[ex.qid];
   game.hunt = q.monster || dest.monster || 'varkhul';
-  game.fieldId = dest.field;                     // which volcanic field to build (src/world) — always the destination's
+  game.fieldId = dest.field;                     // legacy boss fields; quests now boot the open island (src/main.js bootIsland)
   game.destId = destId; game.expeditionFree = free;
   game.questTimeLimit = q.timeLimit;
   game.questDef = q;
@@ -77,13 +77,15 @@ export async function prepareQuest(game) {
 
 export function startQuestRuntime(game, ctx) {
   const { q, carried, used, iid } = ctx; const P = game.player, events = game.events;
-  const mon = () => game.monsters[0];
+  // the quarry: on the island it is the boss with this id (it streams in later); in the old fields the only monster
+  const isTarget = (m) => !!m && (m.islandId === q.monster || (m.kind === q.monster && (!m.islandId || m.islandId === m.kind)));
+  const mon = () => (game.islandQuest ? game.monsters.find(isTarget) || null : game.monsters[0]);
   const toast = (t) => game.ui?.toast?.(t);
   // ---------------------------------------------------------------- gear, monster tuning
   P.setGear?.(ctx.state.stats || {});
-  const m0 = mon();
-  if (m0) {
-    m0.weakness = MONSTERS[game.hunt]?.weakness || {};
+  let tuned = false;
+  function tune() { const m0 = mon(); if (!m0 || tuned) return; tuned = true;
+    m0.weakness = MONSTERS[game.hunt]?.weakness || m0.weakness || {}; // island dragons keep their own table
     if (q.tempered) { m0.maxHp = m0.hp = Math.round(m0.maxHp * q.tempered); }
     // tempered monsters hit harder
     if (q.tempered) { const orig = P.receiveHit; P.receiveHit = (o = {}) => orig({ ...o, damage: (o.damage || 0) * (o.source === m0 || o.source === mon() ? 1.3 : 1) }); }
@@ -103,11 +105,15 @@ export function startQuestRuntime(game, ctx) {
       return r;
     };
   }
+  tune();
   // ---------------------------------------------------------------- state
   const clockSkew = (ctx.state.serverTime || Date.now()) - Date.now(); // server − client clock
-  const st = { slain: false, captured: false, parts: new Set(), gathered: {}, faints: 0, t: 0, phase: 'hunt', endAt: 0, snaredUntil: 0, tranq: 0, buffs: {} };
-  events.on('monster:died', () => { st.slain = true; });
-  events.on('monster:partBreak', (e) => { const p = typeof e?.part === 'string' ? e.part : e?.part?.name; if (p) st.parts.add(p); });
+  const st = { slain: false, captured: false, parts: new Set(), gathered: {}, kills: {}, faints: 0, t: 0, phase: 'hunt', endAt: 0, snaredUntil: 0, tranq: 0, buffs: {} };
+  events.on('monster:died', (e) => { if (!game.islandQuest || isTarget(e?.monster)) st.slain = true; });
+  events.on('monster:partBreak', (e) => { if (game.islandQuest && !isTarget(e?.monster)) return; const p = typeof e?.part === 'string' ? e.part : e?.part?.name; if (p) st.parts.add(p); });
+  // creatures this hunter brought down (slayN objectives): by species, and by special individual (tusk / leader / grandmole)
+  events.on('fauna:died', (e) => { const c = e?.creature; if (!c || e.cause !== 'hunted' || c.hunter !== P) return; st.kills[c.sp] = (st.kills[c.sp] || 0) + 1; const sp = c.role === 'tusk' || c.role === 'leader' ? c.role : c.kind !== c.sp ? c.kind : null; if (sp) st.kills[sp] = (st.kills[sp] || 0) + 1; });
+  events.on('gather:got', (e) => { if (e?.item) st.gathered[e.item] = (st.gathered[e.item] || 0) + (e.qty || 1); }); // island gathering (the server keeps the real count)
   events.on('player:died', () => { st.faints++; if (st.phase === 'hunt') toast(t('qr.faintN', { a: st.faints, b: q.maxFaints })); if (st.faints >= q.maxFaints) finish(ctx.free ? 'return' : 'fail', 'Fainted too many times'); });
   events.on('quest:failed', (e) => finish('fail', e?.reason || 'Time expired'));
 
@@ -159,7 +165,7 @@ export function startQuestRuntime(game, ctx) {
   function flashScreen() { const f = document.createElement('div'); f.style.cssText = 'position:fixed;inset:0;background:#fff;opacity:.9;z-index:35;pointer-events:none;transition:opacity .6s'; document.body.appendChild(f); requestAnimationFrame(() => { f.style.opacity = '0'; }); setTimeout(() => f.remove(), 700); }
 
   // ---------------------------------------------------------------- gathering
-  const gather = createGather(game);
+  const gather = game.islandQuest ? { nearest: () => null, gather: () => null, update() {} } : createGather(game); // the island has its own gathering (src/field/islandGather.js)
   const prompt = document.createElement('div'); prompt.className = 'qr-prompt'; document.getElementById('ui-root').appendChild(prompt);
   const picks = document.createElement('div'); picks.className = 'qr-pick'; document.getElementById('ui-root').appendChild(picks);
   const poll = game.input.poll.bind(game.input); let gatherLock = 0;
@@ -183,6 +189,7 @@ export function startQuestRuntime(game, ctx) {
     if (o.k === 'slayOrCapture') return [t('qr.huntObj', { m: monsterShort(q.monster) }), st.slain || st.captured];
     if (o.k === 'gather') { const n = Math.min(o.qty, st.gathered[o.item] || 0); return [`${itemName(o.item)} ${n}/${o.qty}`, n >= o.qty]; }
     if (o.k === 'break') return [t('qr.breakObj', { parts: o.parts.map(partName).join(t('c.listSep')) }), o.parts.every((p) => st.parts.has(p))];
+    if (o.k === 'slayN') { const n = Math.min(o.qty, st.kills[o.role || o.sp] || 0); return [`${t('obj.slay', { m: monsterShort(o.role || o.sp) })} ${n}/${o.qty}`, n >= o.qty]; }
     if (o.k === 'noFaint') return [t('obj.noFaint'), st.faints === 0];
     if (o.k === 'within') return [t('qr.withinObj', { n: Math.round(o.s / 60) }), st.t <= o.s];
     return ['?', false];
@@ -204,7 +211,7 @@ export function startQuestRuntime(game, ctx) {
   ctx.finish = finish;
   async function submit(kind, reason) {
     st.phase = 'submitting'; banner?.remove(); prompt.style.display = 'none'; game.input.touch?.setAction(null);
-    const report = { slain: st.slain, captured: st.captured, parts: [...st.parts], gathered: st.gathered, faints: st.faints, used };
+    const report = { slain: st.slain, captured: st.captured, parts: [...st.parts], gathered: st.gathered, kills: st.kills, faints: st.faints, used };
     const card = overlay(`<div class="qr-card"><h1>${kind === 'success' ? t('qr.reporting') : t('qr.returningShort')}</h1><div class="qr-sub">${t('qr.sending')}</div></div>`);
     let r;
     for (let i = 0; i < 6; i++) { r = await game.account.act(kind === 'success' ? 'completeQuest' : 'failQuest', { iid, report, reason }); if (r.ok || (r.error !== 'network' && r.error !== 'too_early')) break; await new Promise((res) => setTimeout(res, r.error === 'too_early' ? 3000 : 1500 * (i + 1))); }
@@ -236,7 +243,7 @@ export function startQuestRuntime(game, ctx) {
 
   // ---------------------------------------------------------------- per-frame
   game.addUpdater((dt) => {
-    st.t += dt; gatherLock -= dt; gather.update(dt);
+    st.t += dt; gatherLock -= dt; gather.update(dt); if (!tuned) tune();
     for (const k in st.buffs) st.buffs[k] = Math.max(0, st.buffs[k] - dt);
     P.gear.buffAtk = st.buffs.atk > 0 ? 1.1 : 1; P.gear.buffDef = st.buffs.def > 0 ? 0.85 : 1;
     if (st.buffs.stam > 0) P.stamina = Math.min(P.maxStamina, P.stamina + 6 * dt);

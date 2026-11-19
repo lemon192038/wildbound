@@ -121,7 +121,7 @@ r = await act(A, 'acceptQuest', { quest: 'q_gather_intro' }); r = await act(A, '
 ok((await act(A, 'completeQuest', { iid: iid3, report: { gathered: { sunpetal: 2, glowcap: 3 } } })).result.ok === false, 'gather quest fails when target counts not met');
 r = await act(A, 'acceptQuest', { quest: 'q_gather_intro' }); r = await act(A, 'depart'); const iid4 = r.result.iid; clock += 120 * 1000; const sp0 = r.state.box.sunpetal || 0;
 r = await act(A, 'completeQuest', { iid: iid4, report: { gathered: { sunpetal: 500, glowcap: 3 } } });
-ok(r.result.ok && r.state.box.sunpetal - sp0 <= 12, 'gathered amounts are capped server-side');
+ok(r.result.ok === false && (r.state.box.sunpetal || 0) - sp0 === 0, 'island quests: a forged "gathered" report counts for nothing (the server counts gathering itself)');
 // delivery quest
 r = await act(A, 'acceptQuest', { quest: 'q_deliver_scales' });
 ok((await act(A, 'deliverQuest')).error === 'missing' || r.ok, 'delivery requires the materials');
@@ -145,7 +145,7 @@ clock += 60 * 1000;
 r = await act(A, 'completeQuest', { iid: fiid, report: { slain: true, parts: ['fistL', 'head'], gathered: { ironOre: 50 } } });
 ok(r.ok && r.result.free && r.state.coins === s1.coins && r.state.profile.xp === s1.profile.xp, 'free expedition: no bounty coins or XP');
 ok(JSON.stringify(r.state.quests.cleared) === JSON.stringify(s1.quests.cleared) && r.state.quests.active?.qid === s1.quests.active.qid, 'free expedition never clears or consumes the accepted quest');
-ok(r.state.hunts.brute?.slain === 1 && r.result.rewards.items.gv_knuckle >= 1 && (r.result.rewards.items.ironOre || 0) <= 10, 'free expedition: hunt log, Gorvath carves/breaks, gathering capped');
+ok(r.state.hunts.brute?.slain === 1 && !r.result.rewards.items.gv_knuckle && !r.result.rewards.items.ironOre, 'free island expedition: hunt log kept; carving and gathering happen on the spot, nothing auto-granted');
 ok((await act(A, 'completeQuest', { iid: fiid, report: { slain: true } })).error === 'no_expedition', 'free expedition rewards cannot be claimed twice');
 r = await act(A, 'depart', { mode: 'quest' });
 ok(r.ok && r.result.dest === 'ember_foothills' && !r.state.quests.expedition.free, 'quest expedition goes to its monster\'s destination (Varkhul → Emberfall Foothills)');
@@ -215,6 +215,32 @@ ok(r.state.ledger.length > 5 && r.state.ledger.every((l) => typeof l.d === 'numb
   await give(hid, { ironOre: 8, monsterBone: 3 }); await store.mutateSave(hid, (d) => { d.coins += 5000; });
   r = await act(H.token, 'craftWeapon', { def: 'rustedAnchor' }); r = await act(H.token, 'equip', { slot: 'weapon', uid: r.result.uid });
   ok(r.ok && r.state.stats.cls === 'anchor', 'stage 6c class weapon (Rusted Ancient Anchor) forged and equipped: loadout class "anchor"');
+}
+
+// ---- island gathering (src/shared/islandGather.js, economy islandGather)
+{
+  const { createIslandField } = await import('../src/world/island/islandField.js'); const { pointsInTile } = await import('../src/shared/islandGather.js');
+  const F = createIslandField(1337); const G = (await call('/api/register', { name: 'Gatherer', password: 'gather-pass-1' })); const gt = G.token;
+  ok((await act(gt, 'islandGather', { iid: 'x', gid: '1_1_1' })).error === 'no_expedition', 'gathering needs an expedition');
+  r = await act(gt, 'acceptQuest', { quest: 'qi_gather_coast' }); ok(r.ok, 'island gather quest accepted');
+  r = await act(gt, 'depart'); const giid = r.result.iid; ok(r.ok && r.result.dest === 'volcanic_island', 'quest departs to the Volcanic Island');
+  ok((await act(gt, 'islandGather', { iid: giid, gid: '999_1_1' })).error === 'bad_point', 'a made-up gather point is refused');
+  const pts = []; for (let tz = 0; tz < 36 && pts.length < 300; tz++) for (let tx = 0; tx < 36; tx++) for (const p of pointsInTile(F, tx, tz)) if (p.region === 'coast' && p.kind === 'shell') pts.push(p);
+  const p0 = pts[0]; clock += 2000; const g1 = await act(gt, 'islandGather', { iid: giid, gid: p0.gid, use: 0 });
+  ok(g1.ok && g1.state.box[g1.result.item] >= 1, `gathering puts the server-rolled item in the box (${g1.result?.item})`);
+  ok((await act(gt, 'islandGather', { iid: giid, gid: p0.gid, use: 0 })).result?.dup, 'the same gather use is idempotent');
+  ok((await act(gt, 'islandGather', { iid: giid, gid: p0.gid, use: 1 })).error === 'rate', 'gathering too fast is refused');
+  clock += 2000; await act(gt, 'islandGather', { iid: giid, gid: p0.gid, use: 1 }); clock += 2000;
+  ok((await act(gt, 'islandGather', { iid: giid, gid: p0.gid, use: 2 })).error === 'empty', 'a point runs out after its uses');
+  const need = { saltKelp: 4, seaGlass: 2 }; let have = { saltKelp: 0, seaGlass: 0 }; let g = 0;
+  for (const p of pts.slice(1)) { for (let u = 0; u < 2; u++) { clock += 1000; const x = await act(gt, 'islandGather', { iid: giid, gid: p.gid, use: u }); g++; if (x.ok && x.result.item in have) have[x.result.item] += x.result.qty; } if (have.saltKelp >= need.saltKelp && have.seaGlass >= need.seaGlass) break; }
+  clock += 60000; r = await act(gt, 'completeQuest', { iid: giid, report: { gathered: {} } });
+  ok(r.ok && r.result.ok, `gather quest completes from the server's own count (${g} gathers: kelp ${have.saltKelp}, glass ${have.seaGlass})`);
+  // a creature quest: slayN counts are checked
+  r = await act(gt, 'acceptQuest', { quest: 'qi_beetle' }); r = await act(gt, 'depart'); const biid = r.result.iid; clock += 120000;
+  ok((await act(gt, 'completeQuest', { iid: biid, report: { kills: { beetle: 1 } } })).result.ok === false, 'creature quest fails when too few were hunted');
+  r = await act(gt, 'acceptQuest', { quest: 'qi_beetle' }); r = await act(gt, 'depart'); const biid2 = r.result.iid; clock += 120000;
+  r = await act(gt, 'completeQuest', { iid: biid2, report: { kills: { beetle: 3 } } }); ok(r.ok && r.result.ok, 'creature quest (3 Magma Beetles) completes');
 }
 
 // ---- the Volcano Slime world event (server/volcano.js)
