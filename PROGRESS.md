@@ -520,6 +520,35 @@ Fix found on the way: objects added to the scene while an island boss was spawni
 - Built game screenshots: the new props on the island; riding the wolf-leader construct; flying the Flame Dragon construct.
 - Not verified: iPad touch feel of RIDE / AIM, two-client co-op riding, waterfall look on a real GPU.
 
+## Stage 8b: Island ecology — eggs, juveniles, nests, territories, dragons, real-model constructs (2026-11-19)
+
+Design and reasoning: `ECOLOGY.md` (Japanese).
+
+| Item | Status | Notes |
+|---|---|---|
+| Every lineage has an egg and a juvenile (13 lineages; special individuals belong to their species; Flame ♂ / Venom-fang ♀ share the dragon egg) | ✅ | `src/shared/lifecycle.js`: 26 new items |
+| Reproduction by eggs everywhere: dens with guarded eggs (boar, wolf, mole), gel eggs (slime), budded core-stones (golem), plus the existing eggs | ✅ | `ecosystem.js` (ECO_VERSION 2); golems now breed (juveniles hard to kill) instead of forming |
+| Lava floods cook nests and stop breeding (except snakes / slimes) | ✅ | found by the eco test |
+| More monsters: ABUNDANCE ×1.6 on every density; render caps raised; 2 more dragons (a second Venom-fang ♀ territory, a Flame ♂ that hunts for her) | ✅ | saved v1 worlds keep the clock + Volcano Slime counter and re-roll populations |
+| Wider ranges: lizard 42 m, wolf packs 240 m, Cinderskin 75 m, mole 55 m, bird circles 40–110 m, dragons up to 800 m | ✅ | |
+| Taking eggs: ecosystem nests (server world checks the nest and loses one egg) and big-monster nests (fixed sites, 30 min refill per hunter); parents react (guarding species turn hostile, dragons engage) | ✅ | economy `islandEgg`, `world.takeEgg`, `src/field/eggs.js` |
+| Juvenile carcasses carve once into "juvenile remains" (per-expedition cap) | ✅ | `islandCarve` with `stage: 0` |
+| Big-monster nests + juveniles (dragons, Varkhul, Gorvath) with the parents' REAL models at a small size; they nose about the nest, freeze, bolt to the nest / parent; a hurt juvenile brings the parent | ✅ | `src/field/broods.js`; checked in the built game (screenshot) |
+| Dragons: Venom-fang ♀ / Cindaryl resident (territory around the nest, ground, hunt inside only); Flame ♂ / upper Flame / Cindral roam the sky island-wide, stoop on Ash Birds in flight and on boars / Cinderskins / lizards / wolves (not beetles / slimes), feed at the kill, mated males provision the female's nest; far away roamers still travel | ✅ node test | `src/field/dragonLife.js` + `m.wander` hook in `wyvern.js`; live hunting in the browser not watched end to end ❓ |
+| Reactions (ecology.js): birds drop low under a dragon, boar herds bunch with the young inside, snakes sink, Cinderskins slink off, lizards freeze, golems stay rocks; juveniles run to adults; guarding adults face the threat; ectotherms bask by lava / vents when cold | ✅ | fauna tests |
+| Observed deaths (predators, fights) are reported to the ecosystem, kills at the creature's home tile (the dead no longer come back when a tile reloads) | ✅ | bug found by the fauna test |
+| Snakes in a narrow lava channel stay submerged instead of resurfacing at once | ✅ | bug found by the fauna test |
+| Constructs use the real monster models (fauna shader meshes, wyvern GLB with variant tint, Varkhul rig, Gorvath model) with a saddle cast onto the back; the recipe also needs an egg or juvenile remains of that lineage | ✅ | `src/monster/models.js`, `src/tame/mountModel.js`; dragons stand in their landed pose (wings low) |
+
+### Stage 8b tests (2026-11-19)
+- `server/api.test.mjs`: **152/152 on SQLite and pg-mem** (eggs: big nest + cooldown + idempotency, an ecosystem nest losing an egg, emptied nest; juvenile carve once; constructs need an egg / juvenile, a dragon juvenile builds the Flame Dragon construct).
+- `src/shared/__eco.test.mjs`: all passed (every species lays eggs within a day: dens / gel eggs / core-stones; v1 → v2 migration).
+- `src/fauna/__fauna.test.mjs`: all passed, three runs in a row (dragon reactions, huddle, juvenile → adult, basking, egg-taking hostility).
+- `src/field/__dragons.test.mjs` (new): roles, sky patrol > 250 m, bird caught in flight, young boar caught, provisioning, small prey ignored, resident stays in territory and hunts inside only, aggro hands over to the boss AI.
+- `src/player/__tame.test.mjs`: 25/25 with the real models (19 constructs, saddle heights 0.9–2.5 m).
+- Player, combat, weapons: passed. `tools/island-test.mjs`: 0 failed. `tools/volcano-test.mjs`: 1 of the first 4 runs failed (item not captured), later runs passed — see the note below.
+- Built game: 9 bosses load (incl. the 2 new dragons); the Venom-fang nest shows its clutch and 2 dragon hatchlings.
+
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
   - island content
