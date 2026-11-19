@@ -221,6 +221,95 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
 - `npx vite build` passed. `tools/island-test.mjs`: 0 failed, no errors.
 - Island screenshot (JA): chips for confusion [long], defence down, burn [medium] and silence; counter stance pose.
 
+## Stage 6: Ecosystem (2026-11-19)
+**Implemented:**
+- **Three-level simulation:**
+  - near hunters: full individual AI;
+  - same region: the same AI at the reduced LOD rate;
+  - everywhere: the statistical model in `src/shared/ecosystem.js`, one record per 64 m tile:
+    - populations by age class (juvenile / young / adult / elder) and herds / packs with their composition;
+    - nests, carcasses and the environment;
+    - hunting pressure and learned wariness.
+- **Breeding** (per species, `ECO` table):
+  - eggs, live birth, splitting (slime) or none (golem);
+  - breeding seasons on a 4-hour cycle;
+  - clutches, nests that hatch after incubation, growth juvenile → young → adult → elder;
+  - nest protection (boars, wolves), and raiders thin unguarded nests;
+  - solitary species meet a mate from the neighbouring ground only in season;
+  - elders can emerge as Grand Moles;
+  - nothing respawns instantly: a hunted-out tile stays empty until breeding or migration refills it;
+  - refuge seeding only when a species falls below 40 % of its starting count island-wide.
+- **Regulation:**
+  - environment food vs. tile capacity (logistic);
+  - predators keep a food reserve refilled by real kills (juveniles are easiest);
+  - starvation and old age;
+  - scavengers eat carrion.
+- **Migration:** individuals move only to a clearly better neighbour tile. Reasons:
+  - food shortage, predators, crowding, volcanic heat or lava damage;
+  - hunting pressure, breeding season (nest ground), injury;
+  - packs that fall apart merge into the nearest pack (no lone wolves).
+- **Carcasses:**
+  - states: fresh → eaten → rotten (insects, fungi) → remains (bones / shell) → gone;
+  - rotting bodies feed fungi and insects; scavengers feed on them.
+  - In the field:
+    - fresh / eaten / rotten carcasses become real dead bodies that darken as they rot, with flies, and scavengers find them;
+    - remains are instanced bones;
+    - nests are egg clutches or den mounds.
+- **Environment:**
+  - ash, heat, minerals, fungi, plants, insects, carrion and lava damage per tile;
+  - deterministic volcanic activity and eruptions: ash and heat near the summit, lava floods kill and destroy nests;
+  - cooled lava brings minerals, old ash fertilises plants, fresh heavy ash smothers them.
+- **Learning:**
+  - **Per tile (persistent on the server):** wariness of the species rises when hunters kill its kin or intrude on its nests, scaled by intelligence (slime 0.05 … wolf 0.85).
+  - **Per individual** (`c.mem`): hits by hunters (which move, which element), kin killed nearby, nest intruded, young attacked.
+  - **Effects:**
+    - sharper senses;
+    - early retreat from hunters;
+    - wary birds lift off early;
+    - side-stepping a charged attack that hurt it twice;
+    - extra caution against the element that hurt it;
+    - protective herds turn on a hunter who attacks their young or intrudes on the den.
+- **Server** (`server/world.js`):
+  - the world is authoritative, stepped every 30 s;
+  - saved to the new `world_state` table every 2 min and on shutdown; on start it catches up the time the server slept;
+  - `GET /api/eco` returns nearby tiles (no login);
+  - `POST /api/eco/report` (login) takes kills by this hunter, nest intrusions and injuries:
+    - event ids are idempotent and the calls are rate limited;
+    - a report can only remove a creature that exists there.
+  - Schema: `supabase/schema.sql` + idempotent DDL in `server/store.js` (RLS on, API roles revoked).
+- **Client** (`src/fauna/ecoClient.js`):
+  - uses the server's world when it answers (spawning waits ≤ 4 s for it); otherwise the same model runs locally (offline);
+  - reports only kills made by this hunter (the model handles predation and age itself).
+- Fixed: lizard / drake prey catch radius now grows with body size (adult lizards could never catch prey).
+
+**Assumptions to confirm with the design document (flagged):**
+- All timings (season length, incubation, growth, lifespans, clutch sizes).
+- Golems do not breed: new golems slowly form in mineral-rich ground. The document does not say how golems reproduce.
+- Bosses (Varkhul, the dragons, Cindral / Cindaryl) are not in the population model yet.
+
+**Partial / not implemented:**
+- Long-term environment change is simulated but not yet shown on the terrain (ash cover, plant growth); it is visible in data only.
+- In co-op each client still simulates its own nearby individuals (the server shares the far layer).
+- Nest / carcass / bones meshes were confirmed by instance counts in the headless run, not visually inspected.
+
+### Stage 6 tests (2026-11-19)
+- `node src/shared/__eco.test.mjs`: **24/24 passed**. Checks:
+  - 48 h without extinction or explosion; births, deaths, predation, migration and eruptions all happen;
+  - packs only; carcass states;
+  - a hunted-out tile stays empty for 5 min and is refilled within hours;
+  - nests and hatching; no bird nests out of season;
+  - lava + hunting push animals out;
+  - wolves learn faster than slimes;
+  - ash after eruptions; carcasses feed fungi;
+  - save / load.
+- `server/api.test.mjs`: **94/94 on SQLite and pg-mem** (9 new eco checks: public read, login for reports, kill removes, carcass and pressure, idempotent, cannot invent deaths, unknown species, save / reload, catch-up after 3 h asleep).
+- **End-to-end with the real server** (`server/server.js`, world warmed 6 h, headless Chromium):
+  - client in server mode, spawned from server data;
+  - a hunter kill reported: server count 6 → 5;
+  - 1 den, 18 bones and 2 carcasses placed; no errors.
+- All other suites passed: server 67, perception, fauna (two tests made robust to random stages), parts, status, player, combat 16/16.
+- `tools/island-test.mjs`: 0 failed, no errors.
+
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
   - island content
@@ -230,7 +319,6 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
   - combat extras still open: grapple (sheathe/parry, ailments, drink times, jump, plunge and roll are done in stage 6a)
   - weapon categories
   - enchanting
-  - ecosystem
   - Volcano Slime event
   - MMO world server and 100-player load tests
   - iPad device verification

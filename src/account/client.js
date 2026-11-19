@@ -44,6 +44,7 @@ export function createAccount(game) {
     state: null,
     get loggedIn() { return !!token && !!acct.state; },
     base,
+    request, // raw API call (used by the ecosystem client: GET /api/eco, POST /api/eco/report)
     async restore() { if (!token) return null; const r = await request('/api/state'); if (r?.ok) { setState(r.state); emit('account:login', { state: r.state }); return r.state; } return null; },
     async register(name, password) { return auth('/api/register', name, password); },
     async login(name, password) { return auth('/api/login', name, password); },

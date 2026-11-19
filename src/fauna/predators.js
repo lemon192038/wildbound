@@ -47,7 +47,7 @@ export function createPredatorAI(ctx) {
     if (c.ai === 'eat') { c.move = 0; c.mode = 0; if (c.prey) c.prey.squash = Math.max(0.3, (c.prey.squash || 1) - dt * 0.08); if (c.t > c.dur) { if (c.prey) c.prey.eaten = true; c.prey = null; setAi(c, 'return'); } return; }
     if (c.ai === 'charge') { // short burst at prey or hunter; no long pursuit
       const T = c.chargeAt; const d = steer(c, T.x, T.z, S.chargeSpeed, dt, 1.4); c.mode = 3;
-      if (c.prey && !c.prey.dead && c.prey.pos.distanceTo(c.pos) < 1.5) { die(c.prey, 'predation', c); setAi(c, 'eat'); c.dur = 8; return; }
+      if (c.prey && !c.prey.dead && c.prey.pos.distanceTo(c.pos) < 1.2 + 0.9 * c.scale) { /* reach grows with body size: bodies are kept apart */ die(c.prey, 'predation', c); setAi(c, 'eat'); c.dur = 8; return; }
       if (c.huntH && h && dH < 1.8 * c.scale + 0.5 && !c.hitDone) { c.hitDone = true; hurtLocal(h, A.charge, c); }
       if (d < 0.6 || c.t > 1.1) { c.prey = null; c.hitDone = false; setAi(c, c.huntH ? 'fight' : 'return'); c.huntH = false; c.chargeCd = 5; }
       return;

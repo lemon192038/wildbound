@@ -32,8 +32,17 @@ create table if not exists public.saves (
   updated_at  bigint  not null
 );
 
+-- Shared world state (stage 6+): the island ecosystem (key 'eco'), later world events. One JSON document per key.
+create table if not exists public.world_state (
+  key         text primary key,
+  version     integer not null,            -- optimistic concurrency
+  data        text    not null,            -- JSON document (see src/shared/ecosystem.js serializeEco)
+  updated_at  bigint  not null
+);
+
 -- Lock the tables away from Supabase's public APIs.
 alter table public.users    enable row level security;
 alter table public.sessions enable row level security;
 alter table public.saves    enable row level security;
-revoke all on table public.users, public.sessions, public.saves from anon, authenticated;
+alter table public.world_state enable row level security;
+revoke all on table public.users, public.sessions, public.saves, public.world_state from anon, authenticated;

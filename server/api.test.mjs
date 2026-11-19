@@ -2,12 +2,15 @@
 import http from 'node:http';
 import { openStore } from './store.js';
 import { createApi } from './api.js';
+import { createWorld } from './world.js';
+import { census, loadEco } from '../src/shared/ecosystem.js';
 import { ITEMS, WEAPONS, QUESTS } from '../src/shared/gamedata.js';
 
 let clock = 1_700_000_000_000;
 const pgModule = process.env.STORE === 'pgmem' ? (await import('pg-mem')).newDb().adapters.createPg() : null; // run the suite against an in-memory Postgres too
 const store = await openStore({ file: ':memory:', log: () => {}, pgModule });
-const api = createApi(store, { now: () => clock, log: () => {} });
+const world = await createWorld(store, { now: () => clock, log: () => {}, autoTick: false });
+const api = createApi(store, { now: () => clock, log: () => {}, world });
 const server = http.createServer((req, res) => api.handle(req, res, new URL(req.url, 'http://x').pathname));
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -199,6 +202,30 @@ ok((await call('/api/logout', {}, A)).ok && (await call('/api/state', null, A)).
 r = await call('/api/login', { name: 'AYLA', password: 'hunter-pass-1' });
 ok(r.ok && r.state.coins === stA.coins && JSON.stringify(r.state.box) === JSON.stringify(stA.box) && r.state.equip.length === stA.equip.length, 're-login restores identical data');
 ok(r.state.ledger.length > 5 && r.state.ledger.every((l) => typeof l.d === 'number'), 'coin ledger (earn/spend history) recorded');
+
+// ---- island ecosystem (server/world.js, src/shared/ecosystem.js)
+{
+  const A = (await call('/api/register', { name: 'Ecoist', password: 'eco-pass-123' })).token;
+  r = await call('/api/eco?x=0&z=300&r=2');
+  ok(r.ok && r.eco.tiles.length > 0 && r.eco.tiles.every((t) => t.env && t.p), 'GET /api/eco returns nearby tiles without a login');
+  ok((await call('/api/eco/report', { events: [] })).status === 401, 'reports need a login');
+  // find a tile with a beetle and kill one there
+  const Wd = world.W; const T = Object.values(Wd.tiles).find((q) => q.p.beetle && q.p.beetle[2] > 0);
+  const x = -1152 + T.tx * 64 + 30, z = -1152 + T.tz * 64 + 30; const before = census(Wd).beetle;
+  r = await call('/api/eco/report', { events: [{ eid: 'k1', sp: 'beetle', stage: 2, x, z, cause: 'hunter' }] }, A);
+  ok(r.ok && r.results[0].ok && census(Wd).beetle === before - 1, 'a reported kill removes that beetle from the world');
+  ok(T.cc.some((c) => c.sp === 'beetle') && T.hunt > 0, 'the kill leaves a carcass and raises hunting pressure there');
+  r = await call('/api/eco/report', { events: [{ eid: 'k1', sp: 'beetle', stage: 2, x, z, cause: 'hunter' }] }, A);
+  ok(r.results[0].dup && census(Wd).beetle === before - 1, 'the same event id is applied once (idempotent)');
+  const sea = await call('/api/eco/report', { events: [{ eid: 'k2', sp: 'golem', stage: 2, x: 1100, z: 1100, cause: 'hunter' }] }, A);
+  ok(!sea.results[0].ok, 'a report cannot invent a death where no such creature lives');
+  ok(!(await call('/api/eco/report', { events: [{ eid: 'k3', sp: 'dragon', x, z }] }, A)).results[0].ok, 'unknown species rejected');
+  // persistence + catch-up
+  world.tick(30); await world.save(); const row = await store.getWorld('eco');
+  ok(row && JSON.stringify(census(loadEco(world.field, row.data))) === JSON.stringify(census(Wd)), 'ecosystem saved to world_state and reloads identically');
+  clock += 3 * 3600 * 1000; const w2 = await createWorld(store, { now: () => clock, log: () => {}, autoTick: false });
+  ok(w2.W.t > Wd.t + 3 * 3600 - 200, 'a restarted server catches up the hours it slept (no frozen world)');
+}
 
 server.close(); await store.close();
 console.log(`\n${pass} passed, ${failN} failed`); process.exit(failN ? 1 : 0);

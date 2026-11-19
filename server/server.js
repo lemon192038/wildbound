@@ -59,6 +59,7 @@ import { WebSocketServer } from 'ws';
 import { motionValue, MAX_REACH } from '../src/net/hitcheck.js';
 import { openStore } from './store.js';
 import { createApi } from './api.js';
+import { createWorld } from './world.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -139,7 +140,9 @@ export function startServer({ port = Number(process.env.PORT ?? 8080), host = pr
   // Accounts / saves / economy API (see server/api.js). The store opens asynchronously; API calls wait for it.
   const storeReady = givenStore ? Promise.resolve(givenStore) : openStore({ url: databaseUrl, file: dbPath, log });
   let api = null;
-  storeReady.then((st) => { api = createApi(st, { allowedOrigins, log }); }).catch((e) => log('[wildbound] store failed:', e.message));
+  // the island ecosystem runs here, authoritatively (server/world.js); ECO=0 disables it
+  const worldReady = process.env.ECO === '0' ? Promise.resolve(null) : storeReady.then((st) => createWorld(st, { log })).catch((e) => { log('[wildbound] ecosystem failed:', e.message); return null; });
+  storeReady.then((st) => { api = createApi(st, { allowedOrigins, log, world: worldReady }); }).catch((e) => log('[wildbound] store failed:', e.message));
   function routeApi(req, res, pathname) {
     storeReady.then(() => api.handle(req, res, pathname)).catch(() => { res.writeHead(503, { 'Content-Type': 'application/json' }); res.end('{"ok":false,"error":"store"}'); });
   }
@@ -435,6 +438,7 @@ export function startServer({ port = Number(process.env.PORT ?? 8080), host = pr
     for (const c of clients) { send(c, { t: 'bye' }); try { c.ws.close(1001, 'server shutdown'); } catch { /* */ } }
     await new Promise((r) => { server.close(() => r()); server.closeAllConnections?.(); setTimeout(r, 1500).unref(); });
     for (const c of clients) c.ws.terminate();
+    await worldReady.then((w) => w?.close()).catch(() => {}); // persist the ecosystem before the store closes
     if (!givenStore) await storeReady.then((st) => st.close()).catch(() => {});
     log('[wildbound] stopped');
   }

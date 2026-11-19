@@ -291,7 +291,7 @@ export function createFaunaRender(THREE, scene, { low = false, caps = { beetle: 
       M.compose(c.pos, Q, S); m.setMatrixAt(i, M);
       const a = anims[sp].array; a[i * 4] = anim[0]; a[i * 4 + 1] = anim[1]; a[i * 4 + 2] = anim[2]; a[i * 4 + 3] = anim[3];
       breaks[sp].array[i] = c.breakMask || 0;
-      const k = c.dead ? 0.35 : 1 + c.flash * 2; C.setRGB(k, c.dead ? 0.3 : k, c.dead ? 0.3 : k); m.setColorAt(i, C);
+      const k = c.dead ? 0.35 * (1 - 0.55 * (c.rot || 0)) : 1 + c.flash * 2; C.setRGB(k, c.dead ? k * 0.86 : k, c.dead ? k * 0.8 : k); // rotting bodies darken m.setColorAt(i, C);
       counts[sp] = i + 1;
     },
     // raw instance (snake segments / heads): matrix already composed by the caller

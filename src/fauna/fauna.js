@@ -8,13 +8,16 @@
 //   Bird   — soars over its home ground, lands to sweep ash for food, hunts beetles and small slimes by diving
 //            (prey that curls/burrows in time makes the hunt fail); keeps its distance from hunters, takes off
 //            when approached on the ground, flees for a while below 40 % HP; climbs during eruptions.
-// Population: a per-64 m-tile session census. Tiles near hunters are instantiated, far ones are stored again
-// (survivors return to the census of the tile they ended up in). Killed individuals do not instantly respawn;
-// a stored tile below capacity gains one adult every 3 minutes (PROVISIONAL until the stage-6 breeding model).
+// Population (stage 6): the island ecosystem (src/shared/ecosystem.js) is the far layer. When a 64 m tile comes near a
+// hunter, its individuals are built from the ecosystem's age classes, herds/packs, nests and carcasses (ecoClient.js:
+// the server's world, or the same model locally). When the tile goes far again the individuals are dropped: the
+// ecosystem never lost them. Kills by this hunter are reported back; nothing respawns where it died.
 // NOT networked yet: each client simulates its own fauna (stage 8).
 import { SPECIES, STAGES, PARTS, BREAK_BIT, BODY_SIZE } from './species.js';
 import { makePart, resolvePartHit, tickRegen, disabled, pickTargetPart } from '../core/parts.js';
 import { createFaunaRender } from './faunaRender.js';
+import { createEcoClient } from './ecoClient.js';
+import { ECO } from '../shared/ecosystem.js';
 import { createPredatorAI } from './predators.js';
 import { createHerdAI } from './herds.js';
 import { createEarthAI } from './earthkin.js';
@@ -31,6 +34,7 @@ const ATTACKING = /light|heavy|charge|slash|tackle/;
 export function createFauna(game) {
   const { THREE } = game; const W = game.world, F = W.island;
   const render = createFaunaRender(THREE, game.scene, { low: W.low });
+  const eco = F?.regionAt ? createEcoClient(game, F) : null;
   const list = []; const census = new Map(); const spawned = new Set();
   const hash = new SpatialHash(16), colHash = new SpatialHash(16); let colN = -1;
   const rnd = mulberry32((F.seed || 1337) + 4141);
@@ -66,6 +70,21 @@ export function createFauna(game) {
   const tkey = (tx, tz) => tz * 1000 + tx;
   function censusOf(tx, tz) {
     const k = tkey(tx, tz); let C = census.get(k); if (C) return C;
+    if (eco && !eco.ready) return null; // first seconds: waiting for the server's ecosystem
+    const V = eco?.tile(tx, tz);
+    if (V) { // from the ecosystem: exact age classes, herds / packs with their composition, nests, carcasses, wariness
+      C = { eco: true, cap: {}, stored: {}, stages: {}, groups: [], nests: V.nest || [], cc: V.cc || [], wary: V.wary || {}, regenT: Infinity };
+      const x0 = -F.half + tx * TILE, z0 = -F.half + tz * TILE;
+      for (const [sp, a] of Object.entries(V.p || {})) { if (!SPECIES[sp]) continue; C.stages[sp] = [...a]; C.stored[sp] = a.reduce((x, y) => x + y, 0); }
+      for (const g of V.g || []) {
+        const members = []; const n = [...g.n]; const special = SPECIES[g.sp].group?.special;
+        if (g.s && special) { const st = n[3] > 0 ? 3 : n[2] > 0 ? 2 : -1; if (st >= 0) { n[st]--; members.push({ role: special, stage: 2 }); } }
+        for (let i = 0; i < 4; i++) for (let j = 0; j < n[i]; j++) members.push({ role: 'member', stage: i });
+        if (members.length) C.groups.push({ sp: g.sp, x: x0 + 12 + rnd() * (TILE - 24), z: z0 + 12 + rnd() * (TILE - 24), members, eco: true });
+      }
+      for (const sp of Object.keys(SPECIES)) if (!SPECIES[sp].of && C.stored[sp] == null) C.stored[sp] = 0;
+      census.set(k, C); return C;
+    }
     const x0 = -F.half + tx * TILE, z0 = -F.half + tz * TILE; const r = mulberry32(k * 31 + 7);
     const regs = [[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]].map(([a, b]) => F.regionAt(x0 + a * TILE, z0 + b * TILE));
     C = { cap: {}, stored: {}, groups: [], regenT: REGEN_S * (0.5 + r()) };
@@ -77,9 +96,10 @@ export function createFauna(game) {
     census.set(k, C); return C;
   }
   function spawnTile(tx, tz) {
-    const C = censusOf(tx, tz); const x0 = -F.half + tx * TILE, z0 = -F.half + tz * TILE;
+    const C = censusOf(tx, tz); if (!C) return; const x0 = -F.half + tx * TILE, z0 = -F.half + tz * TILE;
     // group species: stored groups come back with their composition; fresh groups for the rest of the census
-    for (const comp of C.groups.splice(0)) spawnGroup(comp.sp, comp.x, comp.z, comp.members);
+    for (const comp of C.groups.splice(0)) { if (comp.eco) comp.members.eco = true; spawnGroup(comp.sp, comp.x, comp.z, comp.members); }
+    if (C.eco) placeEcoProps(tx, tz, C);
     for (const sp of Object.keys(SPECIES)) {
       const S = SPECIES[sp]; if (S.of) continue;
       if (S.group) {
@@ -95,7 +115,7 @@ export function createFauna(game) {
           if (SPECIES[sp].habitat === 'lava') { if (PRED.inLava(x, z) && F.lava(x, z, Ls).sd < -2.5) spot = [x, z]; }
           else if (okSpot(x, z, sp) && !insideCollider(x, z, 0.8)) spot = [x, z];
         }
-        if (spot) create(sp, spot[0], spot[1], rollStage()); else C.stored[sp]++; // no room now: stays in the census
+        if (spot) { const c = create(sp, spot[0], spot[1], C.stages ? takeStage(C.stages[sp]) : rollStage()); if (C.eco) { c.fromEco = true; learnFromTile(c, C); } } else C.stored[sp]++; // no room now: stays in the census
       }
     }
     spawned.add(tkey(tx, tz));
@@ -112,41 +132,137 @@ export function createFauna(game) {
     }
     for (const m of members) {
       const s = pickSpot(x, z, 0, 7, sp) || [x, z];
-      const c = create(sp, s[0], s[1], m.stage, { hp: m.hp, S: m.role === 'member' ? null : SPECIES[m.role] });
-      HERD.join(g, c, m.role);
+      const c = create(sp, s[0], s[1], m.stage, { hp: m.hp, S: m.role === 'member' ? null : SPECIES[m.role], noSpecial: true });
+      HERD.join(g, c, m.role); if (members.eco) { c.fromEco = true; learnFromTile(c, censusOf(...W.chunks.tileOf(x, z))); }
     }
     return g;
   }
   function storeGroup(g) {
     const live = HERD.alive(g); const C0 = HERD.centerOf(g); const [tx, tz] = W.chunks.tileOf(C0.x, C0.z);
-    if (live.length) censusOf(tx, tz).groups.push({ sp: g.sp, x: g.home.x, z: g.home.z, members: live.map((m) => ({ role: m.role, stage: m.stage, hp: m.hp })) });
+    if (live.length && !eco) censusOf(tx, tz).groups.push({ sp: g.sp, x: g.home.x, z: g.home.z, members: live.map((m) => ({ role: m.role, stage: m.stage, hp: m.hp })) });
     for (const m of g.members) { const i = list.indexOf(m); if (i >= 0) list.splice(i, 1); }
     HERD.groups.delete(g); stats.despawned += live.length;
   }
+  function takeStage(a) { if (!a) return rollStage(); for (let i = 0; i < 4; i++) if (a[i] > 0) { a[i]--; return i; } return 2; }
   function rollStage() { const r = rnd(); return r < 0.15 ? 0 : r < 0.4 ? 1 : r < 0.9 ? 2 : 3; }
   function create(sp, x, z, stage, opts = {}) {
     if (sp === 'golem') stage = 2;                                   // golems do not breed like animals: no juveniles
     if (sp === 'mole' && stage === 0) stage = 1;                     // mole juveniles stay deep in the nest
-    const sx = SPECIES[sp].special; if (!opts.S && sx && rnd() < sx.chance) { opts.S = SPECIES[sx.id]; stage = 2; } // e.g. Grand Mole
-    const S = opts.S || SPECIES[sp], G = STAGES[stage];
+    const sx = SPECIES[sp].special; if (!opts.S && !opts.noSpecial && sx && rnd() < sx.chance * (stage === 3 ? 4 : stage === 2 ? 1 : 0)) { opts.S = SPECIES[sx.id]; stage = 2; } // e.g. Grand Mole: an old giant (elders far more often)
+    const S0 = opts.S || SPECIES[sp], G = STAGES[stage];
+    // each individual gets its own view of the species data so learning can sharpen its senses (S.senses)
+    const S = Object.create(S0); S.senses = { ...S0.senses };
     const c = {
-      id: nextId++, sp, S, stage, scale: S.size * G.scale, maxHp: Math.round(S.hp * G.hp), hp: 0, pos: new THREE.Vector3(x, ground(x, z), z),
+      id: nextId++, sp, kind: Object.keys(SPECIES).find((k) => SPECIES[k] === S0) || sp, S, S0, stage, scale: S.size * G.scale, maxHp: Math.round(S.hp * G.hp), hp: 0, pos: new THREE.Vector3(x, ground(x, z), z),
       home: new THREE.Vector3(x, 0, z), yaw: rnd() * TAU, pitch: 0, roll: 0, squash: 1, vel: new THREE.Vector3(), ai: 'roam', t: 0, dur: 2 + rnd() * 4,
       target: null, phase: rnd() * 10, move: 0, mode: 0, heat: 0, flash: 0, hunger: rnd() * 0.5, aggroT: 0, cd: 0, burstCd: 0, curlT: 0, hits: 0, acc: 0,
       alt: 0, altT: 0, dead: false, corpseT: 0, prey: null, hunter: null, fleeT: 0, eaten: false, lastHitAt: -99,
     };
     c.hp = opts.hp ?? c.maxHp;
-    if (sp === 'mole') { c.ai = 'roam'; c.under = true; c.mode = 2; c.rise = 0; c.special = S !== SPECIES.mole; }
+    if (sp === 'mole') { c.ai = 'roam'; c.under = true; c.mode = 2; c.rise = 0; c.special = S0 !== SPECIES.mole; }
     if (sp === 'golem') { c.ai = 'dormant'; c.patient = rnd() < 0.4; c.slamCd = c.throwCd = c.chargeCd = 0; c.rise = 0; c.arm = 0; c.calmT = 0; }
     if (sp === 'lizard' || sp === 'drake') { c.ai = sp === 'drake' ? 'patrol' : 'ambush'; c.fireCd = 0; c.chargeCd = 0; }
     if (sp === 'snake') { c.ai = 'lurk'; c.ballCd = 3; c.jaw = 0; c.segs = 16; c.spacing = 0.85 * c.scale; c.trail = []; const L = F.lava(x, z, Ls); c.pos.y = L.level - 0.15; for (let i = 0; i < c.segs * 2 + 2; i++) c.trail.push(new THREE.Vector3(x - Math.sin(c.yaw) * i * c.spacing * 0.5, L.level - 0.35, z - Math.cos(c.yaw) * i * c.spacing * 0.5)); }
     if (sp === 'bird') { c.alt = S.altitude[0] + rnd() * (S.altitude[1] - S.altitude[0]); c.altT = c.alt; c.ai = 'soar'; c.orbit = { r: 25 + rnd() * 35, dir: rnd() < 0.5 ? 1 : -1, a: rnd() * TAU }; }
     Object.assign(c, opts.extra || {});
+    c.homeAi = c.ai; c.mem = { hit: 0, kin: 0, nest: 0, young: 0, motion: {}, elem: {}, w: 0 }; c.wary = 0;
     attach(c); list.push(c); stats.spawned++;
     return c;
   }
   function despawn(c) {
+    if (eco) { stats.despawned++; return; }
     const [tx, tz] = W.chunks.tileOf(c.pos.x, c.pos.z); const C = censusOf(tx, tz); C.stored[c.sp] = (C.stored[c.sp] || 0) + 1; stats.despawned++;
+  }
+
+
+  // ------------------------------------------------------------------ learning (user spec §7-4)
+  // Each individual remembers: hits from hunters (and by which move / element), kin killed near it, its nest
+  // intruded, its young attacked. Wariness = what the tile's population already learned (ecosystem) + its own
+  // memory, scaled by the species' intelligence (ECO.iq: slimes barely learn, wolves learn fast).
+  // Effects: sharper senses, retreating from hunters before a fight, side-stepping a move that hurt it before,
+  // and protective herds turning on the hunter.
+  function applyWary(c) {
+    const m = c.mem, iq = ECO[c.sp]?.iq ?? 0.3;
+    c.wary = Math.min(1, m.w + iq * (0.12 * m.hit + 0.25 * m.kin + 0.3 * m.nest + 0.2 * m.young));
+    const k = 1 + 0.8 * c.wary; for (const key in c.S0.senses) c.S.senses[key] = c.S0.senses[key] * k;
+  }
+  function learnFromTile(c, C) { if (!C?.wary) return; c.mem.w = Math.min(0.8, (C.wary[c.sp] || 0)); applyWary(c); }
+  function kinAlarm(c, cause) {
+    if (cause !== 'hunted') return;
+    for (const o of near(c.pos, 45)) if (o !== c && !o.dead && o.sp === c.sp) { o.mem.kin++; applyWary(o); }
+  }
+  const NO_WARY = new Set(['snake', 'golem', 'slime']);
+  function wantWary(c, dH) {
+    if (c.wary < 0.4 || c.group || NO_WARY.has(c.sp) || c.under || c.aggroT > 0 || c.engaged || dH > 22) return false;
+    if (c.sp === 'bird') { if (c.alt < 1 && c.ai !== 'takeoff') { setAi(c, 'takeoff'); } return false; } // wary birds lift off early
+    const P = game.player; const el = P?.gear?.element?.type || 'raw'; const extra = (c.mem.elem[el] || 0) >= 3 ? 0.2 : 0; // the weapon that hurt it before
+    return dH < (c.S.senses.sight * 0.6 + 6) * (c.wary + extra);
+  }
+  function thinkWary(c, dt) {
+    const [h, dH] = nearestHunter(c.pos.x, c.pos.z);
+    if (!h || dH > 30 || c.t > 6 || c.aggroT > 0) { setAi(c, c.homeAi || 'roam'); return; }
+    const a = Math.atan2(c.pos.x - h.pos.x, c.pos.z - h.pos.z);
+    steer(c, c.pos.x + Math.sin(a) * 10, c.pos.z + Math.cos(a) * 10, (c.S.speed || 2) * 1.3, dt, 4);
+  }
+  const CHARGED = /charge|heavy|trueslash|tcharge/;
+  function learnedDodge(c, dH) {
+    if (dH > 6.5 || c.dodgeCd > clock || (ECO[c.sp]?.iq ?? 0) < 0.4 || c.under || c.sp === 'snake' || c.sp === 'golem') return false;
+    const P = game.player; if (!P || !/^(charge|tcharge)$/.test(P.state)) return false;
+    const n = Object.entries(c.mem.motion).reduce((a, [k, v]) => a + (CHARGED.test(k) ? v : 0), 0); if (n < 2) return false;
+    const fx = Math.sin(P.facing), fz = Math.cos(P.facing), dx = c.pos.x - P.position.x, dz = c.pos.z - P.position.z;
+    if ((fx * dx + fz * dz) / Math.max(0.1, Math.hypot(dx, dz)) < 0.6) return false; // not aimed at it
+    const side = (fx * dz - fz * dx) > 0 ? 1 : -1; c.dodgeDir = [fz * side, -fx * side]; c.dodgeT = 0.4; c.dodgeCd = clock + 4; stats.dodges = (stats.dodges || 0) + 1;
+    game.events?.emit?.('fauna:dodge', { creature: c }); return true;
+  }
+
+  // ------------------------------------------------------------------ nests and remains from the ecosystem
+  // Nests (egg clutches / dens) and old remains (bones, shell) in spawned tiles are instanced props; fresh / eaten /
+  // rotten carcasses become real dead bodies that scavengers find. A hunter near a nest is a nest intrusion.
+  const eggGeo = new THREE.SphereGeometry(0.22, 7, 5); eggGeo.scale(1, 1.3, 1);
+  const nestMesh = new THREE.InstancedMesh(eggGeo, new THREE.MeshStandardMaterial({ color: 0xd8c8a8, roughness: 0.6, emissive: 0x3a1a08, emissiveIntensity: 0.4 }), 160);
+  const boneGeo = new THREE.CylinderGeometry(0.06, 0.08, 1.1, 5); boneGeo.rotateZ(Math.PI / 2);
+  const boneMesh = new THREE.InstancedMesh(boneGeo, new THREE.MeshStandardMaterial({ color: 0xcfc6b2, roughness: 0.9 }), 160);
+  const denGeo = new THREE.SphereGeometry(1, 9, 5); denGeo.scale(1.6, 0.28, 1.6);
+  const denMesh = new THREE.InstancedMesh(denGeo, new THREE.MeshStandardMaterial({ color: 0x3a2a1c, roughness: 1 }), 40);
+  for (const m of [nestMesh, boneMesh, denMesh]) { m.count = 0; m.frustumCulled = false; game.scene.add(m); }
+  nestMesh.name = 'eco-nests'; boneMesh.name = 'eco-remains'; denMesh.name = 'eco-dens';
+  const props = new Map(); // tile key → { nests: [{sp, n, x, z, y, told}], bones: [{x, z, y, a, s}] }
+  let propsDirty = false, nestT = 0;
+  function placeEcoProps(tx, tz, C) {
+    const x0 = -F.half + tx * TILE, z0 = -F.half + tz * TILE; const P = { nests: [], bones: [] };
+    for (const q of C.nests || []) { if (!(q.n > 0)) continue; const x = x0 + q.dx, z = z0 + q.dz; if (SPECIES[q.sp]?.habitat === 'lava') continue; P.nests.push({ sp: q.sp, n: Math.min(5, q.n), x, z, y: ground(x, z), told: false }); }
+    for (const cc of C.cc || []) {
+      const x = x0 + cc.dx, z = z0 + cc.dz; if (SPECIES[cc.sp]?.habitat === 'lava' || !okSpot(x, z, cc.sp)) continue;
+      if (cc.s === 'remains') { for (let i = 0; i < 3; i++) P.bones.push({ x: x + (rnd() - 0.5) * 1.6, z: z + (rnd() - 0.5) * 1.6, y: ground(x, z) + 0.06, a: rnd() * TAU, s: (BODY_SIZE[cc.sp] || 1) * 0.5 }); continue; }
+      const c = create(cc.sp, x, z, 2, { noSpecial: true }); deadPose(c, cc.s === 'rotten' ? 240 : 420); c.eaten = cc.s === 'eaten' && rnd() < 0.5; c.rot = cc.s === 'rotten' ? 0.7 : cc.s === 'eaten' ? 0.3 : 0; c.ecoCarcass = true;
+    }
+    props.set(tkey(tx, tz), P); propsDirty = true;
+  }
+  function removeEcoProps(k) { if (props.delete(k)) propsDirty = true; }
+  const _pm = new THREE.Matrix4(), _pq = new THREE.Quaternion(), _pe = new THREE.Euler(), _ps = new THREE.Vector3(), _pp = new THREE.Vector3();
+  function ecoPropsTick(dt) {
+    // nest intrusion: a hunter within 7 m of a nest (once per nest)
+    if ((nestT -= dt) <= 0) {
+      nestT = 0.5; const P = game.player?.position;
+      if (P && !game.player.dead) for (const T of props.values()) for (const q of T.nests) {
+        if (q.told || Math.hypot(P.x - q.x, P.z - q.z) > 7) continue; q.told = true; stats.nestIntrusions = (stats.nestIntrusions || 0) + 1;
+        eco?.report({ type: 'nest', sp: q.sp, x: q.x, z: q.z });
+        for (const o of near(_pp.set(q.x, 0, q.z), 50)) if (!o.dead && o.sp === q.sp && o.stage >= 2) { o.mem.nest++; applyWary(o); if (o.group && (ECO[o.sp]?.protect || 0) > 0.5) o.group.hostile = game.player; }
+        game.events?.emit?.('fauna:nest', { species: q.sp, pos: _pp.clone() });
+      }
+    }
+    // rotting bodies: flies over them, darker every minute; when they are gone the bones stay a while
+    for (const c of list) if (c.dead && !c.eaten) { c.rot = Math.min(1, (c.rot || 0) + dt / 300); if (c.rot > 0.5 && rnd() < dt * 0.15 && game.player && c.pos.distanceTo(game.player.position) < 40) W.spawnDust?.(c.pos.clone().setY(c.pos.y + 0.8), 0.08); }
+    if (!propsDirty) return; propsDirty = false;
+    let n = 0, b = 0, dn = 0;
+    for (const T of props.values()) {
+      for (const q of T.nests) {
+        if (ECO[q.sp]?.mode === 'birth') { if (dn < 40) { _pm.compose(_pp.set(q.x, q.y, q.z), _pq.identity(), _ps.setScalar((BODY_SIZE[q.sp] || 2) * 0.7)); denMesh.setMatrixAt(dn++, _pm); } continue; } // a den / burrow mound
+        for (let i = 0; i < q.n && n < 160; i++) { const a = (i / q.n) * TAU; _pm.compose(_pp.set(q.x + Math.cos(a) * 0.35, q.y + 0.18, q.z + Math.sin(a) * 0.35), _pq.identity(), _ps.setScalar((BODY_SIZE[q.sp] || 1) * 0.35)); nestMesh.setMatrixAt(n++, _pm); }
+      }
+      for (const o of T.bones) if (b < 160) { _pq.setFromEuler(_pe.set(0, o.a, 0)); _pm.compose(_pp.set(o.x, o.y, o.z), _pq, _ps.setScalar(o.s)); boneMesh.setMatrixAt(b++, _pm); }
+    }
+    nestMesh.count = n; boneMesh.count = b; denMesh.count = dn; for (const m of [nestMesh, boneMesh, denMesh]) m.instanceMatrix.needsUpdate = true;
   }
 
   // ------------------------------------------------------------------ combat interface (same shape as bosses)
@@ -155,7 +271,7 @@ export function createFauna(game) {
     // stage-4 parts: breakable parts absorb hits (src/core/parts.js); 'body' is the creature itself
     c.parts = (PARTS[c.sp] || []).map((d) => makePart({ ...d, hp: d.hp ? Math.max(20, Math.round(d.hp * c.maxHp)) : 99999, breakable: !!d.hp }));
     if (!c.parts.some((p) => p.name === 'body')) c.parts.push(makePart({ name: 'body', hp: 99999, hitzone: 1, hardness: 0.3 + (c.S.defense || 0.5) * 0.5 }));
-    c.breakMask = 0; c.bodySize = (BODY_SIZE[Object.keys(SPECIES).find((k) => SPECIES[k] === c.S)] || BODY_SIZE[c.sp] || 1) * STAGES[c.stage].scale;
+    c.breakMask = 0; c.bodySize = (BODY_SIZE[c.kind] || BODY_SIZE[c.sp] || 1) * STAGES[c.stage].scale;
     const N = c.S.name, E = c.S.epithet; c.name = isJa() ? N.ja : N.en; if (E) c.epithet = isJa() ? E.ja : E.en; c.isFauna = true;
     Object.defineProperty(c, 'position', { get() { return c.pos; } });
     Object.defineProperty(c, 'state', { get() { return c.dead ? 'dead' : c.ai; } });
@@ -184,8 +300,12 @@ export function createFauna(game) {
     };
     c.receiveHit = (h) => hit(c, h);
   }
-  function hit(c, { damage = 0, point, attackerId, part = 'body', by = null } = {}) {
+  function hit(c, { damage = 0, point, attackerId, part = 'body', by = null, motion = null, element = null } = {}) {
     if (c.dead) return { damage: 0, part };
+    if (!by) { // learning: being struck by a hunter, by which move and which element
+      const m = c.mem; m.hit++; if (motion) m.motion[motion] = (m.motion[motion] || 0) + 1; const el = element || 'raw'; m.elem[el] = (m.elem[el] || 0) + 1; applyWary(c);
+      if (c.stage <= 1) for (const o of near(c.pos, 30)) if (o !== c && o.sp === c.sp && !o.dead && o.stage >= 2) { o.mem.young++; applyWary(o); if (o.group && (ECO[o.sp]?.protect || 0) > 0.5) o.group.hostile = game.player; } // its young was attacked
+    }
     let mult = c.sp === 'beetle' ? 0.55 : c.sp === 'slime' ? 0.85 : c.sp === 'lizard' ? 0.7 : c.sp === 'drake' ? 0.62 : c.sp === 'snake' ? 0.45 : c.sp === 'boar' ? (1 - c.S.defense * 0.45) : c.sp === 'wolf' ? 0.8 : c.sp === 'mole' ? 0.5 : c.sp === 'golem' ? 0.42 : 0.95;
     const P = c.parts.find((p) => p.name === part) || c.parts.find((p) => p.name === 'body');
     mult *= P?.hitzone ?? 1;
@@ -221,11 +341,18 @@ export function createFauna(game) {
     if (!by) game.events?.emit?.('monster:partBreak', { monster: c, part: p.name });
   }
   function die(c, cause, by) {
-    if (c.dead) return; c.dead = true; c.hp = 0; c.corpseT = cause === 'predation' ? 30 : 90; c.ai = 'dead'; c.move = 0;
+    if (c.dead) return; deadPose(c, cause === 'predation' ? 30 : 90);
     if (c.sp === 'lizard' || c.sp === 'drake') c.roll = 2.6; if (c.sp === 'wolf' || c.sp === 'boar') { c.roll = 1.5; c.mode = 2; } if (c.sp === 'snake') { c.jaw = 0.6; c.pos.y = F.lava(c.pos.x, c.pos.z, Ls).level - 0.05; }
-    if (c.sp === 'beetle') c.roll = Math.PI; if (c.sp === 'bird') { c.alt = 0; c.roll = 1.3; } if (c.sp === 'slime') c.squash = 0.55;
     stats.died++; if (cause === 'predation') stats.predation++;
     game.events?.emit?.('fauna:died', { creature: c, species: c.sp, cause, by });
+    // ecosystem: only kills by THIS hunter are reported (the model already accounts for predation, age, starvation)
+    if (eco && c.fromEco && cause === 'hunted' && c.hunter === game.player) eco.report({ type: 'kill', sp: c.sp, stage: c.stage, x: c.pos.x, z: c.pos.z, cause: 'hunter' });
+    kinAlarm(c, cause);
+  }
+  function deadPose(c, corpseT) {
+    c.dead = true; c.hp = 0; c.corpseT = corpseT; c.ai = 'dead'; c.move = 0;
+    if (c.sp === 'lizard' || c.sp === 'drake') c.roll = 2.6; if (c.sp === 'wolf' || c.sp === 'boar') { c.roll = 1.5; c.mode = 2; } if (c.sp === 'snake') { c.jaw = 0.6; c.pos.y = F.lava(c.pos.x, c.pos.z, Ls).level - 0.05; }
+    if (c.sp === 'beetle') c.roll = Math.PI; if (c.sp === 'bird') { c.alt = 0; c.roll = 1.3; } if (c.sp === 'slime') c.squash = 0.55;
   }
   function heatBurst(c) {
     const B = SPECIES.beetle.heatBurst; c.burstCd = B.cooldown; c.heat = 1.5;
@@ -423,6 +550,7 @@ export function createFauna(game) {
   let clock = 0; const sighted = new Set();
   function update(dt, rawDt) {
     if (dt <= 0) return; clock += dt; frame++; eruptT = Math.max(0, eruptT - dt);
+    eco?.update(dt, game.player?.position); ecoPropsTick(dt);
     gatherHunters(); rebuildColliders();
     // spawn / despawn around hunters (twice a second)
     spawnT -= dt;
@@ -441,9 +569,9 @@ export function createFauna(game) {
         if (d > DESPAWN_R) { if (!c.dead) despawn(c); list.splice(i, 1); }
       }
       for (const g of [...HERD.groups]) { const far = g.members.every((m) => m.dead || nearestHunter(m.pos.x, m.pos.z)[1] > DESPAWN_R); if (far) storeGroup(g); }
-      for (const k of [...spawned]) { const tx = k % 1000, tz = Math.floor(k / 1000); const mx = -F.half + (tx + 0.5) * TILE, mz = -F.half + (tz + 0.5) * TILE; let far = true; for (const h of hunters) if (Math.hypot(mx - h.pos.x, mz - h.pos.z) < DESPAWN_R - 20) far = false; if (far) spawned.delete(k); }
-      // provisional regrowth in stored (unobserved) tiles
-      for (const [k, C] of census) { if (spawned.has(k)) continue; C.regenT -= 0.5; if (C.regenT > 0) continue; C.regenT = REGEN_S; for (const sp of Object.keys(C.cap)) if (!SPECIES[sp].group && C.stored[sp] < C.cap[sp]) { C.stored[sp]++; stats.regen++; break; } }
+      for (const k of [...spawned]) { const tx = k % 1000, tz = Math.floor(k / 1000); const mx = -F.half + (tx + 0.5) * TILE, mz = -F.half + (tz + 0.5) * TILE; let far = true; for (const h of hunters) if (Math.hypot(mx - h.pos.x, mz - h.pos.z) < DESPAWN_R - 20) far = false; if (far) { spawned.delete(k); if (census.get(k)?.eco) census.delete(k); removeEcoProps(k); } }
+      // without an ecosystem (non-island fields): provisional regrowth in stored (unobserved) tiles
+      if (!eco) for (const [k, C] of census) { if (spawned.has(k)) continue; C.regenT -= 0.5; if (C.regenT > 0) continue; C.regenT = REGEN_S; for (const sp of Object.keys(C.cap)) if (!SPECIES[sp].group && C.stored[sp] < C.cap[sp]) { C.stored[sp]++; stats.regen++; break; } }
     }
     hash.clear(); for (const c of list) hash.insert(c, c.pos.x, c.pos.z);
     for (const g of [...HERD.groups]) HERD.thinkGroup(g, dt);
@@ -456,6 +584,10 @@ export function createFauna(game) {
       if (c.breakMask) for (const n of tickRegen(c.parts, fullDt, (c.hunger < 0.5 ? 1.2 : 0.7) * (c.hp > c.maxHp * 0.5 ? 1 : 0.6))) { c.breakMask &= ~(BREAK_BIT[n] || 0); game.events?.emit?.('fauna:partRegen', { creature: c, part: n }); }
       c.t += sdt; c.flash = Math.max(0, c.flash - sdt * 4); c.heat = Math.max(0, c.heat - sdt); c.burstCd -= sdt;
       if (c.staggerT > 0) { c.staggerT -= sdt; c.move = 0; c.hitDone = true; } // parried: reeling, no attack lands
+      else if (c.dodgeT > 0) { c.dodgeT -= sdt; const nx = c.pos.x + c.dodgeDir[0] * 7 * sdt, nz = c.pos.z + c.dodgeDir[1] * 7 * sdt; if (okSpot(nx, nz, c.sp)) { c.pos.x = nx; c.pos.z = nz; } c.move = 1; }
+      else if (learnedDodge(c, d)) { /* side-step started */ }
+      else if (c.ai === 'wary') thinkWary(c, sdt);
+      else if (wantWary(c, d)) setAi(c, 'wary');
       else if (c.sp === 'beetle') thinkBeetle(c, sdt); else if (c.sp === 'slime') thinkSlime(c, sdt); else if (c.sp === 'bird') thinkBird(c, sdt);
       else if (c.sp === 'boar') HERD.thinkBoar(c, sdt); else if (c.sp === 'wolf') HERD.thinkWolf(c, sdt);
       else if (c.sp === 'mole') EARTH.thinkMole(c, sdt); else if (c.sp === 'golem') EARTH.thinkGolem(c, sdt);
@@ -487,8 +619,8 @@ export function createFauna(game) {
   // mid-tier fauna currently fighting the local hunter (the HUD can show them like bosses)
   function engaged() { return list.filter((c) => !c.dead && ((c.engaged && (c.sp === 'lizard' || c.sp === 'drake' || c.sp === 'snake' || c.sp === 'golem' || (c.sp === 'mole' && !c.under))) || (c.group && (c.role === 'leader' || c.role === 'tusk') && ((c.group.state === 'engage' && c.group.target === game.player) || (c.group.state === 'defend' && c.group.threat === game.player))))); }
   return {
-    update, near, list, census, stats, render, engaged, groups: () => HERD.groups, spawnGroup,
+    update, near, list, census, stats, render, engaged, eco, props, groups: () => HERD.groups, spawnGroup,
     spawnOne: (sp, x, z, stage = 2, opts = {}) => create(sp, x, z, stage, opts), // tests / scripted scenes
-    debug: () => { const by = { beetle: 0, slime: 0, bird: 0, lizard: 0, snake: 0, boar: 0, wolf: 0, mole: 0, golem: 0, drake: 0 }; const ai = {}; for (const c of list) if (!c.dead) { by[c.sp]++; ai[c.sp + ':' + c.ai] = (ai[c.sp + ':' + c.ai] || 0) + 1; } return { live: by, ai, groups: [...HERD.groups].map((g) => `${g.sp}#${g.id}:${g.state}(${HERD.alive(g).length})`), tiles: spawned.size, census: census.size, ...stats, shots: shots.length }; },
+    debug: () => { const by = { beetle: 0, slime: 0, bird: 0, lizard: 0, snake: 0, boar: 0, wolf: 0, mole: 0, golem: 0, drake: 0 }; const ai = {}; for (const c of list) if (!c.dead) { by[c.sp]++; ai[c.sp + ':' + c.ai] = (ai[c.sp + ':' + c.ai] || 0) + 1; } return { live: by, ai, groups: [...HERD.groups].map((g) => `${g.sp}#${g.id}:${g.state}(${HERD.alive(g).length})`), tiles: spawned.size, census: census.size, ...stats, shots: shots.length, eco: eco?.info(), wary: list.filter((c) => !c.dead && c.wary > 0).length }; },
   };
 }

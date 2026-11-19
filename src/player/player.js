@@ -177,7 +177,7 @@ export async function createPlayer(game) {
         let damage = mv * ATTACK_POWER * G.atk * G.buffAtk * sharpMult(P.sharpness) * G.sharp * (isCrit ? 1 + 0.25 * M.critDmg : weakHit ? 0.75 : 1) * (glance ? 0.35 : 1) * M.atk;
         const el = G.element; if (el && el.type !== 'blast') damage += el.value * 0.05 * M.elem * (m.weakness?.[el.type] ?? 1) * Math.min(1.5, mv / 0.4 + 0.3);
         noteDamage(m, 'local', hb.part); // material rights: this hunter damaged this part (and so the body)
-        const res = m.receiveHit({ damage, part: hb.part, point, normal: _n.clone(), attackerId: 'local', isCrit, element: el?.type, elementValue: el?.value || 0, mv });
+        const res = m.receiveHit({ damage, part: hb.part, point, normal: _n.clone(), attackerId: 'local', isCrit, element: el?.type, elementValue: el?.value || 0, mv, motion: P.state });
         const hz = m.parts?.find((p) => p.name === hb.part)?.hitzone ?? 1;
         const dealt = res && typeof res === 'object' && res.damage != null ? res.damage : typeof res === 'number' ? res : Math.round(damage * hz);
         events.emit('hit', { attacker: 'local', target: m, damage: dealt, part: hb.part, point, normal: _n.clone(), isCrit, weak: hz >= 1.2, motion: P.state, level: lvl, deflected: glance });

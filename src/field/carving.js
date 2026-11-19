@@ -7,7 +7,6 @@
 //  • Every carve is an idempotent server action (islandCarve) with a unique carve id, so a retry or a double tap
 //    never grants twice. Without an expedition (offline / not logged in) carving shows why nothing is recorded.
 import { ISLAND_LOOT } from '../shared/islandLoot.js';
-import { SPECIES } from '../fauna/species.js';
 import { hasBodyRight, hasPartRight } from '../core/rights.js';
 import { t, itemName, partName } from '../shared/i18n.js';
 
@@ -32,7 +31,7 @@ export function createCarving(game, { expedition = null } = {}) {
 
   // what loot table a creature / boss uses
   const srcOf = (o) => {
-    if (o.isFauna) { const k = Object.keys(SPECIES).find((key) => SPECIES[key] === o.S) || o.sp; return ISLAND_LOOT[k] ? k : null; }
+    if (o.isFauna) { const k = o.kind || o.sp; return ISLAND_LOOT[k] ? k : null; }
     const id = o.islandId === 'flameUpper' ? 'flame' : o.islandId || o.kind; return ISLAND_LOOT[id] ? id : null;
   };
   const keyOf = (o) => (o.isFauna ? `${nonce}.${o.id}` : `${nonce}.B${o.islandId || o.kind}`);

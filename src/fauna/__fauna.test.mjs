@@ -100,14 +100,14 @@ const alive = (f, sp) => f.list.filter((c) => !c.dead && (!sp || c.sp === sp));
   const { fauna, player, step } = setup('canyon'); step(1);
   const L = alive(fauna, 'lizard')[0]; const b = alive(fauna, 'beetle')[0];
   if (!L || !b) ok(true, 'lizard/beetle not both present (skipped)'); else {
-    player.position.set(L.pos.x + 90, 5, L.pos.z); L.hunger = 1; step(0.1);
-    b.pos.set(L.pos.x + 5, 5, L.pos.z); b.home.copy(b.pos); b.ai = 'feed'; b.dur = 99; step(3);
+    b.pos.set(L.pos.x + 5, 5, L.pos.z); b.home.copy(b.pos); b.ai = 'feed'; b.dur = 99;
+    player.position.set(L.pos.x + 60, 5, L.pos.z); L.hunger = 1; step(3);
     ok(b.dead && fauna.stats.predation >= 1, `lizard catches a beetle by ambush (${b.ai})`);
   }
 }
 { // Lava Snake: lives in the lava, lunges at a hunter on the bank, returns to the lava; ignores hunters far away
-  const { fauna, player, damage, step } = setup('caldera', { river: true }); step(1);
-  const S = alive(fauna, 'snake')[0];
+  const { fauna, player, damage, step } = setup('caldera', { river: true }); player.position.set(40, 5, 0); step(1); // watch from the bank, out of reach
+  const S = alive(fauna, 'snake').sort((a, b) => Math.abs(a.pos.z) - Math.abs(b.pos.z))[0];
   if (!S) ok(false, 'no snake spawned in the river'); else {
     ok(Math.abs(S.pos.x) < 6, `snake spawned inside the lava (x=${S.pos.x.toFixed(1)})`);
     player.position.set(40, 5, S.pos.z); step(5); ok(damage.taken === 0 && Math.abs(S.pos.x) < 6, 'snake ignores a hunter far from the lava');

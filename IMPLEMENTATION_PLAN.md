@@ -49,7 +49,7 @@ This file is the roadmap; `PROGRESS.md` tracks status. Stages follow the user's 
    - Armour slots (head, chest, arms, waist, legs) and weapon categories through a shared attack engine (data-driven moves).
    - Enchanting (10 slots, rarities, curses).
    - Combat extras: sheathe on long press, parry, the full ailment set, potions with drink times, jump, falling attack, roll distance and i-frames are **implemented (stage 6a)**. Grapple is still open.
-6. **Ecosystem**
+6. **Ecosystem** — **implemented (stage 6)**: see PROGRESS.md; open items are terrain visuals for environment change and boss populations.
    - Server-side population model: breeding and growth (no instant respawns), migration, carcass decay and use, per-individual learning, long-term environment change.
    - Three levels of detail: detailed AI near players, a simple AI in the same region, statistical simulation far away.
 7. **Volcano Slime** (hidden world event)

@@ -14,13 +14,15 @@ export async function openStore({ url = process.env.DATABASE_URL, file = process
   await db.exec(`CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at BIGINT NOT NULL, expires_at BIGINT NOT NULL)`);
   await db.exec(`CREATE TABLE IF NOT EXISTS saves (user_id TEXT PRIMARY KEY, version INTEGER NOT NULL, data TEXT NOT NULL, updated_at BIGINT NOT NULL)`);
   await db.exec(`CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id)`);
+  // shared world state (ecosystem, world events): one JSON document per key, optimistic versioning
+  await db.exec(`CREATE TABLE IF NOT EXISTS world_state (key TEXT PRIMARY KEY, version INTEGER NOT NULL, data TEXT NOT NULL, updated_at BIGINT NOT NULL)`);
   if (db.kind === 'postgres') {
     // Supabase (and any Postgres exposed through PostgREST): keep these tables away from the public API.
     // RLS on with no policies + revoke from the API roles; the server's own role is unaffected.
-    for (const t of ['users', 'sessions', 'saves']) {
+    for (const t of ['users', 'sessions', 'saves', 'world_state']) {
       try { await db.exec(`ALTER TABLE ${t} ENABLE ROW LEVEL SECURITY`); } catch { /* not supported (e.g. pg-mem) */ }
     }
-    try { await db.exec(`REVOKE ALL ON TABLE users, sessions, saves FROM anon, authenticated`); } catch { /* roles exist only on Supabase */ }
+    try { await db.exec(`REVOKE ALL ON TABLE users, sessions, saves, world_state FROM anon, authenticated`); } catch { /* roles exist only on Supabase */ }
   }
 
   const locks = new Map(); // userId → tail promise
@@ -62,6 +64,15 @@ export async function openStore({ url = process.env.DATABASE_URL, file = process
         const changed = await db.run('UPDATE saves SET version = ?, data = ?, updated_at = ? WHERE user_id = ? AND version = ?', [cur.version + 1, JSON.stringify(doc), Date.now(), userId, cur.version]);
         if (!changed) throw Object.assign(new Error('conflict'), { code: 'conflict' });
         return { doc, result, version: cur.version + 1 };
+      });
+    },
+    async getWorld(key) { const r = await db.get('SELECT version, data, updated_at FROM world_state WHERE key = ?', [key]); return r ? { version: Number(r.version), data: r.data, updatedAt: Number(r.updated_at) } : null; },
+    // write a world document; version = the one we loaded (0 = new). Returns the new version or 0 on conflict.
+    async putWorld(key, data, version, t = Date.now()) {
+      return withLock('world:' + key, async () => {
+        if (!version) { const ex = await db.get('SELECT version FROM world_state WHERE key = ?', [key]); if (ex) return 0; await db.run('INSERT INTO world_state (key, version, data, updated_at) VALUES (?, ?, ?, ?)', [key, 1, data, t]); return 1; }
+        const n = await db.run('UPDATE world_state SET version = ?, data = ?, updated_at = ? WHERE key = ? AND version = ?', [version + 1, data, t, key, version]);
+        return n ? version + 1 : 0;
       });
     },
     close: () => db.close(),
