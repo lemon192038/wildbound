@@ -310,14 +310,74 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
 - All other suites passed: server 67, perception, fauna (two tests made robust to random stages), parts, status, player, combat 16/16.
 - `tools/island-test.mjs`: 0 failed, no errors.
 
+## Stage 6b: Weapon classes + grappling hook (2026-11-19)
+**Implemented:**
+- **Weapon classes**, all balance data in one table (`src/shared/weaponClasses.js`):
+  - the great sword (unchanged) plus six new classes:
+    - sword & shield (片手剣)
+    - dual blades (双剣)
+    - long sword (太刀)
+    - hammer (ハンマー)
+    - lance (ランス)
+    - bow (弓)
+  - Each class has its own move set and animation clips (`src/player/weaponClips.js`): reach, attack speed, motion values, part-break aptitude (`breakMul`, passed to `resolvePartHit` for bosses and fauna), edge wear, damage type, draw / sheathe time, parry window, drawn walk speed, guard type and roll distance.
+  - **Damage types:**
+    - blunt (hammer, shield bash) never glances off hard parts and breaks hard parts better;
+    - pierce (lance, thrusts) glances only off the hardest;
+    - bow arrows are projectiles: gravity, distance falloff, no edge wear.
+  - **Class mechanics:**
+    - sword & shield: 4-hit chain, shield bash, shield guard (22 %), can drink with the weapon drawn;
+    - dual blades: every swing hits twice, stamina-hungry blade dance, cannot guard, fast roll;
+    - long sword: cuts build Focus; the thrust → rising slash → spirit roundslash spends it for Focus levels (+6 % damage each, decaying);
+    - hammer: charge while walking (levels 1–3 → upswing / overhead / spinning finisher);
+    - lance: thrusts, a multi-hit shield-charge dash with super armour, tower guard (6 %, little push), short hop;
+    - bow: quick shots and a held draw (1–4 arrows by level), strafing to the aim; lock-on or the crosshair aims.
+  - **Models:** short sword + round shield, twin blades (the second in the left hand), curved longblade, hammer, lance + tower shield, bow held in the left hand. Both blades of the dual set cut.
+  - **Gear and data:**
+    - 12 new craftable weapons (`src/shared/classGear.js`), 2 per class, with JA names;
+    - `loadoutStats` / `weaponStats` now report `cls`, so the equipped loadout picks the class (expeditions and the island);
+    - the forge shows the class; remote hunters sync the class (`wc`);
+    - `?weapon=<class>` lets you try a class.
+- **Grappling hook** (`src/player/grapple.js` + `player.js`):
+  - **Controls:** hold ROPE (touch button / G / gamepad LB) and double-tap (touch) or double-click the target. With the mouse captured, or with LB + A on a gamepad, it fires at the crosshair. Clicks and taps do not attack while aiming; a plain tap never fires.
+  - **Targets:**
+    - ground, walls (steep terrain), trees, rocks, ruins, monsters, fauna, each switchable in `GRAPPLE.targets`; any collider can opt out (`grapple: false`);
+    - lava, sea and crystals are refused, with a message;
+    - colliders now carry `kind` / `h`.
+  - **States and physics:**
+    - `ropeFire` (hook flight 0.22 s) → `ropePull` → release into the air (plunge attack possible) or idle;
+    - the pull is velocity-based along the rope (no teleport), with gravity, the terrain floor and normal collision;
+    - a monster anchor follows its hitbox and drags the hunter.
+  - **Release** happens on contact, timeout, interruption (hit / knockdown / death), a dead target or respawn.
+  - **Rope drawing:** a camera-facing ribbon from the waist with sag when slack; never through the ground.
+  - 30 s cooldown from use, shown on the ROPE button and the HUD. The rope deals no damage.
+
+**Partial / not implemented:**
+- 14 of the listed classes are not implemented: 三刀流, 鉈, メイス, 狩猟笛, ガンランス, スラッシュアックス, チャージアックス, 操虫棍, ライト/ヘビィボウガン, 拳銃, マシンガン, 古の碇. They need their own move sets and models; the engine (class table + clips) is ready for them.
+- Animations are hand-keyed and functional, not motion-captured quality; checked in headless renders only.
+- Roll i-frames are still validated on the client only (server validation belongs to the MMO stage).
+- Not checked on an iPad.
+
+### Stage 6b tests (2026-11-19)
+- `node src/player/__weapons.test.mjs`: **28/28 passed**.
+  - Every class's light chain lands. Damage per second: great sword 156, sword 144, dual 140, long sword 171, hammer 218, lance 150, bow 108.
+  - Break aptitude: hammer 1.5 vs bow 0.7.
+  - Wear per hit: dual 0.019 > hammer 0.006, bow 0.
+  - Hammer level-3 spin; bow full draw → 4 arrow hits; shield guard 22 % / tower 6 %; dual cannot guard.
+  - Roll: lance 1.8 m vs dual 3.6 m. Draw: sword 0.25 s vs hammer 0.43 s. Class synced.
+  - Long sword Focus → spirit level.
+  - Rope: fire → pull → release at the anchor; cooldown and refusal; a moving monster drags the hunter; dead target / death / respawn leave no rope; crosshair pick; G + double-click; touch hold + double-tap; a tap without ROPE does nothing.
+- `server/api.test.mjs`: **97/97 on SQLite and pg-mem** (forge + equip a hammer → loadout `cls: 'hammer'`).
+- All other suites passed (server 67, perception, fauna, parts, status, eco, player, combat 16/16).
+- Island test: 0 failed. Headless pose renders reviewed for each class.
+
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
   - island content
   - all new species
   - part system v2
   - materials, carving and gear expansion
-  - combat extras still open: grapple (sheathe/parry, ailments, drink times, jump, plunge and roll are done in stage 6a)
-  - weapon categories
+  - the remaining weapon classes (see stage 6b)
   - enchanting
   - Volcano Slime event
   - MMO world server and 100-player load tests

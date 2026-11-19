@@ -50,20 +50,23 @@ export class TouchControls {
       [t('touch.next'), 'next', 268, 160, 44, 'tap'],
       [t('touch.lock'), 'lockOn', 130, 250, 54, 'tap'],
       [t('touch.jump'), 'jump', 128, 56, 60, 'tap'],
+      [t('touch.rope'), 'rope', 300, 64, 60, 'hold'], // hold, then double-tap the target
     ];
     for (const [label, act, r, b, size, mode] of B) {
-      const el = document.createElement('div'); el.className = 'tc-btn'; el.textContent = label;
+      const el = document.createElement('div'); el.className = 'tc-btn'; el.textContent = label; el.dataset.act = act;
       Object.assign(el.style, { right: r + 'px', bottom: b + 'px', width: size + 'px', height: size + 'px' });
       root.appendChild(el);
       const down = (e) => {
         e.preventDefault(); e.stopPropagation(); el.classList.add('tc-down');
         if (act === 'next') { dispatchEvent(new WheelEvent('wheel', { deltaY: 120 })); return; }
+        if (act === 'rope') { this.state.ropeHeld = true; this.ropeBtn = el; }
         if (mode === 'hold') { if (act === 'guard') this.state.guard = true; if (act === 'heavy') { this.state.heavyHeld = true; this.pressed.add('heavy'); } }
         else this.pressed.add(act);
         if (act === 'light') this.state.lightHeld = true; // long press = sheathe / sheathed release = parry
       };
       const up = (e) => {
         e.preventDefault(); e.stopPropagation(); el.classList.remove('tc-down');
+        if (act === 'rope') this.state.ropeHeld = false;
         if (act === 'guard') this.state.guard = false; if (act === 'heavy') this.state.heavyHeld = false; if (act === 'light') this.state.lightHeld = false;
       };
       el.addEventListener('touchstart', down, { passive: false });
@@ -105,7 +108,19 @@ export class TouchControls {
         }
       }
     };
+    // double-tap (two short taps, < 0.33 s apart, < 40 px apart) on the open screen while ROPE is held → hook target.
+    // Taps are tracked per touch id; dragging (camera / stick) never counts, so looking around cannot fire the hook.
+    const taps = new Map(); let lastTap = null;
+    addEventListener('touchstart', (e) => { if (!this.enabled) return; for (const t of e.changedTouches) taps.set(t.identifier, { x: t.clientX, y: t.clientY, at: performance.now(), moved: false }); }, { passive: true });
+    addEventListener('touchmove', (e) => { for (const t of e.changedTouches) { const q = taps.get(t.identifier); if (q && Math.hypot(t.clientX - q.x, t.clientY - q.y) > 14) q.moved = true; } }, { passive: true });
+    const tapEnd = (t) => {
+      const q = taps.get(t.identifier); taps.delete(t.identifier); if (!q || q.moved || performance.now() - q.at > 250 || !this.state.ropeHeld) return;
+      const now = performance.now();
+      if (lastTap && now - lastTap.at < 330 && Math.hypot(q.x - lastTap.x, q.y - lastTap.y) < 40) { this.state.ropeTarget = { x: q.x, y: q.y }; lastTap = null; }
+      else lastTap = { x: q.x, y: q.y, at: now };
+    };
     const end = (e) => {
+      for (const t of e.changedTouches) tapEnd(t);
       for (const t of e.changedTouches) {
         if (t.identifier === this.stickId) {
           this.stickId = null; this.state.mx = this.state.my = 0; this.state.sprint = false;
@@ -124,6 +139,8 @@ export class TouchControls {
   // Contextual action button; pass null to hide it.
   setAction(label) { if (this._act === label) return; this._act = label; this.actBtn.style.display = label ? 'flex' : 'none'; if (label) this.actBtn.textContent = label; }
   // Town mode: hide combat buttons (keeps stick, look, MENU and the context action).
+  // ROPE button shows the hook cooldown
+  setRopeCooldown(sec) { if (!this.ropeBtnEl) this.ropeBtnEl = [...this.root.querySelectorAll('.tc-btn')].find((b) => b.dataset.act === 'rope'); const b = this.ropeBtnEl; if (!b) return; const txt = sec > 0 ? String(Math.ceil(sec)) : t('touch.rope'); if (b.textContent !== txt) { b.textContent = txt; b.style.opacity = sec > 0 ? '0.55' : '1'; } }
   setPeaceful(on) { for (const b of this.root.querySelectorAll('.tc-btn:not(.tc-menu):not(.tc-act)')) b.style.display = on ? 'none' : 'flex'; }
   // Merge into the Input action state (called from Input.poll).
   apply(s) {
@@ -131,6 +148,7 @@ export class TouchControls {
     const t = this.state;
     if (t.mx || t.my) { s.move.x = t.mx; s.move.y = t.my; }
     s.look.x += t.lookDx * 0.006; s.look.y += t.lookDy * 0.005; t.lookDx = t.lookDy = 0;
+    s.ropeHeld ||= !!t.ropeHeld; if (t.ropeTarget) { s.ropeTarget = t.ropeTarget; t.ropeTarget = null; }
     s.sprint ||= t.sprint; s.guard ||= t.guard; s.heavyHeld ||= t.heavyHeld; s.lightHeld ||= t.lightHeld;
     const p = this.pressed;
     s.lightAttack ||= p.has('light'); s.heavyAttack ||= p.has('heavy'); s.dodge ||= p.has('dodge'); s.jump ||= p.has('jump');

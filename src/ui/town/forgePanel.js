@@ -53,7 +53,7 @@ export function createForgePanel(ctx) {
     const d = kind === 'weapon' ? WEAPONS[def] : ARMOR[def]; if (!d) return empty(t('f.chooseDesign'));
     const entry = { kind, def, lvl: 0 }; const m = matsList(d.craft.mats, s.box); const c = costLine(d.craft.coins, s.coins);
     const n = owned(s, def); const why = !m.ok ? t('f.missingMats') : !c.ok ? t('c.needCoins', { n: fmt(d.craft.coins - s.coins) }) : '';
-    return `${head(equipDefName(kind, def), d.rarity, kind === 'weapon' ? 'weapon' : d.slot, `<span class="tw-pill dim">${kind === 'weapon' ? t('f.greatsword') : slotLabel(d.slot)}</span>${n ? `<span class="tw-pill gold">${t('f.ownedN', { n })}</span>` : ''}`)}
+    return `${head(equipDefName(kind, def), d.rarity, kind === 'weapon' ? 'weapon' : d.slot, `<span class="tw-pill dim">${kind === 'weapon' ? t('wc.' + (d.cls || 'greatsword')) : slotLabel(d.slot)}</span>${n ? `<span class="tw-pill gold">${t('f.ownedN', { n })}</span>` : ''}`)}
       <div class="tw-cols2"><section><h4>${t('f.forgedStats')}</h4>${statsBlock(entry)}</section>${compareHtml(s, entry)}</div>
       <section><h4>${t('f.reqMats')}</h4>${m.html}</section>${c.html}
       <footer class="tw-qd-f">${btn(kind === 'weapon' ? t('f.forgeWeapon') : t('f.forgeArmor'), 'forge', { cls: 'tw-primary', dis: !!why, why })}</footer>`;
@@ -62,7 +62,7 @@ export function createForgePanel(ctx) {
     if (tab === 'weapon') {
       return Object.entries(WEAPONS).filter(([, d]) => d.craft).map(([id, d]) => { const m = matsList(d.craft.mats, s.box); const can = m.ok && s.coins >= d.craft.coins; const n = owned(s, id);
         return `<button class="tw-row ${sel.weapon === id ? 'sel' : ''}" data-a="sel" data-id="${id}">${equipIcon('weapon', d.rarity, { element: d.levels[0].element?.type })}
-        <span class="tw-row-m"><b style="color:${rarityColor(d.rarity)}">${esc(weaponName(id))}</b><small>${t('st.attack')} ${fmt(d.levels[0].attack)} · ${d.levels[0].element ? elementName(d.levels[0].element.type) : t('st.raw')}</small></span>
+        <span class="tw-row-m"><b style="color:${rarityColor(d.rarity)}">${esc(weaponName(id))}</b><small>${t('wc.' + (d.cls || 'greatsword'))} · ${t('st.attack')} ${fmt(d.levels[0].attack)} · ${d.levels[0].element ? elementName(d.levels[0].element.type) : t('st.raw')}</small></span>
         <span class="tw-row-r">${n ? `<i class="tw-pill gold">${t('f.owned')}</i>` : ''}${can ? `<i class="tw-pill ok">${t('f.canForge')}</i>` : ''}</span></button>`; }).join('');
     }
     if (tab === 'armor') {

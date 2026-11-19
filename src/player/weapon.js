@@ -119,3 +119,90 @@ export function buildWeapon(mats) {
   group.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
   return group;
 }
+
+// ---------------------------------------------------------------- other weapon classes (src/shared/weaponClasses.js)
+// Same local convention: grip (main hand) at origin, striking part toward +Y, edge / face toward +Z.
+// userData: samples (hit points base→tip), trailBase / trailTip, glow meshes + glowMat (charge glow), hitPad (extra reach),
+// hand: 'R' | 'L' (which hand holds it when drawn), back: [x, y, z] extra offset on the back socket.
+function bladeShape(len, width, { y0 = 0.1, curve = 0, tipLen = 0.18 } = {}) {
+  const sh = new THREE.Shape(); const N = 10;
+  const zAt = (y) => curve * Math.pow((y - y0) / (len - y0), 2);
+  sh.moveTo(-width * 0.35 + zAt(y0), y0);
+  for (let i = 1; i <= N; i++) { const y = y0 + (len - tipLen - y0) * (i / N); sh.lineTo(-width * 0.35 + zAt(y), y); }
+  sh.lineTo(zAt(len), len);
+  for (let i = N; i >= 0; i--) { const y = y0 + (len - tipLen - y0) * (i / N); sh.lineTo(width * 0.65 + zAt(y), y); }
+  const g = new THREE.ExtrudeGeometry(sh, { depth: 0.014, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.004, bevelSegments: 1, steps: 1 });
+  g.translate(0, 0, -0.007); g.rotateY(-Math.PI / 2); g.computeVertexNormals();
+  return g;
+}
+function finish(group, samples, base, tip, glowColor = 0xff7a2a) {
+  const glowMat = new THREE.MeshBasicMaterial({ color: glowColor, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
+  const gg = new THREE.PlaneGeometry(0.05, Math.max(0.2, tip.y - base.y)); gg.rotateY(Math.PI / 2); gg.translate(0, (tip.y + base.y) / 2, (tip.z + base.z) / 2 + 0.02);
+  const glow = new THREE.Mesh(gg, glowMat); glow.visible = false; group.add(glow);
+  Object.assign(group.userData, { samples, trailBase: base, trailTip: tip, glow: [glow], glowMat });
+  group.traverse((o) => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = true; } });
+  return group;
+}
+const line = (y0, y1, z = 0, n = 7) => Array.from({ length: n }, (_, i) => new THREE.Vector3(0, y0 + (y1 - y0) * (i / (n - 1)), z));
+
+export function buildClassWeapon(cls, mats) {
+  const mk = (geo, mat, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); return m; };
+  const out = { main: null, off: null, shield: null };
+  if (cls === 'sword' || cls === 'dual') {
+    const one = (len) => {
+      const g = new THREE.Group(); g.name = cls;
+      g.add(mk(bladeShape(len, 0.07, { curve: cls === 'dual' ? 0.05 : 0 }), mats.blade));
+      g.add(mk(new THREE.BoxGeometry(0.04, 0.035, 0.2), mats.darkSteel, 0, 0.08, 0.01));
+      g.add(mk(new THREE.CylinderGeometry(0.017, 0.019, 0.16, 8), mats.leatherDark, 0, 0, 0));
+      g.add(mk(new THREE.SphereGeometry(0.025, 8, 6), mats.brass, 0, -0.09, 0));
+      return finish(g, line(0.16, len - 0.05, 0.01), new THREE.Vector3(0, 0.2, 0.01), new THREE.Vector3(0, len - 0.02, 0.01), 0xffc070);
+    };
+    out.main = one(cls === 'dual' ? 0.66 : 0.86);
+    if (cls === 'dual') { out.off = one(0.66); out.off.userData.hand = 'L'; }
+    if (cls === 'sword') {
+      const sh = new THREE.Group(); sh.name = 'shield';
+      const disc = new THREE.CylinderGeometry(0.27, 0.29, 0.04, 20); disc.rotateX(Math.PI / 2);
+      sh.add(mk(disc, mats.darkSteel)); sh.add(mk(new THREE.SphereGeometry(0.07, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), mats.brass, 0, 0, 0.02, Math.PI / 2, 0, 0));
+      const rim = new THREE.TorusGeometry(0.28, 0.018, 6, 24); sh.add(mk(rim, mats.bone));
+      sh.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+      out.shield = sh;
+    }
+  } else if (cls === 'longsword') {
+    const g = new THREE.Group(); g.name = 'longsword';
+    g.add(mk(bladeShape(1.45, 0.05, { y0: 0.12, curve: 0.09, tipLen: 0.14 }), mats.blade));
+    const guard = new THREE.CylinderGeometry(0.055, 0.055, 0.015, 12); g.add(mk(guard, mats.brass, 0, 0.1, 0));
+    g.add(mk(new THREE.CylinderGeometry(0.018, 0.02, 0.4, 8), mats.leatherDark, 0, -0.1, 0));
+    out.main = finish(g, line(0.25, 1.38, 0.03), new THREE.Vector3(0, 0.6, 0.02), new THREE.Vector3(0, 1.42, 0.08), 0xff4030);
+  } else if (cls === 'hammer') {
+    const g = new THREE.Group(); g.name = 'hammer';
+    g.add(mk(new THREE.CylinderGeometry(0.025, 0.03, 1.45, 8), mats.leatherDark, 0, 0.32, 0));
+    const head = new THREE.CylinderGeometry(0.17, 0.19, 0.5, 10); head.rotateX(Math.PI / 2);
+    g.add(mk(head, mats.darkSteel, 0, 1.05, 0.03)); g.add(mk(new THREE.CylinderGeometry(0.2, 0.2, 0.05, 10), mats.brass, 0, 1.05, 0.28, Math.PI / 2, 0, 0));
+    g.add(mk(new THREE.ConeGeometry(0.08, 0.2, 6), mats.bone, 0, 1.05, -0.3, -Math.PI / 2, 0, 0));
+    out.main = finish(g, [new THREE.Vector3(0, 0.7, 0), new THREE.Vector3(0, 0.85, 0.05), new THREE.Vector3(0, 0.98, 0.15), new THREE.Vector3(0, 1.05, 0.25), new THREE.Vector3(0, 1.1, 0.15), new THREE.Vector3(0, 1.05, 0.0), new THREE.Vector3(0, 1.05, 0.3)],
+      new THREE.Vector3(0, 0.9, 0.2), new THREE.Vector3(0, 1.1, 0.3), 0xffa040);
+    out.main.userData.hitPad = 0.22;
+  } else if (cls === 'lance') {
+    const g = new THREE.Group(); g.name = 'lance';
+    g.add(mk(new THREE.ConeGeometry(0.075, 2.3, 10), mats.steel, 0, 1.35, 0));
+    g.add(mk(new THREE.ConeGeometry(0.16, 0.3, 10, 1, true), mats.darkSteel, 0, 0.22, 0, Math.PI, 0, 0));
+    g.add(mk(new THREE.CylinderGeometry(0.022, 0.024, 0.32, 8), mats.leatherDark, 0, -0.04, 0));
+    out.main = finish(g, line(0.7, 2.45, 0), new THREE.Vector3(0, 1.4, 0), new THREE.Vector3(0, 2.45, 0), 0xc0d8ff);
+    out.main.userData.hitPad = 0.08;
+    const sh = new THREE.Group(); sh.name = 'tower-shield';
+    sh.add(mk(new THREE.BoxGeometry(0.62, 1.0, 0.05), mats.darkSteel)); sh.add(mk(new THREE.BoxGeometry(0.5, 0.86, 0.02), mats.steel, 0, 0, 0.03));
+    sh.add(mk(new THREE.BoxGeometry(0.06, 0.9, 0.03), mats.brass, 0, 0, 0.05));
+    sh.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+    out.shield = sh;
+  } else if (cls === 'bow') {
+    const g = new THREE.Group(); g.name = 'bow';
+    const limb = (s) => sweep([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, s * 0.35, 0.04), new THREE.Vector3(0, s * 0.62, 0.0), new THREE.Vector3(0, s * 0.78, -0.12)], (t) => 0.024 * (1 - t * 0.6), 6, 14);
+    g.add(mk(limb(1), mats.bone), mk(limb(-1), mats.bone));
+    g.add(mk(new THREE.CylinderGeometry(0.026, 0.026, 0.16, 8), mats.leatherDark));
+    const sg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0.78, -0.12), new THREE.Vector3(0, 0, -0.12), new THREE.Vector3(0, -0.78, -0.12)]);
+    const string = new THREE.Line(sg, new THREE.LineBasicMaterial({ color: 0xe8e0c8 })); g.add(string); g.userData.string = string;
+    out.main = finish(g, [new THREE.Vector3(0, 0, 0)], new THREE.Vector3(0, 0.6, 0), new THREE.Vector3(0, 0.78, -0.1), 0x9fe0ff);
+    out.main.userData.hand = 'L';
+  }
+  return out;
+}

@@ -24,6 +24,7 @@ Read this first, then `PROGRESS.md` (what exists / what is next) and `IMPLEMENTA
   - `node src/core/__status.test.mjs`
   - `node src/shared/__eco.test.mjs`
   - `node src/player/__combat.test.mjs`
+  - `node src/player/__weapons.test.mjs`
   - Build with `npx vite build`, then run the headless checks with `npx vite preview --port 4173`:
     - `node tools/island-test.mjs`
     - `node tools/shot.mjs <png> "<query>"`
@@ -37,6 +38,7 @@ Read this first, then `PROGRESS.md` (what exists / what is next) and `IMPLEMENTA
 - **`src/fauna/`:** small island fauna (species data, AI, census, instanced render).
 - **`src/shared/islandLoot.js` / `src/core/rights.js` / `src/field/carving.js`:** island materials, carving rights, field carving (server: `departIsland` / `islandCarve` / `returnIsland` in `server/economy.js`).
 - **`src/shared/ecosystem.js` / `server/world.js` / `src/fauna/ecoClient.js`:** the island ecosystem (far layer). The server is authoritative (`world_state` table, `/api/eco`); clients spawn from it and report only their own kills.
+- **`src/shared/weaponClasses.js` / `src/player/weaponClips.js` / `src/shared/classGear.js`:** weapon classes (one balance table, per-class clips, class weapons). `src/player/grapple.js`: the grappling hook (targeting, rope, cooldown; physics in `player.js`).
 - **`src/core/status.js`:** every player ailment (DoT, control, stat-downs), stacking/immunity rules, `mods()`/`blocks()` read by `player.js`.
 - **`src/core/parts.js`:** shared part rules: part HP vs body HP, one-time break damage, hardness/deflect/wear, regrowth, lost abilities, part targeting.
 - **`src/ui/debugOverlay.js`:** the developer overlay, `?debug=1` (`?debug=2` adds gizmos; F3 toggles).

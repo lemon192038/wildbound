@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { BONE_DEFS, BONE_INDEX, BACK_SOCKET, basisQuat } from './model.js';
 import { BLADE } from './weapon.js';
+import { weaponClips } from './weaponClips.js';
 
 const NB = BONE_DEFS.length;
 // flat layout: eulers NB*3 | hip offset 3 | weapon grip 3 | blade dir 3 | edge dir 3 | ik weights: R, L, legs
@@ -160,6 +161,9 @@ export const CLIPS = {
     { t: 1.8, ...STAND },
   ] },
 };
+
+// weapon classes beyond the great sword (src/player/weaponClips.js)
+Object.assign(CLIPS, weaponClips({ STAND, READY, lunge }));
 
 // -------- resolve clip keys into flat arrays (carry-forward) --------
 function writeKey(arr, k) {

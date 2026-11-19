@@ -3,7 +3,9 @@ import * as THREE from 'three';
 import { buildHunter } from './model.js';
 import { Animator, sampleClip, sampleLoco, applyTuck, twoBoneIK, setWorldQuat, POSE_SIZE, OK, CLIPS } from './anim.js';
 import { ClothStrip } from './cloth.js';
-import { BLADE } from './weapon.js';
+import { BLADE, buildClassWeapon } from './weapon.js';
+import { BONE_INDEX } from './model.js';
+import { classOf } from '../shared/weaponClasses.js';
 
 const GENERIC = new Set(['dodge', 'hit', 'knockdown', 'getup', 'dead']);
 const _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _qc = new THREE.Quaternion(), _s = new THREE.Vector3();
@@ -31,11 +33,39 @@ export class HunterView {
     this.hipDropS = 0;
     this.light = new THREE.PointLight(0xff7a2a, 0, 4, 2); this.rig.weapon.add(this.light); this.light.position.set(0, 0.9, 0.45);
   }
-  setInHand(v) {
-    if (v === this.inHand) return; this.inHand = v;
-    const { weapon, bones, sockets } = this.rig, s = v ? sockets.hand : sockets.back;
-    (v ? bones.handR : bones.chest).add(weapon); weapon.position.copy(s.pos); weapon.quaternion.copy(s.quat);
-    this.rig.harness.forEach((m) => { m.visible = !v; }); // scabbard straps only make sense with the blade on the back
+  setInHand(v, force = false) {
+    if (v === this.inHand && !force) return; this.inHand = v;
+    const { weapon, bones, sockets } = this.rig;
+    const put = (obj, hand, back) => {
+      if (!obj) return;
+      if (v) { const L = hand === 'L'; (L ? bones.handL : bones.handR).add(obj); obj.position.copy(sockets.hand.pos); if (L) obj.position.x *= -1; obj.quaternion.copy(sockets.hand.quat); }
+      else { bones.chest.add(obj); obj.position.copy(sockets.back.pos).add(back); obj.quaternion.copy(sockets.back.quat); }
+    };
+    put(weapon, weapon.userData.hand || 'R', _p.set(...(weapon.userData.back || [0, 0, 0])));
+    put(this.off, 'L', _p.set(0.3, 0, 0));
+    this.rig.harness.forEach((m) => { m.visible = !v && (this.cls || 'greatsword') === 'greatsword'; }); // scabbard straps only make sense with the great sword on the back
+  }
+  // weapon class (src/shared/weaponClasses.js): swap the models; the great sword is the rig's original weapon
+  setWeaponClass(cls = 'greatsword') {
+    if ((this.cls || 'greatsword') === cls) return;
+    const rig = this.rig; rig.gsWeapon ||= rig.weapon; this._built ||= {};
+    for (const o of [rig.weapon, this.off, this.shield]) o?.parent?.remove(o);
+    this.cls = cls; this.C = classOf(cls);
+    if (cls === 'greatsword') { rig.weapon = rig.gsWeapon; this.off = this.shield = null; }
+    else { const b = (this._built[cls] ||= buildClassWeapon(cls, rig.mats)); rig.weapon = b.main; this.off = b.off; this.shield = b.shield; }
+    rig.weapon.add(this.light);
+    if (this.shield) { rig.bones.foreArmL.add(this.shield); this.shield.position.set(0.07, -0.16, 0.04); this.shield.rotation.set(0, -Math.PI / 2, 0); }
+    this.setInHand(this.inHand, true);
+  }
+  // per-class pose fixes on top of the sampled clip: one-handed classes free the left hand, the bow frees the right
+  _classPose(flat) {
+    const C = this.C; if (!C || C.hands === 2) return;
+    flat[OK + 1] = 0; if (C.hands === 'bow') flat[OK] = 0;
+    if (this.anim !== 'loco' || !this.inHand) return;
+    const set = (b, x, y, z) => { const o = BONE_INDEX[b] * 3; flat[o] = x; flat[o + 1] = y; flat[o + 2] = z; };
+    if (C.hands === 1) { set('upperArmL', -0.95, 0.35, 0.55); set('foreArmL', -1.25, 0, 0); }           // shield in front
+    else if (C.hands === 'dual') { set('upperArmL', -0.55, 0, 0.35); set('foreArmL', -0.9, 0, 0); }    // second blade low
+    else if (C.hands === 'bow') { set('upperArmL', -0.3, 0, 0.25); set('foreArmL', -0.6, 0, 0); }     // bow at the side
   }
   play(name, fade = 0.15) { if (name !== this.anim) { this.anim = name; this.animator.crossfade(fade); } }
   setGlow(level, t) {
@@ -52,7 +82,8 @@ export class HunterView {
     this.time += dt;
     if (this.anim === 'loco') sampleLoco(flat, P.phase || 0, P.amt || 0, P.drawn, P.sprint, this.time);
     else sampleClip(this.anim, P.t || 0, flat);
-    if (this.inHand && GENERIC.has(this.anim)) applyTuck(flat, 0);
+    this._classPose(flat);
+    if (this.inHand && GENERIC.has(this.anim) && (this.cls || 'greatsword') === 'greatsword') applyTuck(flat, 0);
     if (!this.inHand && !CLIPS[this.anim]?.keys.some((k) => k.w && k.w !== 'back') && this.anim !== 'draw' && this.anim !== 'sheathe') flat[OK + 1] = 0;
     if (P.tremble) { const n = Math.sin(this.time * 63) * P.tremble, m = Math.cos(this.time * 51) * P.tremble; flat[POSE_SIZE - 12] += n * 0.01; flat[POSE_SIZE - 11] += m * 0.01; }
     animator.apply(flat, dt);
@@ -114,14 +145,16 @@ export class HunterView {
       put(bones['thigh' + L], 0, -0.06, 0.0, 0.105); put(bones['thigh' + L], 0, -0.22, 0.01, 0.1); put(bones['thigh' + L], 0, -0.38, 0.01, 0.085);
       put(bones['shin' + L], 0, -0.12, 0, 0.075);
     }
-    if (!this.inHand) { for (const k of [1, 3, 5]) { const c = C[n++]; c.c.copy(weapon.userData.samples[k]).applyMatrix4(weapon.matrixWorld); c.r = 0.06; } }
+    if (!this.inHand) { const S = weapon.userData.samples; for (const k of [1, 3, 5]) { if (!S[k]) continue; const c = C[n++]; c.c.copy(S[k]).applyMatrix4(weapon.matrixWorld); c.r = 0.06; } }
     const active = C.slice(0, n);
     for (const c of this.cloth) c.update(dt, active, ground);
   }
   bladeWorld(out = []) {
     const w = this.rig.weapon; w.updateMatrixWorld(true);
     w.userData.samples.forEach((p, i) => { (out[i] ||= new THREE.Vector3()).copy(p).applyMatrix4(w.matrixWorld); });
-    return out;
+    let n = w.userData.samples.length;
+    if (this.off && this.inHand) { this.off.updateMatrixWorld(true); for (const p of this.off.userData.samples) (out[n++] ||= new THREE.Vector3()).copy(p).applyMatrix4(this.off.matrixWorld); } // dual blades: both edges cut
+    out.length = n; return out;
   }
   dispose() {
     this.game.scene.remove(this.root); for (const c of this.cloth) { this.game.scene.remove(c.mesh); c.mesh.geometry.dispose(); }

@@ -203,6 +203,15 @@ r = await call('/api/login', { name: 'AYLA', password: 'hunter-pass-1' });
 ok(r.ok && r.state.coins === stA.coins && JSON.stringify(r.state.box) === JSON.stringify(stA.box) && r.state.equip.length === stA.equip.length, 're-login restores identical data');
 ok(r.state.ledger.length > 5 && r.state.ledger.every((l) => typeof l.d === 'number'), 'coin ledger (earn/spend history) recorded');
 
+// ---- weapon classes: a hammer is forged and equipped like any weapon; the loadout reports its class
+{
+  const H = (await call('/api/register', { name: 'Smith', password: 'smith-pass-123' })); const hid = H.state.user.id;
+  await give(hid, { ironOre: 6, monsterBone: 2 });
+  r = await act(H.token, 'craftWeapon', { def: 'basaltMaul' }); ok(r.ok && r.result.uid, 'forge a hammer (Basalt Maul)');
+  r = await act(H.token, 'equip', { slot: 'weapon', uid: r.result.uid }); ok(r.ok && r.state.stats.cls === 'hammer' && r.state.stats.attack === 480, 'equipped loadout reports weapon class "hammer"');
+  ok(r.state.stats && (await act(H.token, 'craftWeapon', { def: 'venomStringBow' })).error === 'missing', 'a bow still needs its materials');
+}
+
 // ---- island ecosystem (server/world.js, src/shared/ecosystem.js)
 {
   const A = (await call('/api/register', { name: 'Ecoist', password: 'eco-pass-123' })).token;

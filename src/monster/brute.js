@@ -289,12 +289,12 @@ export async function createBrute(game) {
   function launch(name) { if (name === 'roar') roarCd = 45; if (name === 'cataclysm') m._cataCd = 28; startAction(name); }
 
   // ---------------------------------------------------------------- damage
-  m.receiveHit = ({ damage = 0, part, point, attackerId } = {}) => {
+  m.receiveHit = ({ damage = 0, breakMul = 1, part, point, attackerId } = {}) => {
     if (m.state === 'dead') return null;
     const p = partByName(part); const dmg = Math.max(1, Math.round(damage * p.hitzone)); flash = 1;
     if (point) fx.burst(point, 8, 6, 0.4);
     if (m.remoteControlled) return { damage: dmg, part: p.name, hitzone: p.hitzone, weak: p.hitzone >= 1.2 };
-    const R = resolvePartHit(p, dmg); m.hp = Math.max(0, m.hp - R.bodyDmg); p.acc += dmg; // part HP absorbs; a break hits the body once
+    const R = resolvePartHit(p, dmg, breakMul); m.hp = Math.max(0, m.hp - R.bodyDmg); p.acc += dmg; // part HP absorbs; a break hits the body once
     const aid = String(attackerId ?? game.player?.id ?? 'local'); m.threat.set(aid, (m.threat.get(aid) || 0) + dmg);
     if (!m.aggro) { m.aggro = true; pickTarget(); }
     if (m.target) m.perception?.engage(m.target);

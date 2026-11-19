@@ -19,9 +19,10 @@ export function makePart(def, scaleHp = 1) {
     regen: def.regen ?? null, regenT: 0, breakDamage: def.breakDamage, disables: def.disables || [], acc: 0, _flinch: def.flinch ?? 1e9, scar: false };
 }
 
-export function resolvePartHit(p, dmg) {
+// breakMul: the weapon class's part-break aptitude (hammer > great sword > … > bow); only the part's own HP is affected
+export function resolvePartHit(p, dmg, breakMul = 1) {
   if (!p || !p.breakable || p.broken || p.maxHp >= 99999) return { bodyDmg: dmg, partDmg: 0, broke: false };
-  p.hp = Math.max(0, p.hp - dmg);
+  dmg = dmg * breakMul; p.hp = Math.max(0, p.hp - dmg);
   if (p.hp <= 0) { p.broken = true; p.regenT = 0; return { bodyDmg: p.breakDamage ?? p.maxHp, partDmg: dmg, broke: true }; }
   return { bodyDmg: 0, partDmg: dmg, broke: false };
 }

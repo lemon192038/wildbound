@@ -179,13 +179,13 @@ export async function createMonster(game) {
 
   // ---------- damage ----------
   const partByName = (n) => m.parts.find((p) => p.name === n) || m.parts[4];
-  m.receiveHit = ({ damage = 0, part, point, attackerId } = {}) => {
+  m.receiveHit = ({ damage = 0, breakMul = 1, part, point, attackerId } = {}) => {
     if (m.state === 'dead') return null;
     const p = partByName(part); const dmg = Math.max(1, Math.round(damage * p.hitzone));
     flash = 1;
     if (point) fx.sparks(point, 6, 1.2, 2.5);
     if (m.remoteControlled) return { damage: dmg, part: p.name, hitzone: p.hitzone, weak: p.hitzone >= 1.2 };
-    const R = resolvePartHit(p, dmg); m.hp = Math.max(0, m.hp - R.bodyDmg); p.acc += dmg; // part HP absorbs; a break hits the body once
+    const R = resolvePartHit(p, dmg, breakMul); m.hp = Math.max(0, m.hp - R.bodyDmg); p.acc += dmg; // part HP absorbs; a break hits the body once
     const aid = String(attackerId ?? game.player?.id ?? 'local'); m.lastAttacker = attackerId ?? m.lastAttacker;
     m.threat.set(aid, (m.threat.get(aid) || 0) + dmg);
     let lp = null; if (point) { lp = obj.worldToLocal(point.clone()); m.flinchSide = lp.x >= 0 ? 1 : -1; }

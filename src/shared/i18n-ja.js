@@ -1,5 +1,6 @@
 import { ISLAND_ITEMS } from './islandLoot.js';
 import { ISLAND_WEAPONS, ISLAND_ARMOR_SETS } from './islandGear.js';
+import { CLASS_WEAPONS } from './classGear.js';
 // 日本語パック。キーは i18n-en.js と同じ。ゲームデータは gamedata.js の id をキーにした表（名前・説明）。
 // 表記方針: 落ち着いた和風ファンタジーの文体。UI ラベルは簡潔に、NPC の台詞は人物ごとの口調で。
 // 防具名は「シリーズ名＋部位」（例: エンバーハイドヘルム）。数値の桁区切りはそのまま、単位は「コイン」「秒」「分」。
@@ -148,7 +149,7 @@ export default {
     'g.herb': '薬草の群生', 'g.mushroom': '光茸の群生', 'g.lichen': '潮苔', 'g.ore': '鉱石の露頭', 'g.crimson': '紅鉱脈', 'g.crystal': '嵐水晶', 'g.hive': '野生の蜂の巣', 'g.bones': '骨塚',
     // タッチ操作（丸ボタンに収まる短い表記）
     'touch.move': '移動', 'touch.attack': 'こうげき', 'touch.heavy': 'ため', 'touch.dodge': '回避', 'touch.guard': 'ガード', 'touch.item': 'アイテム', 'touch.next': '次へ', 'touch.lock': 'ロック', 'touch.menu': 'メニュー',
-    'touch.talk': '話す', 'touch.gather': '採集', 'ail.burnM': '火やられ【中】', 'ail.sleep': '睡眠', 'ail.stun': '気絶', 'ail.stunL': '気絶【長】', 'ail.conf': '混乱', 'ail.confL': '混乱【長】', 'ail.silence': '沈黙', 'ail.atkDown': '攻撃力低下', 'ail.defDown': '防御力低下', 'ail.speedDown': '移動速度低下', 'ail.atkSpeedDown': '攻撃速度低下', 'ail.critDown': '会心率低下', 'ail.critDmgDown': '会心ダメージ低下', 'ail.elemAtkDown': '属性攻撃低下', 'ail.elemResDown': '属性耐性低下', 'ail.healDown': '回復量低下', 'ail.stamRegenDown': 'スタミナ回復低下', 'f.parryReady': '納刀構え：攻撃ボタンを押して離すとパリィ', 'f.parryOff': '納刀構えを解除', 'f.parry': 'パリィ！', 'f.silenced': '沈黙中：パリィと真溜めは使えない', 'f.itemCancel': '飲むのを中断（消費なし）', 'touch.jump': 'ジャンプ', 'key.jump': 'ジャンプ（空中で攻撃：落下攻撃）', 'touch.carve': '剥取',
+    'touch.talk': '話す', 'touch.gather': '採集', 'ail.burnM': '火やられ【中】', 'ail.sleep': '睡眠', 'ail.stun': '気絶', 'ail.stunL': '気絶【長】', 'ail.conf': '混乱', 'ail.confL': '混乱【長】', 'ail.silence': '沈黙', 'ail.atkDown': '攻撃力低下', 'ail.defDown': '防御力低下', 'ail.speedDown': '移動速度低下', 'ail.atkSpeedDown': '攻撃速度低下', 'ail.critDown': '会心率低下', 'ail.critDmgDown': '会心ダメージ低下', 'ail.elemAtkDown': '属性攻撃低下', 'ail.elemResDown': '属性耐性低下', 'ail.healDown': '回復量低下', 'ail.stamRegenDown': 'スタミナ回復低下', 'f.parryReady': '納刀構え：攻撃ボタンを押して離すとパリィ', 'f.parryOff': '納刀構えを解除', 'f.parry': 'パリィ！', 'f.silenced': '沈黙中：パリィと真溜めは使えない', 'f.itemCancel': '飲むのを中断（消費なし）', 'touch.jump': 'ジャンプ', 'key.jump': 'ジャンプ（空中で攻撃：落下攻撃）', 'touch.rope': '鉤縄', 'rope.cooldown': '鉤縄 あと{s}秒', 'rope.aim': '対象をダブルタップで鉤縄を投げる', 'f.ropeMiss': 'そこには引っかからない', 'f.ropeRefused': '{k}には鉤縄が掛からない', 'f.ropeCd': '鉤縄 あと{s}秒', 'key.rope': '押しながらダブルクリック：鉤縄', 'f.focus': '練気 Lv{n}', 'wc.greatsword': '大剣', 'wc.sword': '片手剣', 'wc.dual': '双剣', 'wc.longsword': '太刀', 'wc.hammer': 'ハンマー', 'wc.lance': 'ランス', 'wc.bow': '弓', 'f.weaponClass': '武器：{w}', 'rk.lava': '溶岩', 'rk.water': '水面', 'rk.crystal': '結晶', 'rk.range': '（遠すぎる）', 'touch.carve': '剥取',
     // サーバーメッセージ（server/economy.js・server/api.js の英語文面を翻訳）
     'srv.coins': 'コインが足りません（{n}コイン必要）', 'srv.notEnough': '{item}が足りません', 'srv.missingMats': '素材が足りません: {item}', 'srv.stock': '在庫は残り{n}個です',
     'srv.bought': '{item}を{n}個購入しました', 'srv.soldFor': '{item}を{n}個売却しました（{c}コイン）', 'srv.sold': '{item}を{n}個売却', 'srv.soldEquip': '{c}コインで売却しました', 'srv.soldLedger': '{item}を売却', 'srv.forged': '{item}を生産しました',
@@ -266,6 +267,7 @@ export default {
   },
   weapons: {
     ...Object.fromEntries(Object.entries(ISLAND_WEAPONS).map(([k, v]) => [k, [v.ja, v.jaEffect]])),
+    ...Object.fromEntries(Object.entries(CLASS_WEAPONS).map(([k, v]) => [k, [v.ja, v.jaEffect]])),
     marrowcleaver: ['髄断ち', '骨と鉄で打たれた、頼れる大剣。'],
     emberhideBlade: ['燼皮の大剣', '振るうたびに刃が鈍い赤に灯る。'],
     tideglassBlade: ['潮玻璃の大剣', '水属性。触れた燼の塊を冷やして鎮める。'],

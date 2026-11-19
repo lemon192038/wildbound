@@ -300,7 +300,7 @@ export function createFauna(game) {
     };
     c.receiveHit = (h) => hit(c, h);
   }
-  function hit(c, { damage = 0, point, attackerId, part = 'body', by = null, motion = null, element = null } = {}) {
+  function hit(c, { damage = 0, point, attackerId, part = 'body', by = null, motion = null, element = null, breakMul = 1 } = {}) {
     if (c.dead) return { damage: 0, part };
     if (!by) { // learning: being struck by a hunter, by which move and which element
       const m = c.mem; m.hit++; if (motion) m.motion[motion] = (m.motion[motion] || 0) + 1; const el = element || 'raw'; m.elem[el] = (m.elem[el] || 0) + 1; applyWary(c);
@@ -313,7 +313,7 @@ export function createFauna(game) {
     if (c.ai === 'flatten') mult *= SPECIES.slime.flatDefense;
     if (c.parts.some((p) => p.broken && p.name === 'crystal')) mult *= 1.2; // armour crystals shattered
     const dealt = Math.max(1, Math.round(damage * mult));
-    const R = resolvePartHit(P, dealt); c.hp -= R.bodyDmg; c.flash = 1;
+    const R = resolvePartHit(P, dealt, breakMul); c.hp -= R.bodyDmg; c.flash = 1;
     if (R.broke) onPartBreak(c, P, by); c.hits++; c.lastHitAt = clock; c.aggroT = 10;
     const atk = by ? null : attackerId === 'local' || attackerId == null ? game.player : game.remotePlayers?.get?.(String(attackerId));
     c.hunter = atk || (by ? c.hunter : game.player);

@@ -278,7 +278,7 @@ export function basisQuat(b, e, out = new THREE.Quaternion()) {
   _m.makeBasis(_x, _y, _z); return out.setFromRotationMatrix(_m);
 }
 
-function mergeChildren(parent, keep = []) {
+export function mergeChildren(parent, keep = []) {
   const groups = new Map();
   for (const c of [...parent.children]) {
     if (!c.isMesh || c.isSkinnedMesh || keep.includes(c) || c.children.length) continue;

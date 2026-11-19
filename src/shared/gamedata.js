@@ -1,5 +1,6 @@
 import { ISLAND_ITEMS } from './islandLoot.js';
 import { ISLAND_WEAPONS, ISLAND_ARMOR_SETS } from './islandGear.js';
+import { CLASS_WEAPONS } from './classGear.js';
 // Wildbound shared game data — imported by BOTH the browser client and the Node server.
 // The server is authoritative: it validates every purchase/craft/upgrade/reward against these tables,
 // the client only uses them for display. Pure data + tiny pure helpers; no DOM, no Node APIs.
@@ -103,6 +104,8 @@ export const WEAPONS = {
     levels: [w(768, -15, { type: 'blast', value: 420 }, 1.1), w(816, -10, { type: 'blast', value: 480 }, 1.15, { coins: 14000, mats: { gv_tail: 1, gv_slag: 4, stormquartz: 3 } }), w(864, -5, { type: 'blast', value: 540 }, 1.2, { coins: 22000, mats: { gv_core: 1, gv_knuckle: 2, vk_gem: 1 } })] },
 };
 for (const [k, v] of Object.entries(ISLAND_WEAPONS)) { const { ja, jaEffect, ...def } = v; WEAPONS[k] = def; } // island gear (stage 5b)
+for (const [k, v] of Object.entries(CLASS_WEAPONS)) { const { ja, jaEffect, ...def } = v; WEAPONS[k] = def; } // other weapon classes
+for (const d of Object.values(WEAPONS)) d.cls ||= 'greatsword'; // every weapon belongs to a class (src/shared/weaponClasses.js)
 export const STARTER_WEAPON = 'marrowcleaver';
 
 // ---------------------------------------------------------------- armour
@@ -227,15 +230,15 @@ export const POUCH = { slots: 16 };
 export const START = { coins: 1500, box: { potion: 5, sunpetal: 3, glowcap: 2, honey: 2 }, pouch: { potion: 5 } };
 
 // ---------------------------------------------------------------- derived helpers (pure)
-export const weaponStats = (defId, lv) => { const d = WEAPONS[defId]; if (!d) return null; const L = d.levels[Math.min(lv, d.levels.length - 1)]; return { ...L, rarity: d.rarity, name: d.name, maxLv: d.levels.length - 1, effect: d.effect }; };
+export const weaponStats = (defId, lv) => { const d = WEAPONS[defId]; if (!d) return null; const L = d.levels[Math.min(lv, d.levels.length - 1)]; return { ...L, rarity: d.rarity, name: d.name, maxLv: d.levels.length - 1, effect: d.effect, cls: d.cls || 'greatsword' }; };
 export const armorStats = (defId, lv) => { const d = ARMOR[defId]; if (!d) return null; return { def: d.def + d.perLv * lv, res: d.res, skills: d.skills, rarity: d.rarity, name: d.name, slot: d.slot, maxLv: d.maxLv }; };
 export const nextWeaponCost = (defId, lv) => WEAPONS[defId]?.levels[lv + 1]?.cost || null;
 export const nextArmorCost = (defId, lv) => { const d = ARMOR[defId]; if (!d || lv >= d.maxLv) return null; return d.upgrade(lv); };
 // Totals for a loadout: { attack, affinity, element, sharp, defense, res, skills }
 export function loadoutStats(equipList, loadout) {
   const byUid = Object.fromEntries((equipList || []).map((e) => [e.uid, e]));
-  const out = { attack: 480, affinity: 0, element: null, sharp: 1, defense: 0, res: { fire: 0, water: 0, thunder: 0, ice: 0, dragon: 0 }, skills: {} };
-  const we = byUid[loadout?.weapon]; if (we && WEAPONS[we.def]) Object.assign(out, (({ attack, affinity, element, sharp }) => ({ attack, affinity, element, sharp }))(weaponStats(we.def, we.lvl)));
+  const out = { cls: 'greatsword', attack: 480, affinity: 0, element: null, sharp: 1, defense: 0, res: { fire: 0, water: 0, thunder: 0, ice: 0, dragon: 0 }, skills: {} };
+  const we = byUid[loadout?.weapon]; if (we && WEAPONS[we.def]) Object.assign(out, (({ attack, affinity, element, sharp, cls }) => ({ attack, affinity, element, sharp, cls }))(weaponStats(we.def, we.lvl)));
   for (const slot of ARMOR_SLOTS) {
     const a = byUid[loadout?.[slot]]; if (!a || !ARMOR[a.def]) continue; const s = armorStats(a.def, a.lvl);
     out.defense += s.def; for (const k in s.res) out.res[k] += s.res[k]; for (const [sk, p] of Object.entries(s.skills)) out.skills[sk] = Math.min(SKILLS[sk].max, (out.skills[sk] || 0) + p);

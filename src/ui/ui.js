@@ -33,7 +33,7 @@ const SVG = {
     <circle cx="60" cy="96" r="3" fill="url(#wbG)"/></svg>`,
 };
 
-const CONTROLS = [['WASD', 'key.move'], ['key.mouse', 'key.look'], ['key.lmb', 'key.light'], ['key.rmb', 'key.heavy'], ['Space', 'key.dodge'], ['C', 'key.jump'], ['Shift', 'key.sprint'], ['Q', 'key.guard'], ['F / Tab', 'key.lock'], ['R', 'key.drink'], ['E', 'key.interact'], ['Enter', 'key.chat'], ['Esc', 'key.menu']].map(([k, v]) => [k.startsWith('key.') ? t(k) : k, t(v)]);
+const CONTROLS = [['WASD', 'key.move'], ['key.mouse', 'key.look'], ['key.lmb', 'key.light'], ['key.rmb', 'key.heavy'], ['Space', 'key.dodge'], ['C', 'key.jump'], ['G', 'key.rope'], ['Shift', 'key.sprint'], ['Q', 'key.guard'], ['F / Tab', 'key.lock'], ['R', 'key.drink'], ['E', 'key.interact'], ['Enter', 'key.chat'], ['Esc', 'key.menu']].map(([k, v]) => [k.startsWith('key.') ? t(k) : k, t(v)]);
 const TIERS = [ // sharpness tiers (original naming/colours)
   [0.85, t('sh.keen'), '#9fe8ff'], [0.65, t('sh.honed'), '#7fe08f'], [0.45, t('sh.worn'), '#f2d65a'], [0.25, t('sh.dull'), '#f39a3c'], [-1, t('sh.blunt'), '#e2443a'],
 ];
@@ -131,6 +131,10 @@ export function createUI(game) {
   events.on('player:parry', () => toast(t('f.parry')));
   events.on('player:silenced', () => toast(t('f.silenced')));
   events.on('item:cancel', () => toast(t('f.itemCancel')));
+  events.on('player:ropeMiss', (e) => toast(e?.why && e.why !== 'none' ? t('f.ropeRefused', { k: t('rk.' + e.why) }) : t('f.ropeMiss')));
+  events.on('player:ropeCooldown', (e) => toast(t('f.ropeCd', { s: Math.ceil(e?.left || 0) })));
+  events.on('player:focus', (e) => toast(t('f.focus', { n: e?.level || 1 })));
+  events.on('player:weaponClass', (e) => { if (e?.cls) toast(t('f.weaponClass', { w: t('wc.' + e.cls) })); });
   events.on('monster:partRegen', (e) => { if (e?.monster && e.monster === M()) toast(t('f.regrew', { m: parseName(e.monster.name).name, p: partName(e.part) })); });
   const chipRage = chip('wb-chip-rage', SVG.rage, t('chip.rage')), chipTired = chip('wb-chip-tired', SVG.tired, t('chip.tired')), limp = chip('wb-chip-limp', SVG.limp, t('chip.limp'));
   let monState = '';

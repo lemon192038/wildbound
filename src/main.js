@@ -165,6 +165,7 @@ async function bootIsland() {
   const expedition = { iid: null };
   (async () => {
     const st = await game.account.restore().catch(() => null); const ex = st?.quests?.expedition;
+    if (st?.stats) game.player.setGear?.(st.stats); // the equipped loadout (weapon class, attack, armour) from the server
     if (ex?.island && (!game.params.get('iid') || game.params.get('iid') === ex.iid)) expedition.iid = ex.iid;
     else game.ui?.toast?.(t('isl.offline'));
   })();

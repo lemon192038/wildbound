@@ -100,7 +100,7 @@ export function createIslandProps(THREE, scene, F, { low = false, seed = 1337, c
         pv.set(x, h - (type === 'boulder' ? s * 0.18 : 0.15), z); mtx.compose(pv, q, sv);
         arr.push(...mtx.elements);
         const cr = type === 'boulder' ? (s > 1.1 ? s * 0.85 : 0) : type === 'pillar' ? 1.1 * s : type === 'pine' ? 0.45 * s : type === 'deadtree' ? 0.35 * s : type === 'fungus' ? 0.55 * s : s > 1 ? 0.8 * s : 0;
-        if (cr > 0) out.colliders.push({ x, z, r: cr });
+        if (cr > 0) out.colliders.push({ x, z, r: cr, kind: type, h: s * (type === 'pine' ? 9 : type === 'deadtree' ? 6 : type === 'fungus' ? 5 : type === 'pillar' ? 6 : type === 'boulder' ? 1.6 : 2) }); // kind / height: grappling-hook targets (src/player/grapple.js)
       }
       if (arr.length) out.types[type] = new Float32Array(arr);
     }
