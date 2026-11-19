@@ -17,7 +17,7 @@ export function createHerdAI(ctx) {
   const TAU = Math.PI * 2;
   const groups = new Set(); let gid = 1;
   const face = (c, x, z, dt, rate = 3) => { c.yaw += Math.max(-rate * dt, Math.min(rate * dt, wrapA(Math.atan2(x - c.pos.x, z - c.pos.z) - c.yaw))); };
-  const hurtLocal = (h, a, from) => { if (!h?.local) return false; const ok = game.player.receiveHit?.({ damage: a.damage, knockback: a.knockback ?? 4, from: from.clone() }); if (ok !== false && a.status) game.status?.apply?.(...a.status); return ok !== false; };
+  const hurtLocal = (h, a, from) => { if (!h?.local) return false; const ok = game.player.receiveHit?.({ damage: a.damage, knockback: a.knockback ?? 4, from: from.pos.clone(), source: from, kind: a.kind || 'physical' }); if (ok !== false && a.status) game.status?.apply?.(...a.status); return ok !== false; };
   const alive = (g) => g.members.filter((m) => !m.dead);
   const bossNear = (p, r) => (game.monsters || []).some((m) => m.state !== 'dead' && m.position.distanceTo(p) < r);
   const posOf = (t) => t?.pos || t?.position;
@@ -105,7 +105,7 @@ export function createHerdAI(ctx) {
     c.move = 1; c.mode = 3; c.heat = c.crystal ? 1.4 : 0.4;
     const R = 1.5 * c.scale + 0.5;
     const [h, dH] = nearestHunter(c.pos.x, c.pos.z);
-    if (h && dH < R && !c.hitH) { c.hitH = true; hurtLocal(h, A, c.pos); }
+    if (h && dH < R && !c.hitH) { c.hitH = true; hurtLocal(h, A, c); }
     const o = nearestOf(c, R + 1, (q) => !q.dead && q.group !== c.group && q.sp !== 'bird' && q.sp !== 'snake' && !(c.hitSet ||= new Set()).has(q));
     if (o && o.pos.distanceTo(c.pos) < R + 0.5 * o.scale) { c.hitSet.add(o); hitCreature(o, A.creature, c, 'ram'); }
   }
@@ -115,7 +115,7 @@ export function createHerdAI(ctx) {
     if (c.ai === 'charge') { chargeStep(c, dt, c.crystal ? A.crystalCharge : A.charge); if (c.t > 1.4) { setAi(c, 'recover'); c.dur = c.crystal ? A.crystalCharge.rest : 1.0; c.hitH = false; c.hitSet = null; c.crystal = false; } return; }
     if (c.ai === 'recover') { c.move = 0; c.mode = c.dur > 2 ? 2 : 0; c.heat = Math.max(0, c.heat - dt); if (c.t > c.dur) setAi(c, 'herd'); return; }
     if (c.ai === 'paw') { c.move = 0; c.mode = 1; c.heat = 0.6; const t = posOf(c.chargeAt); if (t) face(c, t.x, t.z, dt, 2.5); if (c.t > (c.role === 'tusk' ? 1.1 : 0.9)) { setAi(c, 'charge'); c.chargeAt = c.chargeAt; c.crystal = c.role === 'tusk' && rnd() < 0.5; } return; }
-    if (c.ai === 'gore') { c.move = 0; c.mode = 1; const t = posOf(c.target); if (t) face(c, t.x, t.z, dt, 4); if (c.t > 0.45 && !c.hitDone && t && t.distanceTo(c.pos) < 2.6 * c.scale) { c.hitDone = true; if (c.target === game.player) hurtLocal({ local: true }, A.gore, c.pos); else if (c.target.receiveHit) hitCreature(c.target, A.gore.creature, c, 'bite'); } if (c.t > 0.8) { c.hitDone = false; setAi(c, 'herd'); c.attackCd = 1.5; } return; }
+    if (c.ai === 'gore') { c.move = 0; c.mode = 1; const t = posOf(c.target); if (t) face(c, t.x, t.z, dt, 4); if (c.t > 0.45 && !c.hitDone && t && t.distanceTo(c.pos) < 2.6 * c.scale) { c.hitDone = true; if (c.target === game.player) hurtLocal({ local: true }, A.gore, c); else if (c.target.receiveHit) hitCreature(c.target, A.gore.creature, c, 'bite'); } if (c.t > 0.8) { c.hitDone = false; setAi(c, 'herd'); c.attackCd = 1.5; } return; }
     const C = g.center, th = g.threat, tp = posOf(th);
     c.ai = 'herd';
     if (g.state === 'flee' && tp) { const a = Math.atan2(c.pos.x - tp.x, c.pos.z - tp.z); steer(c, c.pos.x + Math.sin(a) * 8, c.pos.z + Math.cos(a) * 8, S.runSpeed, dt, 2); c.mode = 3; if (tp.distanceTo(c.pos) > 50) g.state = 'graze'; return; }
@@ -162,7 +162,7 @@ export function createHerdAI(ctx) {
     if (c.ai === 'lunge') { // dash in, bite on contact, peel away
       const t = posOf(c.target); if (t) face(c, t.x, t.z, dt, 5);
       steer(c, t ? t.x : c.pos.x, t ? t.z : c.pos.z, 13, dt, 6); c.mode = 3;
-      if (t && t.distanceTo(c.pos) < 1.6 * c.scale + 0.4 && !c.hitDone) { c.hitDone = true; if (c.target === game.player) hurtLocal({ local: true }, c.role === 'leader' ? A.lunge : A.bite, c.pos); else if (c.target.receiveHit) hitCreature(c.target, A.lunge.creature, c); }
+      if (t && t.distanceTo(c.pos) < 1.6 * c.scale + 0.4 && !c.hitDone) { c.hitDone = true; if (c.target === game.player) hurtLocal({ local: true }, c.role === 'leader' ? A.lunge : A.bite, c); else if (c.target.receiveHit) hitCreature(c.target, A.lunge.creature, c); }
       if (c.hitDone || c.t > 0.9) { c.hitDone = false; setAi(c, 'pack'); c.attackCd = 2 + rnd() * 2.5; }
       return;
     }

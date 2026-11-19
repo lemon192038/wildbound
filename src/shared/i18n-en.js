@@ -108,7 +108,7 @@ export default {
     'menu.signedIn': 'Signed in as {name}. Your progress is saved on the guild server after every action.', 'menu.logout': 'Log out', 'menu.keys': 'Keys', 'menu.logoutQ': 'Log out?',
     'menu.logoutBody': 'Your progress is saved on the server. You can sign in again at any time.',
     'set.sens': 'Look sensitivity', 'set.vol': 'Master volume', 'set.gfx': 'Graphics', 'set.high': 'High', 'set.low': 'Low', 'set.lang': 'Language',
-    'key.move': 'Move', 'key.mouse': 'Mouse', 'key.look': 'Look', 'key.sprint': 'Sprint', 'key.talk': 'Talk', 'key.menuClose': 'Menu / close', 'key.lmb': 'LMB', 'key.rmb': 'RMB', 'key.light': 'Light strike',
+    'key.move': 'Move', 'key.mouse': 'Mouse', 'key.look': 'Look', 'key.sprint': 'Sprint', 'key.talk': 'Talk', 'key.menuClose': 'Menu / close', 'key.lmb': 'LMB', 'key.rmb': 'RMB', 'key.light': 'Light strike (hold: counter stance)',
     'key.heavy': 'Heavy / charge', 'key.dodge': 'Dodge roll', 'key.guard': 'Guard', 'key.lock': 'Lock on', 'key.drink': 'Drink draught', 'key.interact': 'Interact', 'key.chat': 'Chat', 'key.menu': 'Menu',
     // field HUD
     'sh.keen': 'Keen', 'sh.honed': 'Honed', 'sh.worn': 'Worn', 'sh.dull': 'Dull', 'sh.blunt': 'Blunt',
@@ -141,7 +141,7 @@ export default {
     'g.herb': 'Herb patch', 'g.mushroom': 'Glowcap cluster', 'g.lichen': 'Tidecap lichen', 'g.ore': 'Ore outcrop', 'g.crimson': 'Crimson vein', 'g.crystal': 'Stormquartz crystal', 'g.hive': 'Wild hive', 'g.bones': 'Bone pile',
     // touch buttons
     'touch.move': 'MOVE', 'touch.attack': 'ATTACK', 'touch.heavy': 'HEAVY', 'touch.dodge': 'DODGE', 'touch.guard': 'GUARD', 'touch.item': 'ITEM', 'touch.next': 'NEXT', 'touch.lock': 'LOCK', 'touch.menu': 'MENU',
-    'touch.talk': 'TALK', 'touch.gather': 'GATHER', 'touch.carve': 'CARVE',
+    'touch.talk': 'TALK', 'touch.gather': 'GATHER', 'ail.burnM': 'BURNING+', 'ail.sleep': 'ASLEEP', 'ail.stun': 'STUNNED', 'ail.stunL': 'KNOCKED OUT', 'ail.conf': 'CONFUSED', 'ail.confL': 'DEEPLY CONFUSED', 'ail.silence': 'SILENCED', 'ail.atkDown': 'ATTACK DOWN', 'ail.defDown': 'DEFENCE DOWN', 'ail.speedDown': 'SPEED DOWN', 'ail.atkSpeedDown': 'ATTACK SPEED DOWN', 'ail.critDown': 'AFFINITY DOWN', 'ail.critDmgDown': 'CRIT DAMAGE DOWN', 'ail.elemAtkDown': 'ELEMENT DOWN', 'ail.elemResDown': 'RESISTANCE DOWN', 'ail.healDown': 'HEALING DOWN', 'ail.stamRegenDown': 'STAMINA REGEN DOWN', 'f.parryReady': 'Counter stance — press & release ATTACK to parry', 'f.parryOff': 'Counter stance ended', 'f.parry': 'PARRY!', 'f.silenced': 'Silenced: no counters or true charges', 'f.itemCancel': 'Stopped drinking — nothing used', 'touch.jump': 'JUMP', 'key.jump': 'Jump (attack in the air: plunge)', 'touch.carve': 'CARVE',
     // server messages (English UI shows the server text unchanged; these are used only when it is unknown)
     'srv.oops': 'Something went wrong. Try again.', 'srv.network': 'Cannot reach the server. Check your connection and try again.', 'srv.rate': 'Slow down', 'srv.session': 'Please log in', 'srv.server': 'Server error',
     'srv.coinsShort': 'Not enough coins', 'srv.missingShort': 'Missing materials', 'srv.busyHunt': 'You are already on a hunt', 'srv.cannotCraft': 'Cannot be crafted', 'srv.conflict': 'Please retry',

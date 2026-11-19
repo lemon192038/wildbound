@@ -20,7 +20,7 @@ export function createPredatorAI(ctx) {
   const face = (c, x, z, dt, rate = 3) => { c.yaw += Math.max(-rate * dt, Math.min(rate * dt, wrapA(Math.atan2(x - c.pos.x, z - c.pos.z) - c.yaw))); };
   function hurtLocal(h, a, from) {
     if (!h?.local) return;
-    const ok = game.player.receiveHit?.({ damage: a.damage, knockback: a.knockback ?? 4, from: from.clone() });
+    const ok = game.player.receiveHit?.({ damage: a.damage, knockback: a.knockback ?? 4, from: from.pos.clone(), source: from, kind: a.kind || 'physical' });
     if (ok !== false && a.status) game.status?.apply?.(...a.status);
   }
   const bossNear = (c, r) => (game.monsters || []).some((m) => m.state !== 'dead' && m.position.distanceTo(c.pos) < r);
@@ -48,14 +48,14 @@ export function createPredatorAI(ctx) {
     if (c.ai === 'charge') { // short burst at prey or hunter; no long pursuit
       const T = c.chargeAt; const d = steer(c, T.x, T.z, S.chargeSpeed, dt, 1.4); c.mode = 3;
       if (c.prey && !c.prey.dead && c.prey.pos.distanceTo(c.pos) < 1.5) { die(c.prey, 'predation', c); setAi(c, 'eat'); c.dur = 8; return; }
-      if (c.huntH && h && dH < 1.8 * c.scale + 0.5 && !c.hitDone) { c.hitDone = true; hurtLocal(h, A.charge, c.pos); }
+      if (c.huntH && h && dH < 1.8 * c.scale + 0.5 && !c.hitDone) { c.hitDone = true; hurtLocal(h, A.charge, c); }
       if (d < 0.6 || c.t > 1.1) { c.prey = null; c.hitDone = false; setAi(c, c.huntH ? 'fight' : 'return'); c.huntH = false; c.chargeCd = 5; }
       return;
     }
     if (c.ai === 'bite' || c.ai === 'tail' || c.ai === 'fire') {
       c.move = 0; c.mode = c.ai === 'bite' ? 0 : 1;
-      if (c.ai === 'bite') { if (h) face(c, h.pos.x, h.pos.z, dt, 4); if (c.t > 0.45 && !c.hitDone) { c.hitDone = true; if (h && dH < 2.8 * c.scale) hurtLocal(h, A.bite, c.pos); } if (c.t > 0.9) { c.hitDone = false; setAi(c, 'fight'); c.cd = 1.2; } }
-      if (c.ai === 'tail') { c.yaw += dt * 9; if (c.t > 0.35 && !c.hitDone) { c.hitDone = true; if (h && dH < 3.4 * c.scale) hurtLocal(h, A.tail, c.pos); } if (c.t > 0.7) { c.hitDone = false; setAi(c, 'fight'); c.cd = 1.4; } }
+      if (c.ai === 'bite') { if (h) face(c, h.pos.x, h.pos.z, dt, 4); if (c.t > 0.45 && !c.hitDone) { c.hitDone = true; if (h && dH < 2.8 * c.scale) hurtLocal(h, A.bite, c); } if (c.t > 0.9) { c.hitDone = false; setAi(c, 'fight'); c.cd = 1.2; } }
+      if (c.ai === 'tail') { c.yaw += dt * 9; if (c.t > 0.35 && !c.hitDone) { c.hitDone = true; if (h && dH < 3.4 * c.scale) hurtLocal(h, A.tail, c); } if (c.t > 0.7) { c.hitDone = false; setAi(c, 'fight'); c.cd = 1.4; } }
       if (c.ai === 'fire') { if (h) face(c, h.pos.x, h.pos.z, dt, 3); c.heat = Math.min(1.5, c.t * 2); if (c.t > 0.7 && !c.hitDone && h) { c.hitDone = true; shoot(c, h.pos, A.fire, 0.5); } if (c.t > 1.1) { c.hitDone = false; setAi(c, 'fight'); c.cd = 1.5; c.fireCd = A.fire.cooldown; } }
       return;
     }
@@ -131,7 +131,7 @@ export function createPredatorAI(ctx) {
       if (k >= 1 && !c.hitDone) {
         c.hitDone = true;
         if (c.prey && !c.prey.dead && c.prey.pos.distanceTo(c.pos) < 2.4) { die(c.prey, 'predation', c); c.prey.eaten = true; c.hunger = 0; }
-        if (c.huntH && h && dH < 2.6 * c.scale + 0.6) hurtLocal(h, A.lunge, c.pos);
+        if (c.huntH && h && dH < 2.6 * c.scale + 0.6) hurtLocal(h, A.lunge, c);
       }
       if (c.t > 1.1) { c.hitDone = false; c.prey = null; setAi(c, 'retreat'); }
       return;

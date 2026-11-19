@@ -162,13 +162,72 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
   - The prompt disappears when nothing is left. No errors.
 - Bug found and fixed: the carving lock counted frames, not real time (at 2 fps a carve took ~27 s).
 
+## Stage 6a: Combat extras (2026-11-19)
+**Implemented:**
+- **Sheathe / parry** (`src/player/player.js`):
+  - holding light attack 0.45 s while drawn sheathes into a counter stance; a tap still slashes (decided on release);
+  - in the stance, press → hold pose, release → parry with a 0.25 s window;
+  - only direct physical blows that carry a `source` can be parried (no roars, area bursts, projectiles or ailments);
+  - success: no damage, sparks, clang, hitstop, the attacker reels (fauna `staggerT`; bosses play `flinch`; `m.parried` counts), and the blade comes out straight into a counter slash;
+  - miss: 0.45 s recovery, dodge-cancelable.
+- **Ailments** (`src/core/status.js`):
+  - burn medium;
+  - sleep: woken by a hit, which deals ×1.5;
+  - stun short / long: mashing shortens it;
+  - flinch short / long: instant stagger;
+  - confusion short / long: scrambled / reversed movement;
+  - silence: no tackle, no True Charge, no parry;
+  - 10 stat-downs, applied through `mods()`: attack, defence, speed, attack speed, affinity, crit damage, element, element resistance, healing, stamina regeneration;
+  - rules:
+    - no stacking: a stronger level replaces, the same level refreshes, a weaker one is ignored;
+    - immunity after sleep and stun;
+    - wards;
+    - `cure([...])`;
+  - burn large also applies attack down; lethal venom also applies healing down;
+  - HUD chips (JA/EN).
+- **Fauna attacks:**
+  - send `source` / `kind` (`aoe` for bursts and slams, `projectile` for shots);
+  - boar charge → stun short; crystal tusk charge → stun long; golem fist → stun short; golem slam → flinch long; mole burst → flinch long; lizard fire → burn medium;
+  - fixed a crash when a golem rock (no status) hit the player.
+- **Cure items with drink times** (`gamedata.js` `drink`, `use: 'cure'`, `cure`, `ward`):
+  - antidote 1.2 s: lethal venom weakens to deadly;
+  - new: Deepwater Antidote 1.8 s, Brightleaf Tonic 1.0 s (sleep), Sharpsalt 1.2 s (stun), Stillmoss Draught 1.5 s (confusion), Throatbalm 1.3 s (silence), Ironroot Vigor 1.4 s (stat-downs + flinch ward), Allheal Elixir 2.5 s (all);
+  - alchemy recipes and shop stock added;
+  - effect and consumption happen only at the swallow; a dodge before it cancels and uses nothing; a hit interrupts.
+- **Jump** (C / gamepad A / touch JUMP):
+  - gravity and landing; walking off a ledge (>0.9 m drop) starts a fall; falls over 6 m knock down (no damage);
+  - light/heavy in the air = **plunging attack**: the overhead slam plays on landing, with motion value 0.7 + up to 0.5 by fall height.
+- **Roll:**
+  - `P.roll = { dist: 3.2, iStart: 0.03, iEnd: 0.3 }` (was ~2.5 m);
+  - i-frames end the frame the window closes;
+  - dodge now also cancels guard, a light hit (not stuns), and drinking at any time.
+
+**Partial / unverified:**
+- Boss parry stagger is applied locally (`debug.play('flinch')`); in co-op only the host's boss AI is authoritative, so a client's parry may not flinch the shared boss.
+- No dedicated parry/jump animations beyond reused clips (guard pose, new tuck clip, light3 slam).
+- Grapple, enchanting and weapon categories are not implemented.
+- Not checked on an iPad.
+
+### Stage 6a tests (2026-11-19)
+- Status unit test, `node src/core/__status.test.mjs`: **18/18 passed**.
+- Combat bench, `node src/player/__combat.test.mjs`: **16/16 passed**. Checks:
+  - tap / hold;
+  - parry success / not parryable / miss → dodge;
+  - roll 3.2 m, i-frames end at 0.3 s;
+  - jump and landing; plunge hits;
+  - drink cancel uses nothing; the effect lands at 1.2 s;
+  - sleep woken by a hit; stun; confusion reverses movement; silence blocks parry; speed down.
+- All suites passed: `server/test` 67, api ×2 85 / 85, perception, fauna, parts, player.
+- `npx vite build` passed. `tools/island-test.mjs`: 0 failed, no errors.
+- Island screenshot (JA): chips for confusion [long], defence down, burn [medium] and silence; counter stance pose.
+
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
   - island content
   - all new species
   - part system v2
   - materials, carving and gear expansion
-  - combat extras (sheathe/parry, full ailments, potions with drink time, jump, falling attack, grapple, roll i-frames)
+  - combat extras still open: grapple (sheathe/parry, ailments, drink times, jump, plunge and roll are done in stage 6a)
   - weapon categories
   - enchanting
   - ecosystem

@@ -33,7 +33,7 @@ const SVG = {
     <circle cx="60" cy="96" r="3" fill="url(#wbG)"/></svg>`,
 };
 
-const CONTROLS = [['WASD', 'key.move'], ['key.mouse', 'key.look'], ['key.lmb', 'key.light'], ['key.rmb', 'key.heavy'], ['Space', 'key.dodge'], ['Shift', 'key.sprint'], ['Q', 'key.guard'], ['F / Tab', 'key.lock'], ['R', 'key.drink'], ['E', 'key.interact'], ['Enter', 'key.chat'], ['Esc', 'key.menu']].map(([k, v]) => [k.startsWith('key.') ? t(k) : k, t(v)]);
+const CONTROLS = [['WASD', 'key.move'], ['key.mouse', 'key.look'], ['key.lmb', 'key.light'], ['key.rmb', 'key.heavy'], ['Space', 'key.dodge'], ['C', 'key.jump'], ['Shift', 'key.sprint'], ['Q', 'key.guard'], ['F / Tab', 'key.lock'], ['R', 'key.drink'], ['E', 'key.interact'], ['Enter', 'key.chat'], ['Esc', 'key.menu']].map(([k, v]) => [k.startsWith('key.') ? t(k) : k, t(v)]);
 const TIERS = [ // sharpness tiers (original naming/colours)
   [0.85, t('sh.keen'), '#9fe8ff'], [0.65, t('sh.honed'), '#7fe08f'], [0.45, t('sh.worn'), '#f2d65a'], [0.25, t('sh.dull'), '#f39a3c'], [-1, t('sh.blunt'), '#e2443a'],
 ];
@@ -88,7 +88,11 @@ export function createUI(game) {
   const bladeFill = blade.querySelector('.wb-blade-fill'), bladeTier = blade.querySelector('.wb-blade-tier');
   // Status ailments (src/core/status.js): chips under the bars, tinted HP bar.
   const ailRow = el('div', 'wb-ail-row', null, bars);
-  const AIL = { burn: { cls: 'wb-ail-burn', label: { small: t('ail.burn'), large: t('ail.blaze') } }, poison: { cls: 'wb-ail-poison', label: { normal: t('ail.poison'), deadly: t('ail.deadly'), lethal: t('ail.lethal') } }, blast: { cls: 'wb-ail-blast', label: { normal: t('ail.blast') } } };
+  const AIL = { burn: { cls: 'wb-ail-burn', label: { small: t('ail.burn'), large: t('ail.blaze') } }, poison: { cls: 'wb-ail-poison', label: { normal: t('ail.poison'), deadly: t('ail.deadly'), lethal: t('ail.lethal') } }, blast: { cls: 'wb-ail-blast', label: { normal: t('ail.blast') } },
+    sleep: { cls: 'wb-ail-sleep', label: { normal: t('ail.sleep') } }, stun: { cls: 'wb-ail-stun', label: { short: t('ail.stun'), long: t('ail.stunL') } },
+    confusion: { cls: 'wb-ail-conf', label: { short: t('ail.conf'), long: t('ail.confL') } }, silence: { cls: 'wb-ail-silence', label: { normal: t('ail.silence') } } };
+  for (const k of ['atkDown', 'defDown', 'speedDown', 'atkSpeedDown', 'critDown', 'critDmgDown', 'elemAtkDown', 'elemResDown', 'healDown', 'stamRegenDown']) AIL[k] = { cls: 'wb-ail-down', label: { normal: t('ail.' + k) } };
+  AIL.burn.label.medium = t('ail.burnM');
   const ailEls = {};
 
   // ---------------------------------------------------------------- nav: minimap, timer, limp
@@ -123,6 +127,10 @@ export function createUI(game) {
     partsEl.innerHTML = rows.map(([n, st, pr]) => `<div class="wb-pt wb-pt-${st}"><span>${esc(partName(n))}</span><i style="--f:${pr}%"></i><b>${t('pt.' + (st === 'regen' ? 'regen' : st))}${st === 'regen' ? ` ${pr}%` : ''}</b></div>`).join('');
   }
   events.on('player:deflect', () => toast(t('f.deflect')));
+  events.on('player:parryReady', (e) => toast(t(e?.on ? 'f.parryReady' : 'f.parryOff')));
+  events.on('player:parry', () => toast(t('f.parry')));
+  events.on('player:silenced', () => toast(t('f.silenced')));
+  events.on('item:cancel', () => toast(t('f.itemCancel')));
   events.on('monster:partRegen', (e) => { if (e?.monster && e.monster === M()) toast(t('f.regrew', { m: parseName(e.monster.name).name, p: partName(e.part) })); });
   const chipRage = chip('wb-chip-rage', SVG.rage, t('chip.rage')), chipTired = chip('wb-chip-tired', SVG.tired, t('chip.tired')), limp = chip('wb-chip-limp', SVG.limp, t('chip.limp'));
   let monState = '';

@@ -13,12 +13,19 @@ export const DATA_VERSION = 1;
 export const ITEMS = {
   // consumables
   potion: { name: 'Verdant Draught', kind: 'consumable', rarity: 1, buy: 60, sell: 6, pouchMax: 10, use: 'heal50', icon: 'flask-green', desc: 'A bitter herbal draught that knits wounds. Restores a moderate amount of health.' },
-  megaPotion: { name: 'Greater Draught', kind: 'consumable', rarity: 3, buy: null, sell: 30, pouchMax: 10, use: 'heal100', icon: 'flask-gold', desc: 'Honey-thickened draught. Restores a large amount of health.' },
-  ancientDraught: { name: 'Ancient Draught', kind: 'consumable', rarity: 6, buy: null, sell: 320, pouchMax: 1, use: 'healFull', icon: 'flask-violet', desc: 'A legendary brew. Fully restores health and stamina and grants brief invigoration.' },
+  megaPotion: { name: 'Greater Draught', kind: 'consumable', rarity: 3, buy: null, sell: 30, pouchMax: 10, use: 'heal100', drink: 0.9, icon: 'flask-gold', desc: 'Honey-thickened draught. Restores a large amount of health.' },
+  ancientDraught: { name: 'Ancient Draught', kind: 'consumable', rarity: 6, buy: null, sell: 320, pouchMax: 1, use: 'healFull', drink: 1.2, icon: 'flask-violet', desc: 'A legendary brew. Fully restores health and stamina and grants brief invigoration.' },
   energyDrink: { name: 'Tideroot Tonic', kind: 'consumable', rarity: 2, buy: 120, sell: 12, pouchMax: 5, use: 'stamina', icon: 'flask-blue', desc: 'Refills stamina and halves stamina drain for 60 seconds.' },
-  antidote: { name: 'Clearwater Antidote', kind: 'consumable', rarity: 1, buy: 50, sell: 5, pouchMax: 10, use: 'curePoison', icon: 'flask-white', desc: 'Neutralises poison, even the deadly kind.' },
-  coolingSalve: { name: 'Frostfern Salve', kind: 'consumable', rarity: 2, buy: null, sell: 18, pouchMax: 5, use: 'cureBurn', icon: 'jar-blue', desc: 'Smothers flames and wards against burns for 90 seconds.' },
-  quenchFlask: { name: 'Quench Flask', kind: 'consumable', rarity: 3, buy: null, sell: 28, pouchMax: 5, use: 'cureBlast', icon: 'jar-teal', desc: 'Dowses blastblight and steadies volatile cinder on your armour.' },
+  antidote: { name: 'Clearwater Antidote', kind: 'consumable', rarity: 1, buy: 50, sell: 5, pouchMax: 10, use: 'curePoison', drink: 1.2, icon: 'flask-white', desc: 'Neutralises poison, even the deadly kind. Lethal venom only weakens to deadly.' },
+  strongAntidote: { name: 'Deepwater Antidote', kind: 'consumable', rarity: 3, buy: null, sell: 20, pouchMax: 5, use: 'cure', cure: ['poison'], drink: 1.8, icon: 'flask-white', desc: 'A slow, heavy antidote that clears every poison, lethal venom included.' },
+  wakeTonic: { name: 'Brightleaf Tonic', kind: 'consumable', rarity: 1, buy: 80, sell: 8, pouchMax: 5, use: 'cure', cure: ['sleep'], ward: { sleep: 60 }, drink: 1.0, icon: 'flask-green', desc: 'Keeps you wide awake: no sleep for 60 seconds.' },
+  smellingSalts: { name: 'Sharpsalt', kind: 'consumable', rarity: 1, buy: 70, sell: 7, pouchMax: 5, use: 'cure', cure: ['stun'], ward: { stun: 45 }, drink: 1.2, icon: 'jar-teal', desc: 'A sharp sniff that clears the head: no stun for 45 seconds.' },
+  sedative: { name: 'Stillmoss Draught', kind: 'consumable', rarity: 2, buy: 80, sell: 8, pouchMax: 5, use: 'cure', cure: ['confusion'], ward: { confusion: 45 }, drink: 1.5, icon: 'flask-blue', desc: 'Calms a reeling mind. Cures confusion and wards it for 45 seconds.' },
+  voiceBalm: { name: 'Throatbalm', kind: 'consumable', rarity: 2, buy: 90, sell: 9, pouchMax: 5, use: 'cure', cure: ['silence'], ward: { silence: 45 }, drink: 1.3, icon: 'jar-blue', desc: 'Soothes a seized throat. Cures silence and wards it for 45 seconds.' },
+  vigorDraught: { name: 'Ironroot Vigor', kind: 'consumable', rarity: 3, buy: null, sell: 24, pouchMax: 5, use: 'cure', cure: ['debuffs'], ward: { flinch: 30 }, drink: 1.4, icon: 'flask-gold', desc: 'Restores lost strength: clears every stat-down and steadies you against flinching for 30 seconds.' },
+  panacea: { name: 'Allheal Elixir', kind: 'consumable', rarity: 5, buy: null, sell: 90, pouchMax: 2, use: 'cure', cure: ['all'], drink: 2.5, icon: 'flask-violet', desc: 'Cures every ailment at once. Takes a long time to drink.' },
+  coolingSalve: { name: 'Frostfern Salve', kind: 'consumable', rarity: 2, buy: null, sell: 18, pouchMax: 5, use: 'cureBurn', drink: 1.5, icon: 'jar-blue', desc: 'Smothers flames and wards against burns for 90 seconds.' },
+  quenchFlask: { name: 'Quench Flask', kind: 'consumable', rarity: 3, buy: null, sell: 28, pouchMax: 5, use: 'cureBlast', drink: 1.4, icon: 'jar-teal', desc: 'Dowses blastblight and steadies volatile cinder on your armour.' },
   mightSeed: { name: 'Emberseed', kind: 'consumable', rarity: 3, buy: null, sell: 40, pouchMax: 5, use: 'attackUp', icon: 'seed-red', desc: 'Raises attack by 10% for 90 seconds.' },
   adamantSeed: { name: 'Ironbark Seed', kind: 'consumable', rarity: 3, buy: null, sell: 40, pouchMax: 5, use: 'defenseUp', icon: 'seed-grey', desc: 'Reduces damage taken by 15% for 90 seconds.' },
   flashPod: { name: 'Glare Pod', kind: 'tool', rarity: 2, buy: 150, sell: 15, pouchMax: 3, use: 'flash', icon: 'pod-yellow', desc: 'Bursts in blinding light. Grounds flying monsters and dazes others.' },
@@ -131,6 +138,13 @@ export const RECIPES = {
   potion: { out: ['potion', 1], in: { sunpetal: 1, glowcap: 1 }, coins: 5, unlock: null },
   megaPotion: { out: ['megaPotion', 1], in: { potion: 1, honey: 1 }, coins: 15, unlock: null },
   antidote: { out: ['antidote', 1], in: { tidecap: 1, sunpetal: 1 }, coins: 5, unlock: null },
+  strongAntidote: { out: ['strongAntidote', 1], in: { antidote: 2, glowcap: 1 }, coins: 20, unlock: { hr: 3 } },
+  wakeTonic: { out: ['wakeTonic', 1], in: { sunpetal: 1, honey: 1 }, coins: 5, unlock: null },
+  smellingSalts: { out: ['smellingSalts', 1], in: { brinesalt: 2 }, coins: 5, unlock: null },
+  sedative: { out: ['sedative', 1], in: { glowcap: 1, tidecap: 1 }, coins: 8, unlock: null },
+  voiceBalm: { out: ['voiceBalm', 1], in: { honey: 1, tidecap: 1 }, coins: 8, unlock: null },
+  vigorDraught: { out: ['vigorDraught', 1], in: { sunpetal: 1, ironOre: 1 }, coins: 15, unlock: { hr: 2 } },
+  panacea: { out: ['panacea', 1], in: { antidote: 1, honey: 1, glowcap: 2 }, coins: 60, unlock: { hr: 4 } },
   energyDrink: { out: ['energyDrink', 1], in: { tidecap: 1, honey: 1 }, coins: 10, unlock: { hr: 2 } },
   coolingSalve: { out: ['coolingSalve', 1], in: { tidecap: 1, brinesalt: 1 }, coins: 10, unlock: { slain: 'varkhul' } },
   quenchFlask: { out: ['quenchFlask', 1], in: { tidecap: 1, brinesalt: 1, glowcap: 1 }, coins: 20, unlock: { quest: 'q_gv1' } },
@@ -203,7 +217,7 @@ export const QUESTS = {
 // stock: per-player stock that refills every `restockMinutes`.
 export const SHOP = {
   restockMinutes: 30,
-  stock: { potion: 20, antidote: 10, energyDrink: 5, flashPod: 3, snareCoil: 1, tranqBomb: 4, sunpetal: 20, honey: 10, brinesalt: 10, ironOre: 8, monsterBone: 8 },
+  stock: { potion: 20, antidote: 10, wakeTonic: 5, smellingSalts: 5, sedative: 5, voiceBalm: 5, energyDrink: 5, flashPod: 3, snareCoil: 1, tranqBomb: 4, sunpetal: 20, honey: 10, brinesalt: 10, ironOre: 8, monsterBone: 8 },
 };
 
 // ---------------------------------------------------------------- progression

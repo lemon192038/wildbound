@@ -115,7 +115,7 @@ export default {
     'menu.signedIn': '{name}でログイン中です。進行状況は操作のたびにギルドのサーバーへ保存されます。', 'menu.logout': 'ログアウト', 'menu.keys': '操作キー', 'menu.logoutQ': 'ログアウトしますか？',
     'menu.logoutBody': '進行状況はサーバーに保存されています。いつでもログインし直せます。',
     'set.sens': '視点感度', 'set.vol': '全体音量', 'set.gfx': '画質', 'set.high': '高画質', 'set.low': '軽量', 'set.lang': '言語',
-    'key.move': '移動', 'key.mouse': 'マウス', 'key.look': '視点', 'key.sprint': 'ダッシュ', 'key.talk': '話す', 'key.menuClose': 'メニュー／閉じる', 'key.lmb': '左クリック', 'key.rmb': '右クリック', 'key.light': '通常攻撃',
+    'key.move': '移動', 'key.mouse': 'マウス', 'key.look': '視点', 'key.sprint': 'ダッシュ', 'key.talk': '話す', 'key.menuClose': 'メニュー／閉じる', 'key.lmb': '左クリック', 'key.rmb': '右クリック', 'key.light': '通常攻撃（長押し：納刀構え）',
     'key.heavy': '強攻撃／溜め', 'key.dodge': '回避', 'key.guard': 'ガード', 'key.lock': 'ロックオン', 'key.drink': 'アイテム使用', 'key.interact': '調べる', 'key.chat': 'チャット', 'key.menu': 'メニュー',
     // 狩猟HUD
     'sh.keen': '極上', 'sh.honed': '鋭利', 'sh.worn': '摩耗', 'sh.dull': '鈍い', 'sh.blunt': 'なまくら',
@@ -148,7 +148,7 @@ export default {
     'g.herb': '薬草の群生', 'g.mushroom': '光茸の群生', 'g.lichen': '潮苔', 'g.ore': '鉱石の露頭', 'g.crimson': '紅鉱脈', 'g.crystal': '嵐水晶', 'g.hive': '野生の蜂の巣', 'g.bones': '骨塚',
     // タッチ操作（丸ボタンに収まる短い表記）
     'touch.move': '移動', 'touch.attack': 'こうげき', 'touch.heavy': 'ため', 'touch.dodge': '回避', 'touch.guard': 'ガード', 'touch.item': 'アイテム', 'touch.next': '次へ', 'touch.lock': 'ロック', 'touch.menu': 'メニュー',
-    'touch.talk': '話す', 'touch.gather': '採集', 'touch.carve': '剥取',
+    'touch.talk': '話す', 'touch.gather': '採集', 'ail.burnM': '火やられ【中】', 'ail.sleep': '睡眠', 'ail.stun': '気絶', 'ail.stunL': '気絶【長】', 'ail.conf': '混乱', 'ail.confL': '混乱【長】', 'ail.silence': '沈黙', 'ail.atkDown': '攻撃力低下', 'ail.defDown': '防御力低下', 'ail.speedDown': '移動速度低下', 'ail.atkSpeedDown': '攻撃速度低下', 'ail.critDown': '会心率低下', 'ail.critDmgDown': '会心ダメージ低下', 'ail.elemAtkDown': '属性攻撃低下', 'ail.elemResDown': '属性耐性低下', 'ail.healDown': '回復量低下', 'ail.stamRegenDown': 'スタミナ回復低下', 'f.parryReady': '納刀構え：攻撃ボタンを押して離すとパリィ', 'f.parryOff': '納刀構えを解除', 'f.parry': 'パリィ！', 'f.silenced': '沈黙中：パリィと真溜めは使えない', 'f.itemCancel': '飲むのを中断（消費なし）', 'touch.jump': 'ジャンプ', 'key.jump': 'ジャンプ（空中で攻撃：落下攻撃）', 'touch.carve': '剥取',
     // サーバーメッセージ（server/economy.js・server/api.js の英語文面を翻訳）
     'srv.coins': 'コインが足りません（{n}コイン必要）', 'srv.notEnough': '{item}が足りません', 'srv.missingMats': '素材が足りません: {item}', 'srv.stock': '在庫は残り{n}個です',
     'srv.bought': '{item}を{n}個購入しました', 'srv.soldFor': '{item}を{n}個売却しました（{c}コイン）', 'srv.sold': '{item}を{n}個売却', 'srv.soldEquip': '{c}コインで売却しました', 'srv.soldLedger': '{item}を売却', 'srv.forged': '{item}を生産しました',
@@ -221,7 +221,14 @@ export default {
     megaPotion: ['蜜仕立ての回復薬', '蜂蜜でとろみをつけた水薬。体力を大きく回復する。'],
     ancientDraught: ['古の秘薬', '伝説に語られる霊薬。体力とスタミナを全快させ、しばし活力を与える。'],
     energyDrink: ['潮根の強壮薬', 'スタミナを全快させ、60秒間スタミナの消費を半減する。'],
-    antidote: ['清水の解毒薬', '毒を中和する。猛毒にも効く。'],
+    antidote: ['清水の解毒薬', '毒を中和する。猛毒にも効く。致死性の猛毒は猛毒まで弱まる。'],
+    strongAntidote: ['深水の強解毒薬', '飲むのに時間がかかるが、致死性の猛毒も含めすべての毒を消す。'],
+    wakeTonic: ['明葉の目覚まし薬', '眠気を払う。60秒間眠り状態にならない。'],
+    smellingSalts: ['鋭塩の気付け薬', 'つんとする香りで頭を冴えさせる。45秒間気絶しない。'],
+    sedative: ['静苔の鎮静薬', '乱れた心を鎮める。混乱を治し、45秒間防ぐ。'],
+    voiceBalm: ['喉癒しの軟膏', '締めつけられた喉を癒す。沈黙を治し、45秒間防ぐ。'],
+    vigorDraught: ['鉄根の活力剤', '奪われた力を取り戻す。能力低下をすべて治し、30秒間怯みにくくなる。'],
+    panacea: ['万癒の霊薬', 'あらゆる状態異常を一度に治す。飲み終えるまで時間がかかる。'],
     coolingSalve: ['霜羊歯の軟膏', '炎を鎮め、90秒間火やられを防ぐ。'],
     quenchFlask: ['消爆の小瓶', '爆破やられを鎮め、防具に付いた不安定な燼を落ち着かせる。'],
     mightSeed: ['熾火の種', '90秒間、攻撃力が10%上がる。'],

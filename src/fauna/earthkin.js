@@ -17,7 +17,7 @@ import { disabled } from '../core/parts.js';
 export function createEarthAI(ctx) {
   const { game, rnd, setAi, steer, nearestOf, nearestHunter, noiseOf, ground, wrapA, pickSpot, shoot, W } = ctx;
   const face = (c, x, z, dt, rate = 2) => { c.yaw += Math.max(-rate * dt, Math.min(rate * dt, wrapA(Math.atan2(x - c.pos.x, z - c.pos.z) - c.yaw))); };
-  const hurtLocal = (h, a, from) => { if (!h?.local) return false; const ok = game.player.receiveHit?.({ damage: a.damage, knockback: a.knockback ?? 4, from: from.clone() }); if (ok !== false && a.status) game.status?.apply?.(...a.status); return ok !== false; };
+  const hurtLocal = (h, a, from) => { if (!h?.local) return false; const ok = game.player.receiveHit?.({ damage: a.damage, knockback: a.knockback ?? 4, from: from.pos.clone(), source: from, kind: a.kind || 'physical' }); if (ok !== false && a.status) game.status?.apply?.(...a.status); return ok !== false; };
   const bossNear = (p, r) => (game.monsters || []).some((m) => m.state !== 'dead' && m.position.distanceTo(p) < r);
   const moving = (h) => /run|sprint|walk|light|heavy|charge|slash|tackle|dodge|roll/.test(h?.state || '') || (h?.ref?.speed || 0) > 0.5;
 
@@ -63,12 +63,12 @@ export function createEarthAI(ctx) {
     if (c.ai !== 'burst' && c.ai !== 'dig') c.surfT = (c.surfT ?? 15) - dt; // surface time runs during attacks too
     if (c.ai === 'burst') { // erupting out of the ground
       c.mode = 1; c.rise = Math.min(1, c.t / 0.5); c.move = 0;
-      if (c.t > 0.35 && !c.hitDone) { c.hitDone = true; W.spawnDust?.(c.pos.clone(), 2.2 * c.scale); game.events?.emit?.('camera:shake', { intensity: 0.35, duration: 0.4 }); if (h && dH < 3.2 * c.scale) hurtLocal(h, A.burst, c.pos); }
+      if (c.t > 0.35 && !c.hitDone) { c.hitDone = true; W.spawnDust?.(c.pos.clone(), 2.2 * c.scale); game.events?.emit?.('camera:shake', { intensity: 0.35, duration: 0.4 }); if (h && dH < 3.2 * c.scale) hurtLocal(h, A.burst, c); }
       if (c.t > 1.0) { c.hitDone = false; setAi(c, 'fight'); c.surfT = S.surfaceTime[0] + rnd() * (S.surfaceTime[1] - S.surfaceTime[0]); c.cd = 1; }
       return;
     }
-    if (c.ai === 'claw') { c.move = 0; c.mode = 1; if (h) face(c, h.pos.x, h.pos.z, dt, 3); if (c.t > 0.55 && !c.hitDone) { c.hitDone = true; if (h && dH < 3.4 * c.scale) hurtLocal(h, A.claw, c.pos); } if (c.t > 1.0) { c.hitDone = false; setAi(c, 'fight'); c.cd = 1.6; } return; }
-    if (c.ai === 'digcharge') { const T = c.chargeAt; face(c, T.x, T.z, dt, 0.8); const nx = c.pos.x + Math.sin(c.yaw) * S.chargeSpeed * dt, nz = c.pos.z + Math.cos(c.yaw) * S.chargeSpeed * dt; if (ctx.okSpot(nx, nz, 'mole')) { c.pos.x = nx; c.pos.z = nz; } c.move = 1; c.mode = 3; if (h && dH < 2.6 * c.scale && !c.hitDone) { c.hitDone = true; hurtLocal(h, A.dig, c.pos); } if (c.t > 1.1) { c.hitDone = false; setAi(c, 'fight'); c.cd = 2; } return; }
+    if (c.ai === 'claw') { c.move = 0; c.mode = 1; if (h) face(c, h.pos.x, h.pos.z, dt, 3); if (c.t > 0.55 && !c.hitDone) { c.hitDone = true; if (h && dH < 3.4 * c.scale) hurtLocal(h, A.claw, c); } if (c.t > 1.0) { c.hitDone = false; setAi(c, 'fight'); c.cd = 1.6; } return; }
+    if (c.ai === 'digcharge') { const T = c.chargeAt; face(c, T.x, T.z, dt, 0.8); const nx = c.pos.x + Math.sin(c.yaw) * S.chargeSpeed * dt, nz = c.pos.z + Math.cos(c.yaw) * S.chargeSpeed * dt; if (ctx.okSpot(nx, nz, 'mole')) { c.pos.x = nx; c.pos.z = nz; } c.move = 1; c.mode = 3; if (h && dH < 2.6 * c.scale && !c.hitDone) { c.hitDone = true; hurtLocal(h, A.dig, c); } if (c.t > 1.1) { c.hitDone = false; setAi(c, 'fight'); c.cd = 2; } return; }
     if (c.ai === 'dig') { c.rise = Math.max(0, 1 - c.t / 1.2); c.move = 0; c.mode = 1; if (c.t > 1.2) { W.spawnDust?.(c.pos.clone(), 1.5 * c.scale); setAi(c, c.hp < c.maxHp * 0.4 ? 'flee' : 'roam'); c.fleeFrom = h ? h.pos.clone() : c.pos.clone(); c.cd = 8; } return; }
     // fight on the surface
     c.mode = 0;
@@ -112,10 +112,10 @@ export function createEarthAI(ctx) {
       return;
     }
     c.rise = 1; c.mode = 0;
-    if (c.ai === 'fist') { c.move = 0; c.arm = Math.min(1, c.t / 0.8); if (h) face(c, h.pos.x, h.pos.z, dt, 1.2); if (c.t > 0.85 && !c.hitDone) { c.hitDone = true; c.arm = -1; W.spawnDust?.(c.pos.clone().addScaledVector(fwd(c), 2.2), 1.2); if (h && dH < 4 * c.scale) hurtLocal(h, A.fist, c.pos); } if (c.t > 1.6) { c.hitDone = false; c.arm = 0; setAi(c, 'awake'); c.cd = 1.4; } return; }
-    if (c.ai === 'slam') { c.move = 0; c.arm = Math.min(1, c.t / 1.0) * 1.3; if (c.t > 1.05 && !c.hitDone) { c.hitDone = true; c.arm = -1.3; W.spawnDust?.(c.pos.clone(), 3); game.events?.emit?.('camera:shake', { intensity: 0.5, duration: 0.5 }); if (h && dH < A.slam.radius * c.scale) hurtLocal(h, A.slam, c.pos); } if (c.t > 1.9) { c.hitDone = false; c.arm = 0; setAi(c, 'awake'); c.cd = 1.5; c.slamCd = A.slam.cooldown; } return; }
+    if (c.ai === 'fist') { c.move = 0; c.arm = Math.min(1, c.t / 0.8); if (h) face(c, h.pos.x, h.pos.z, dt, 1.2); if (c.t > 0.85 && !c.hitDone) { c.hitDone = true; c.arm = -1; W.spawnDust?.(c.pos.clone().addScaledVector(fwd(c), 2.2), 1.2); if (h && dH < 4 * c.scale) hurtLocal(h, A.fist, c); } if (c.t > 1.6) { c.hitDone = false; c.arm = 0; setAi(c, 'awake'); c.cd = 1.4; } return; }
+    if (c.ai === 'slam') { c.move = 0; c.arm = Math.min(1, c.t / 1.0) * 1.3; if (c.t > 1.05 && !c.hitDone) { c.hitDone = true; c.arm = -1.3; W.spawnDust?.(c.pos.clone(), 3); game.events?.emit?.('camera:shake', { intensity: 0.5, duration: 0.5 }); if (h && dH < A.slam.radius * c.scale) hurtLocal(h, A.slam, c); } if (c.t > 1.9) { c.hitDone = false; c.arm = 0; setAi(c, 'awake'); c.cd = 1.5; c.slamCd = A.slam.cooldown; } return; }
     if (c.ai === 'throw') { c.move = 0; c.arm = Math.min(1, c.t / 0.9); if (h) face(c, h.pos.x, h.pos.z, dt, 1.5); if (c.t > 0.95 && !c.hitDone && h) { c.hitDone = true; shoot(c, h.pos, { ...A.throw, status: null, big: true }, 0.8); } if (c.t > 1.5) { c.hitDone = false; c.arm = 0; setAi(c, 'awake'); c.cd = 1.2; c.throwCd = A.throw.cooldown; } return; }
-    if (c.ai === 'charge') { const T = c.chargeAt; face(c, T.x, T.z, dt, 0.5); const nx = c.pos.x + Math.sin(c.yaw) * S.chargeSpeed * dt, nz = c.pos.z + Math.cos(c.yaw) * S.chargeSpeed * dt; if (ctx.okSpot(nx, nz, 'golem')) { c.pos.x = nx; c.pos.z = nz; } c.move = 1; c.mode = 3; if (h && dH < 2.8 * c.scale && !c.hitDone) { c.hitDone = true; hurtLocal(h, A.charge, c.pos); } if (c.t > 1.2) { c.hitDone = false; setAi(c, 'awake'); c.chargeCd = A.charge.cooldown; c.cd = 1; } return; }
+    if (c.ai === 'charge') { const T = c.chargeAt; face(c, T.x, T.z, dt, 0.5); const nx = c.pos.x + Math.sin(c.yaw) * S.chargeSpeed * dt, nz = c.pos.z + Math.cos(c.yaw) * S.chargeSpeed * dt; if (ctx.okSpot(nx, nz, 'golem')) { c.pos.x = nx; c.pos.z = nz; } c.move = 1; c.mode = 3; if (h && dH < 2.8 * c.scale && !c.hitDone) { c.hitDone = true; hurtLocal(h, A.charge, c); } if (c.t > 1.2) { c.hitDone = false; setAi(c, 'awake'); c.chargeCd = A.charge.cooldown; c.cd = 1; } return; }
     if (c.ai === 'return') { const d = steer(c, c.home.x, c.home.z, S.speed, dt, 1); c.heat = Math.max(0.1, c.heat - dt * 0.05); if (d < 1.2) { setAi(c, 'settle'); } return; }
     if (c.ai === 'settle') { c.rise = Math.max(0, 1 - c.t / 2.5); c.move = 0; c.heat = Math.max(0, c.heat - dt * 0.2); if (c.t > 2.5) { setAi(c, 'dormant'); c.hostile = false; } return; }
     // awake: defend the territory

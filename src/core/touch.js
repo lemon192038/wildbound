@@ -49,6 +49,7 @@ export class TouchControls {
       [t('touch.item'), 'item', 210, 196, 54, 'tap'],
       [t('touch.next'), 'next', 268, 160, 44, 'tap'],
       [t('touch.lock'), 'lockOn', 130, 250, 54, 'tap'],
+      [t('touch.jump'), 'jump', 128, 56, 60, 'tap'],
     ];
     for (const [label, act, r, b, size, mode] of B) {
       const el = document.createElement('div'); el.className = 'tc-btn'; el.textContent = label;
@@ -59,10 +60,11 @@ export class TouchControls {
         if (act === 'next') { dispatchEvent(new WheelEvent('wheel', { deltaY: 120 })); return; }
         if (mode === 'hold') { if (act === 'guard') this.state.guard = true; if (act === 'heavy') { this.state.heavyHeld = true; this.pressed.add('heavy'); } }
         else this.pressed.add(act);
+        if (act === 'light') this.state.lightHeld = true; // long press = sheathe / sheathed release = parry
       };
       const up = (e) => {
         e.preventDefault(); e.stopPropagation(); el.classList.remove('tc-down');
-        if (act === 'guard') this.state.guard = false; if (act === 'heavy') this.state.heavyHeld = false;
+        if (act === 'guard') this.state.guard = false; if (act === 'heavy') this.state.heavyHeld = false; if (act === 'light') this.state.lightHeld = false;
       };
       el.addEventListener('touchstart', down, { passive: false });
       el.addEventListener('touchend', up, { passive: false });
@@ -129,9 +131,9 @@ export class TouchControls {
     const t = this.state;
     if (t.mx || t.my) { s.move.x = t.mx; s.move.y = t.my; }
     s.look.x += t.lookDx * 0.006; s.look.y += t.lookDy * 0.005; t.lookDx = t.lookDy = 0;
-    s.sprint ||= t.sprint; s.guard ||= t.guard; s.heavyHeld ||= t.heavyHeld;
+    s.sprint ||= t.sprint; s.guard ||= t.guard; s.heavyHeld ||= t.heavyHeld; s.lightHeld ||= t.lightHeld;
     const p = this.pressed;
-    s.lightAttack ||= p.has('light'); s.heavyAttack ||= p.has('heavy'); s.dodge ||= p.has('dodge');
+    s.lightAttack ||= p.has('light'); s.heavyAttack ||= p.has('heavy'); s.dodge ||= p.has('dodge'); s.jump ||= p.has('jump');
     s.item ||= p.has('item'); s.lockOn ||= p.has('lockOn'); s.interact ||= p.has('interact');
     p.clear();
   }

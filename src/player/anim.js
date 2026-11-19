@@ -138,6 +138,13 @@ export const CLIPS = {
       upperArmL: [-2.6, 0, 0.3], foreArmL: [-0.3, 0, 0], upperArmR: [-0.4, 0, -0.5], foreArmR: [-0.6, 0, 0], ease: 'in' },
     { t: 1.4, hip: [0, -0.86, 0.35] },
   ] },
+  // jump / fall: knees tucked, arms out for balance (held while airborne)
+  jump: { dur: 0.3, hold: true, keys: [
+    { t: 0, ik: [null, 0, 1] },
+    { t: 0.12, hip: [0, -0.05, 0], spine: [0.25, 0, 0], chest: [0.1, 0, 0], head: [-0.1, 0, 0], thighL: [-1.1, 0, 0.12], shinL: [1.5, 0, 0], thighR: [-0.5, 0, -0.12], shinR: [1.2, 0, 0],
+      upperArmL: [-0.5, 0, 0.9], foreArmL: [-0.4, 0, 0], upperArmR: [-0.5, 0, -0.9], foreArmR: [-0.4, 0, 0], ik: [null, 0, 0], ease: 'out' },
+    { t: 0.3, hip: [0, -0.02, 0], thighL: [-0.8, 0, 0.12], shinL: [1.1, 0, 0], thighR: [-0.3, 0, -0.12], shinR: [0.8, 0, 0], ik: [null, 0, 0] },
+  ] },
   potion: { dur: 1.5, from: STAND, keys: [
     { t: 0 },
     { t: 0.3, upperArmR: [-1.55, 0, -0.32], foreArmR: [-1.9, 0, 0], handR: [0.4, 0, 0], head: [-0.15, 0, 0], ease: 'out' },

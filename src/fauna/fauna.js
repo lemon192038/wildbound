@@ -232,7 +232,7 @@ export function createFauna(game) {
     W.spawnDust?.(c.pos.clone(), 1.2);
     for (const h of hunters) {
       const d = h.pos.distanceTo(c.pos);
-      if (d < B.radius && h.local) { const ok = game.player.receiveHit?.({ damage: B.damage, knockback: 4, from: c.pos.clone() }); if (ok !== false) game.status?.apply?.(...B.status); }
+      if (d < B.radius && h.local) { const ok = game.player.receiveHit?.({ damage: B.damage, knockback: 4, from: c.pos.clone(), source: c, kind: 'aoe' }); if (ok !== false) game.status?.apply?.(...B.status); }
     }
     setAi(c, 'curl'); c.curlT = 3;
   }
@@ -264,7 +264,7 @@ export function createFauna(game) {
       const s = shots[i]; s.life -= dt; s.v.y -= 9.8 * dt; s.p.addScaledVector(s.v, dt);
       const P = game.player; let gone = s.life <= 0 || s.p.y < ground(s.p.x, s.p.z);
       if (!gone && s.creature && !s.creature.dead && s.creature.pos.distanceTo(s.p) < 1.6) { die(s.creature, 'predation', s.src); gone = true; }
-      if (!gone && P?.position) { const dx = P.position.x - s.p.x, dz = P.position.z - s.p.z, dy = P.position.y + 1 - s.p.y; if (dx * dx + dz * dz + dy * dy < (s.S.big ? 2.6 : 0.9)) { const ok = P.receiveHit?.({ damage: s.S.damage, knockback: 2, from: s.p.clone() }); if (ok !== false) game.status?.apply?.(...s.S.status); gone = true; } }
+      if (!gone && P?.position) { const dx = P.position.x - s.p.x, dz = P.position.z - s.p.z, dy = P.position.y + 1 - s.p.y; if (dx * dx + dz * dz + dy * dy < (s.S.big ? 2.6 : 0.9)) { const ok = P.receiveHit?.({ damage: s.S.damage, knockback: 2, from: s.p.clone(), kind: s.S.kind || 'projectile' }); if (ok !== false && s.S.status) game.status?.apply?.(...s.S.status); gone = true; } }
       if (gone) { W.spawnSplash?.(s.p.clone(), 0.3); shots.splice(i, 1); continue; }
       if (n < 24) { const k = s.S.big ? 4.5 : 1; _m.makeScale(k, k, k).setPosition(s.p.x, s.p.y, s.p.z); shotMesh.setMatrixAt(n++, _m); }
     }
@@ -324,7 +324,7 @@ export function createFauna(game) {
     c.cd -= dt; c.aggroT -= dt;
     if (c.ai === 'flee') { c.fleeT -= dt; const a = c.yaw; steer(c, c.pos.x + Math.sin(a) * 5, c.pos.z + Math.cos(a) * 5, S.speed * 2.2, dt, 1); if (c.fleeT <= 0) setAi(c, 'roam'); return; }
     if (c.ai === 'spit') { c.mode = 2; c.move = 0; if (c.t > 0.6 && !c.fired) { c.fired = true; if (h) spit(c, h); } if (c.t > 1.1) { c.fired = false; c.mode = 0; setAi(c, 'angry'); } return; }
-    if (c.ai === 'slam') { c.mode = 2; const tgt = c.target; if (tgt) steer(c, tgt[0], tgt[1], 6, dt, 6); if (c.t > 0.5) { if (h?.local && dH < 1.6 * c.scale + 0.6) game.player.receiveHit?.({ damage: 5, knockback: 5, from: c.pos.clone() }); c.mode = 0; c.cd = 2.5; setAi(c, 'angry'); } return; }
+    if (c.ai === 'slam') { c.mode = 2; const tgt = c.target; if (tgt) steer(c, tgt[0], tgt[1], 6, dt, 6); if (c.t > 0.5) { if (h?.local && dH < 1.6 * c.scale + 0.6) game.player.receiveHit?.({ damage: 5, knockback: 5, from: c.pos.clone(), source: c, kind: 'aoe' }); c.mode = 0; c.cd = 2.5; setAi(c, 'angry'); } return; }
     if (c.ai === 'angry' && c.aggroT > 0 && h && dH < S.spit.range) {
       c.yaw += Math.max(-3 * dt, Math.min(3 * dt, wrapA(Math.atan2(h.pos.x - c.pos.x, h.pos.z - c.pos.z) - c.yaw)));
       if (c.cd <= 0) { if (dH < 2.5) { setAi(c, 'slam'); c.target = [h.pos.x, h.pos.z]; } else { setAi(c, 'spit'); c.cd = S.spit.cooldown; } }
@@ -455,7 +455,8 @@ export function createFauna(game) {
       c.acc += dt; if (d > LOD_NEAR && (frame + c.id) % 4) continue; const fullDt = c.acc, sdt = Math.min(c.acc, 0.25); c.acc = 0;
       if (c.breakMask) for (const n of tickRegen(c.parts, fullDt, (c.hunger < 0.5 ? 1.2 : 0.7) * (c.hp > c.maxHp * 0.5 ? 1 : 0.6))) { c.breakMask &= ~(BREAK_BIT[n] || 0); game.events?.emit?.('fauna:partRegen', { creature: c, part: n }); }
       c.t += sdt; c.flash = Math.max(0, c.flash - sdt * 4); c.heat = Math.max(0, c.heat - sdt); c.burstCd -= sdt;
-      if (c.sp === 'beetle') thinkBeetle(c, sdt); else if (c.sp === 'slime') thinkSlime(c, sdt); else if (c.sp === 'bird') thinkBird(c, sdt);
+      if (c.staggerT > 0) { c.staggerT -= sdt; c.move = 0; c.hitDone = true; } // parried: reeling, no attack lands
+      else if (c.sp === 'beetle') thinkBeetle(c, sdt); else if (c.sp === 'slime') thinkSlime(c, sdt); else if (c.sp === 'bird') thinkBird(c, sdt);
       else if (c.sp === 'boar') HERD.thinkBoar(c, sdt); else if (c.sp === 'wolf') HERD.thinkWolf(c, sdt);
       else if (c.sp === 'mole') EARTH.thinkMole(c, sdt); else if (c.sp === 'golem') EARTH.thinkGolem(c, sdt);
       else if (c.sp === 'lizard' || c.sp === 'drake') thinkLizardSafe(c, sdt); else if (c.sp === 'snake') thinkSnakeSafe(c, sdt);

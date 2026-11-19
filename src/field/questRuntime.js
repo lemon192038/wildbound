@@ -119,8 +119,9 @@ export function startQuestRuntime(game, ctx) {
     const it = ITEMS[id]; if (!it || !(carried[id] > 0)) { toast(t('qr.noneLeft', { item: it ? itemName(id) : id })); return false; }
     const m = mon(); const dist = m ? m.position.distanceTo(P.position) : 999;
     switch (it.use) {
-      case 'heal50': case 'heal100': case 'healFull': case 'stamina': case 'curePoison': case 'cureBurn': case 'cureBlast': case 'attackUp': case 'defenseUp':
-        P.useItem('potion', { id, heal: HEAL[it.use] || 0, onUse: () => { spend(id); applyEffect(it.use); } }); return true;
+      // drink time (it.drink, seconds): the effect and the consumption land only at the swallow; a dodge before it cancels for free
+      case 'heal50': case 'heal100': case 'healFull': case 'stamina': case 'curePoison': case 'cureBurn': case 'cureBlast': case 'attackUp': case 'defenseUp': case 'cure':
+        P.useItem('potion', { id, heal: HEAL[it.use] || 0, drink: it.drink, onUse: () => { spend(id); applyEffect(it.use, it); } }); return true;
       case 'flash': {
         spend(id); events.emit('sfx', { name: 'clang', position: P.position.clone(), volume: 0.8 }); flashScreen();
         if (m && dist < 30 && m.state !== 'dead') { m.debug?.play?.(m.kind === 'wyvern' ? 'topple' : 'flinch'); toast(m.kind === 'wyvern' ? t('qr.wyvernDown') : t('qr.dazed', { m: monsterShort(m.name) })); }
@@ -140,11 +141,12 @@ export function startQuestRuntime(game, ctx) {
     }
     return false;
   };
-  function applyEffect(use) {
+  function applyEffect(use, it = {}) {
     const S = game.status;
+    if (use === 'cure') { S?.cure(it.cure || []); for (const k in it.ward || {}) S?.ward(k, it.ward[k]); return; }
     if (use === 'healFull') { P.stamina = P.maxStamina; }
     if (use === 'stamina') { P.stamina = P.maxStamina; st.buffs.stam = 60; }
-    if (use === 'curePoison') S?.clear('poison');
+    if (use === 'curePoison') { const p = S?.get?.('poison'); if (p?.level === 'lethal') { p.level = 'deadly'; p.dps = S.DEF.poison.deadly.dps; } else S?.clear('poison'); }
     if (use === 'cureBurn') S?.ward('burn', 90);
     if (use === 'cureBlast') S?.ward('blast', 60);
     if (use === 'attackUp') st.buffs.atk = 90;

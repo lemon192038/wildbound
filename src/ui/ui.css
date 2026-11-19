@@ -410,3 +410,10 @@
 .wb-pt-hurt i::after { background: #e9a248; } .wb-pt-heavy i::after { background: #e05a2a; }
 .wb-pt-broken { color: #ff8a6a; } .wb-pt-broken i::after { width: 0; } .wb-pt-broken span { text-decoration: line-through; }
 .wb-pt-regen { color: #9fd6a8; } .wb-pt-regen i::after { background: #7cc48a; }
+
+/* control ailments & stat-downs (src/core/status.js) */
+.wb-ail-sleep { border-color: rgba(120, 160, 255, 0.85); } .wb-ail-sleep i { background: radial-gradient(circle at 40% 35%, #e6f0ff, #6d8cff 50%, #1d2a6b 90%); }
+.wb-ail-stun { border-color: rgba(255, 230, 90, 0.9); } .wb-ail-stun i { background: radial-gradient(circle at 50% 50%, #fffbd0, #ffd640 45%, #8a6a00 90%); }
+.wb-ail-conf { border-color: rgba(255, 120, 200, 0.85); } .wb-ail-conf i { background: conic-gradient(#ff7ac8, #ffd1ee, #ff7ac8, #ffd1ee, #ff7ac8); }
+.wb-ail-silence { border-color: rgba(200, 200, 210, 0.85); } .wb-ail-silence i { background: radial-gradient(circle at 50% 50%, #ffffff, #9aa0aa 55%, #3a3e46 90%); }
+.wb-ail-down { border-color: rgba(120, 200, 255, 0.6); } .wb-ail-down i { background: linear-gradient(180deg, #bfe6ff, #3a8cc8 60%, #123a5a); clip-path: polygon(50% 100%, 0 35%, 30% 35%, 30% 0, 70% 0, 70% 35%, 100% 35%); }

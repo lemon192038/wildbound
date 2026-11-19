@@ -25,12 +25,12 @@ export class Input {
     const s = {
       move: { x: mx, y: my }, look: { x: lx, y: ly },
       sprint: k('ShiftLeft'), dodge: p('Space'), lightAttack: this.mouse.leftPressed, heavyAttack: this.mouse.rightPressed,
-      heavyHeld: this.mouse.right, guard: k('KeyQ'), interact: p('KeyE'), item: p('KeyR'), lockOn: p('KeyF') || p('Tab'), menu: p('Escape'),
+      heavyHeld: this.mouse.right, lightHeld: this.mouse.left, jump: p('KeyC'), guard: k('KeyQ'), interact: p('KeyE'), item: p('KeyR'), lockOn: p('KeyF') || p('Tab'), menu: p('Escape'),
     };
     if (pad) {
       s.move.x += dz(pad.axes[0]); s.move.y -= dz(pad.axes[1]); s.look.x += dz(pad.axes[2]) * 0.05; s.look.y += dz(pad.axes[3]) * 0.05;
       const b = (i) => pad.buttons[i]?.pressed;
-      s.sprint ||= b(7); s.guard ||= b(6); s.dodge ||= b(1) && !this._pb1; s.lightAttack ||= b(3) && !this._pb3; s.heavyAttack ||= b(2) && !this._pb2; s.heavyHeld ||= b(2);
+      s.sprint ||= b(7); s.guard ||= b(6); s.dodge ||= b(1) && !this._pb1; s.lightAttack ||= b(3) && !this._pb3; s.heavyAttack ||= b(2) && !this._pb2; s.heavyHeld ||= b(2); s.lightHeld ||= b(3); s.jump ||= b(0) && !this._pb0; this._pb0 = b(0);
       s.lockOn ||= b(11) && !this._pb11; this._pb1 = b(1); this._pb2 = b(2); this._pb3 = b(3); this._pb11 = b(11);
     }
     this.touch?.apply(s);

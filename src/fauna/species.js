@@ -45,7 +45,7 @@ export const SPECIES = {
     regions: { canyon: 0.6, core: 0.35, peaks: 0.3, ashplain: 0.25, geotherm: 0.35, crystal: 0.2 },
     eats: ['beetle', 'slime_small', 'bird_ground', 'beetle_larva'], fears: ['snake', 'wolf', 'boss'], rivals: ['bird', 'snake'],
     territory: 28, giveUp: 22,                                           // poor long-distance chaser: gives up quickly
-    attacks: { bite: { damage: 18, status: ['burn', 'small'] }, tail: { damage: 14, knockback: 7 }, charge: { damage: 22, knockback: 10 }, fire: { damage: 16, status: ['burn', 'large'], speed: 18, cooldown: 9, range: [5, 14] } },
+    attacks: { bite: { damage: 18, status: ['burn', 'small'] }, tail: { damage: 14, knockback: 7 }, charge: { damage: 22, knockback: 10 }, fire: { damage: 16, status: ['burn', 'medium'], speed: 18, cooldown: 9, range: [5, 14] } },
     fleeHp: 0.3,
     drops: ['fl_scale', 'fl_fang', 'fl_spine', 'fl_gland'],
   },
@@ -67,7 +67,7 @@ export const SPECIES = {
     group: { min: 3, max: 6, special: 'tusk', specialChance: 0.5, juveniles: [0, 2] }, // herds of 3–6, sometimes led by a Crystal Tusk
     regions: { coast: 0.07, fungal: 0.09, ashplain: 0.04, crystal: 0.07, core: 0.02 },     // herds per 64 m tile (island ≈ 25–50 boars)
     eats: ['plant', 'root', 'mineral', 'insect'], fears: ['wolf_pack', 'boss'], rivals: [],
-    attacks: { charge: { damage: 28, knockback: 12, creature: 420 }, gore: { damage: 18, knockback: 6, creature: 260 } },
+    attacks: { charge: { damage: 28, knockback: 12, creature: 420, status: ['stun', 'short'] }, gore: { damage: 18, knockback: 6, creature: 260 } },
     distances: { observe: 26, warn: 16, threat: 10, charge: 6 },                      // far → keep grazing … very close → charge
     drops: ['cb_crystal', 'cb_hide', 'cb_tusk'],
   },
@@ -75,7 +75,7 @@ export const SPECIES = {
     name: { ja: 'クリスタルタスク', en: 'Crystal Tusk' }, epithet: { ja: 'クリスタルボアの大型個体', en: 'Great Crystal Boar' }, threat: 'midboss', of: 'boar',
     hp: 8500, defense: 0.96, speed: 2.1, runSpeed: 7.5, chargeSpeed: 15, size: 1.45,
     senses: { sight: 30, hearing: 30, smell: 24 }, regions: {},
-    attacks: { charge: { damage: 40, knockback: 14, creature: 700 }, gore: { damage: 26, knockback: 8, creature: 400 }, crystalCharge: { damage: 52, knockback: 16, creature: 900, rest: 3.5 } },
+    attacks: { charge: { damage: 40, knockback: 14, creature: 700 }, gore: { damage: 26, knockback: 8, creature: 400 }, crystalCharge: { damage: 52, knockback: 16, creature: 900, rest: 3.5, status: ['stun', 'long'] } },
     drops: ['cb_crystal_l', 'cb_tusk_great', 'cb_hide'],
   },
   wolf: {
@@ -103,7 +103,7 @@ export const SPECIES = {
     habitat: 'underground', special: { id: 'grandmole', chance: 0.08 },
     regions: { crystal: 0.07, peaks: 0.05, fungal: 0.05, ashplain: 0.04, core: 0.02 },  // island ≈ 10–25
     eats: ['beetle_larva', 'root', 'mineral', 'underground'], fears: ['snake'], rivals: ['golem'],
-    attacks: { claw: { damage: 26, knockback: 8 }, burst: { damage: 30, knockback: 12 }, dig: { damage: 30, knockback: 11 } },
+    attacks: { claw: { damage: 26, knockback: 8 }, burst: { damage: 30, knockback: 12, kind: 'aoe', status: ['flinch', 'long'] }, dig: { damage: 30, knockback: 11 } },
     surfaceTime: [12, 20], chase: 30,
     drops: ['sm_claw', 'sm_plate', 'sm_ore'],
   },
@@ -111,7 +111,7 @@ export const SPECIES = {
     name: { ja: 'グランドモール', en: 'Grand Mole' }, epithet: { ja: 'ストーンモールの老齢個体', en: 'Elder Stone Mole' }, threat: 'midboss', of: 'mole',
     hp: 15000, defense: 1.0, speed: 2.1, digSpeed: 9, chargeSpeed: 9, size: 1.45,
     senses: { sight: 6, hearing: 38, smell: 16 }, regions: {},
-    attacks: { claw: { damage: 36, knockback: 10 }, burst: { damage: 42, knockback: 14 }, dig: { damage: 40, knockback: 13 } },
+    attacks: { claw: { damage: 36, knockback: 10 }, burst: { damage: 42, knockback: 14, kind: 'aoe', status: ['flinch', 'long'] }, dig: { damage: 40, knockback: 13 } },
     surfaceTime: [16, 26], chase: 60,                                                 // strong territoriality: long chases near the nest
     drops: ['sm_claw_l', 'sm_plate_l', 'sm_ancient_core'],
   },
@@ -122,7 +122,7 @@ export const SPECIES = {
     regions: { peaks: 0.08, ruins: 0.12, crystal: 0.05, core: 0.03 },                  // island ≈ 10–20
     eats: ['mineral', 'geothermal'], fears: ['dragon'], rivals: ['mole', 'gorvath'],
     distances: { alert: 18, glow: 10, rise: 6, wake: 3.5 },
-    attacks: { fist: { damage: 40, knockback: 10 }, slam: { damage: 18, knockback: 6, radius: 6, cooldown: 8 }, throw: { damage: 32, knockback: 9, speed: 16, cooldown: 7, range: [10, 30] }, charge: { damage: 35, knockback: 12, cooldown: 10 } },
+    attacks: { fist: { damage: 40, knockback: 10, status: ['stun', 'short'] }, slam: { damage: 18, knockback: 6, radius: 6, cooldown: 8, kind: 'aoe', status: ['flinch', 'long'] }, throw: { damage: 32, knockback: 9, speed: 16, cooldown: 7, range: [10, 30] }, charge: { damage: 35, knockback: 12, cooldown: 10 } },
     territory: 25,
     drops: ['bg_stone', 'bg_core', 'bg_ore'],
   },

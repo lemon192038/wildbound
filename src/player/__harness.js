@@ -5,6 +5,7 @@ import { Input } from '../core/input.js';
 import { Events } from '../core/events.js';
 import { createPlayer } from './player.js';
 import { createCameraRig } from './camera.js';
+import { createStatus } from '../core/status.js';
 const engine = new Engine();
 const game = { THREE, engine, scene: engine.scene, camera: engine.camera, renderer: engine.renderer, events: new Events(), input: new Input(engine.renderer.domElement),
   params: new URLSearchParams(location.search), monsters: [], remotePlayers: new Map(), updaters: [], addUpdater(f) { this.updaters.push(f); } };
@@ -28,13 +29,17 @@ const mon = { object3d: mo, position: mo.position, hp: 5000, maxHp: 5000, name: 
 game.monsters.push(mon);
 if (game.params.get('nomon')) { mo.visible = false; mon.position.set(0, -50, -40); }
 game.player = await createPlayer(game);
+createStatus(game);
 game.cameraRig = createCameraRig(game);
 game.events.on('hitstop', ({ duration }) => { engine.hitstop = Math.max(engine.hitstop, duration); });
 let last = performance.now();
 function frame(now) {
   const { dt, rawDt } = engine.tick((now - last) / 1000); last = now; game.time = engine.elapsed;
+  if (window.__manual) { engine.render(); requestAnimationFrame(frame); return; } // tests drive __step themselves
   const input = game.input.poll();
-  game.player.update(dt, input, rawDt); for (const f of game.updaters) f(dt, rawDt); game.cameraRig.update(rawDt, input);
+  game.status.update(dt); game.player.update(dt, input, rawDt); for (const f of game.updaters) f(dt, rawDt); game.cameraRig.update(rawDt, input);
   engine.render(); requestAnimationFrame(frame);
 }
+// deterministic stepping for tests: __step(seconds, input) at 60 Hz
+window.__step = (sec, inp = {}) => { const n = Math.round(sec * 60); for (let i = 0; i < n; i++) { const x = typeof inp === 'function' ? inp(i) : inp; game.status.update(1 / 60); game.player.update(1 / 60, { move: { x: 0, y: 0 }, look: { x: 0, y: 0 }, ...x }, 1 / 60); } };
 requestAnimationFrame(frame); window.__ready = true;

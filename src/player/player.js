@@ -16,12 +16,18 @@ const ATTACKS = {
   heavy: { mv: [0.45, 0.72, 1.0, 1.4], active: [0.06, 0.2], move: [[0.0, 0.16, 0.85]], turn: 0.0, next: null, combo: [0.7, 1.2], cancel: 0.8, stop: [0.09, 0.12, 0.15, 0.19], shake: [0.35, 0.5, 0.7, 0.95], slam: 0.17 },
   // shoulder tackle bridge (super armour) -> True Charge
   tackle: { mv: 0.22, active: [0.14, 0.34], move: [[0.06, 0.3, 1.9]], turn: 0.08, next: null, combo: [0.26, 0.62], cancel: 0.4, stop: 0.08, shake: 0.32, tackle: true },
+  // jump attack: the overhead slam played from its raised pose once the hunter lands (mv grows with the fall)
+  plungeLand: { mv: 0.7, active: [0.4, 0.54], move: [[0.38, 0.5, 0.4]], turn: 0.0, next: null, combo: [0.9, 1.3], cancel: 0.8, stop: 0.14, shake: 0.6, slam: 0.48, clip: 'light3' },
   trueslash: { mv: [0.85, 1.25, 1.65, 2.2], active: [0.1, 0.24], move: [[0.02, 0.2, 1.0]], turn: 0.0, next: null, combo: [0.95, 1.45], cancel: 1.0, stop: [0.1, 0.14, 0.18, 0.22], shake: [0.45, 0.6, 0.8, 1.0], slam: 0.21 },
 };
 const CHARGE_LV = [0.55, 1.15, 1.75], CHARGE_MAX = 2.6, TRUE_LV = [0.42, 0.86, 1.3];
 const LOCO = new Set(['idle', 'walk', 'run', 'sprint']);
-const SELF_MOVE = new Set(['draw', 'sheathe', 'item', 'whetstone', 'getup']); // states that steer/decelerate with normal locomotion physics
-const STATE_CLIP = { draw: 'draw', sheathe: 'sheathe', light1: 'light1', light2: 'light2', light3: 'light3', charge: 'charge', tcharge: 'charge', heavy: 'heavy', tackle: 'tackle', trueslash: 'trueslash', guard: 'guard', dodge: 'dodge', hit: 'hit', knockdown: 'knockdown', getup: 'getup', dead: 'dead', item: 'potion', whetstone: 'whetstone' };
+// Rolling: distance (m) and the invulnerable window (s into the roll). Exposed as P.roll for tuning / tests.
+const ROLL = { dist: 3.2, iStart: 0.03, iEnd: 0.3 };
+const HOLD_SHEATHE = 0.45, PARRY_WIN = 0.25, JUMP_V = 6.4, GRAVITY = 20;
+const AIR = new Set(['jump', 'plunge']);
+const SELF_MOVE = new Set(['draw', 'sheathe', 'item', 'whetstone', 'getup', 'parryPrep', 'parry', 'parryMiss']); // states that steer/decelerate with normal locomotion physics
+const STATE_CLIP = { draw: 'draw', sheathe: 'sheathe', light1: 'light1', light2: 'light2', light3: 'light3', charge: 'charge', tcharge: 'charge', heavy: 'heavy', tackle: 'tackle', trueslash: 'trueslash', guard: 'guard', dodge: 'dodge', hit: 'hit', knockdown: 'knockdown', getup: 'getup', dead: 'dead', jump: 'jump', plunge: 'light3', plungeLand: 'light3', parryPrep: 'guard', parry: 'guard', parryMiss: 'hit', sleep: 'knockdown', stun: 'hit', item: 'potion', whetstone: 'whetstone' };
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const sharpMult = (s) => (s > 0.66 ? 1.2 : s > 0.4 ? 1.05 : s > 0.2 ? 0.9 : 0.72);
@@ -41,19 +47,25 @@ export async function createPlayer(game) {
   const vel = new THREE.Vector3(), wish = new THREE.Vector3(), tmp = new THREE.Vector3(), camF = new THREE.Vector3(), camR = new THREE.Vector3();
   let frozenLoco = null, t = 0, frozen = false, phase = 0, amt = 0, iframe = 0, invuln = 0, stamDelay = 0, queued = null, buffer = null, heavyLevel = 0;
   let hitSets = new Map(), hitCount = 0, swingFirstHit = false, lastLevel = 0, attachDone = false, healLeft = 0, deadT = 0, itemKind = 'potion';
+  let holdT = -1, parryReady = false, vy = 0, airborne = false, fallFrom = 0, plungeMv = 0.7, animT = null, pendingFlinch = 0, lastGround = 0, lastX = 0, lastZ = 0;
+  let M = { atk: 1, def: 1, speed: 1, atkSpeed: 1, affinity: 0, critDmg: 1, elem: 1, elemRes: 1, heal: 1, stamRegen: 1 }, B = {};
   let slowT = 0, superArmor = false, sinceHit = 99, clock = 0, prevBlade = [], curBlade = [], speedNow = 0, footSide = 0, stunT = 0;
   const spawn = () => {
-    const s = world.spawn.player; P.position.set(s.x, world.getHeight(s.x, s.z), s.z);
+    const s = world.spawn.player; P.position.set(s.x, world.getHeight(s.x, s.z), s.z); lastGround = P.position.y; lastX = s.x; lastZ = s.z;
     const m = game.monsters?.[0]; P.facing = m ? Math.atan2(m.position.x - s.x, m.position.z - s.z) : Math.PI;
   };
   spawn();
 
   function setState(s, fade = 0.12) {
-    P.state = s; t = 0; attachDone = false;
+    P.state = s; t = 0; attachDone = false; animT = null;
     if (STATE_CLIP[s]) view.play(STATE_CLIP[s], fade); else view.play('loco', fade);
     if (ATTACKS[s]) { hitSets = new Map(); hitCount = 0; swingFirstHit = false; trail.clear(); }
   }
   P.setState = setState;
+  P.roll = ROLL;
+  events.on('status:apply', (e) => { if (e?.kind === 'flinch') pendingFlinch = Math.max(pendingFlinch, e.t || 0.6); });
+  Object.defineProperty(P, 'parryReady', { get: () => parryReady, set: (v) => { parryReady = !!v; } });
+  Object.defineProperty(P, 'airborne', { get: () => airborne });
   const fwd = (out = tmp) => out.set(Math.sin(P.facing), 0, Math.cos(P.facing));
   const turnToward = (dir, rate, dt) => { if (dir.lengthSq() < 1e-4) return; const want = Math.atan2(dir.x, dir.z); P.facing = wrap(P.facing + clamp(wrap(want - P.facing), -rate * dt, rate * dt)); };
   const targetDir = () => { const m = P.lockTarget; if (!m) return null; return new THREE.Vector3(m.position.x - P.position.x, 0, m.position.z - P.position.z).normalize(); };
@@ -88,6 +100,28 @@ export async function createPlayer(game) {
     itemKind = kind; itemOpts = opts; setState(kind === 'potion' ? 'item' : 'whetstone', 0.15);
   }
   P.useItem = startItem;
+  function startJump() {
+    airborne = true; vy = JUMP_V; fallFrom = P.position.y; setState('jump', 0.08); holdT = -1;
+    events.emit('sfx', { name: 'dodge', position: P.position.clone(), volume: 0.5 });
+  }
+  function startFall() { airborne = true; vy = 0; fallFrom = P.position.y; setState('jump', 0.15); }
+  function startPlunge() {
+    if (!P.weaponDrawn) { P.weaponDrawn = true; view.setInHand(true); events.emit('sfx', { name: 'draw', position: P.position.clone(), volume: 0.8 }); }
+    if (parryReady) { parryReady = false; events.emit('player:parryReady', { on: false }); }
+    vy = Math.min(vy, -3); setState('plunge', 0.06);
+  }
+  function land(gh) {
+    const drop = Math.max(0, fallFrom - gh); airborne = false; P.position.y = gh;
+    if (P.state === 'plunge') {
+      plungeMv = 0.7 + Math.min(0.5, drop * 0.08); setState('plungeLand', 0.03); t = 0.38;
+      world.spawnDust?.(P.position.clone(), 1.4 + Math.min(1.5, drop * 0.15)); events.emit('camera:shake', { intensity: 0.4 + Math.min(0.5, drop * 0.05), duration: 0.35 });
+      events.emit('sfx', { name: 'slam', position: P.position.clone(), volume: 0.8 });
+    } else if (P.state === 'jump') {
+      setState('idle', 0.12); vel.multiplyScalar(0.6);
+      events.emit('footstep', { position: P.position.clone(), heavy: drop > 3, volume: 0.6, player: true });
+      if (drop > 6) { setState('knockdown', 0.05); } // a long fall knocks the hunter flat (no damage)
+    }
+  }
 
   // ---------------- autoplay (debug / critics) ----------------
   let apT = 0;
@@ -118,7 +152,7 @@ export async function createPlayer(game) {
     else curBlade = view.bladeWorld(curBlade);
     if (!prevBlade.length) prevBlade = curBlade.map((v) => v.clone());
     const lvl = P.state === 'heavy' || P.state === 'trueslash' ? heavyLevel : 0;
-    const mv = Array.isArray(atk.mv) ? atk.mv[lvl] : atk.mv;
+    const mv = P.state === 'plungeLand' ? plungeMv : Array.isArray(atk.mv) ? atk.mv[lvl] : atk.mv;
     // bosses + small fauna close to the hunter (open island) share the same hit pipeline
     const targets = game.fauna ? game.monsters.concat(game.fauna.near(P.position, 7)) : game.monsters;
     for (const m of targets) {
@@ -136,12 +170,12 @@ export async function createPlayer(game) {
         set.add(hb.part);
         _n.subVectors(hitP, sc).normalize(); const point = sc.clone().addScaledVector(_n, hb.sphere.radius);
         const G = P.gear, roll = Math.random();
-        const isCrit = G.affinity > 0 && roll < G.affinity / 100, weakHit = G.affinity < 0 && roll < -G.affinity / 100;
+        const aff = G.affinity + M.affinity; const isCrit = aff > 0 && roll < aff / 100, weakHit = aff < 0 && roll < -aff / 100;
         // part hardness (src/core/parts.js): a blunt edge glances off very hard parts; hard parts wear the edge faster
         const hitPart = m.parts?.find((q) => q.name === hb.part); const hard = hitPart && !hitPart.broken ? hitPart.hardness ?? 0.5 : 0.4;
         const glance = deflects(hard, P.sharpness, P.state);
-        let damage = mv * ATTACK_POWER * G.atk * G.buffAtk * sharpMult(P.sharpness) * G.sharp * (isCrit ? 1.25 : weakHit ? 0.75 : 1) * (glance ? 0.35 : 1);
-        const el = G.element; if (el && el.type !== 'blast') damage += el.value * 0.05 * (m.weakness?.[el.type] ?? 1) * Math.min(1.5, mv / 0.4 + 0.3);
+        let damage = mv * ATTACK_POWER * G.atk * G.buffAtk * sharpMult(P.sharpness) * G.sharp * (isCrit ? 1 + 0.25 * M.critDmg : weakHit ? 0.75 : 1) * (glance ? 0.35 : 1) * M.atk;
+        const el = G.element; if (el && el.type !== 'blast') damage += el.value * 0.05 * M.elem * (m.weakness?.[el.type] ?? 1) * Math.min(1.5, mv / 0.4 + 0.3);
         noteDamage(m, 'local', hb.part); // material rights: this hunter damaged this part (and so the body)
         const res = m.receiveHit({ damage, part: hb.part, point, normal: _n.clone(), attackerId: 'local', isCrit, element: el?.type, elementValue: el?.value || 0, mv });
         const hz = m.parts?.find((p) => p.name === hb.part)?.hitzone ?? 1;
@@ -184,10 +218,32 @@ export async function createPlayer(game) {
   }
 
   // ---------------- damage intake ----------------
-  P.receiveHit = ({ damage = 0, knockback = 0, from, kind, stun } = {}) => {
+  // Parry: only a direct physical blow from a creature we can see (not roars, area bursts, projectiles or ailments).
+  const parryable = (kind, source) => !!source && (kind == null || kind === 'physical');
+  function parrySuccess(source, from) {
+    const pt = P.position.clone(); pt.y += 1.2; const n = new THREE.Vector3(from?.x ?? pt.x, pt.y, from?.z ?? pt.z).sub(pt).normalize();
+    sparks.burst(pt.addScaledVector(n, 0.6), n, 60, 2, 1); flash(0.35);
+    events.emit('sfx', { name: 'clang', position: pt, volume: 1 }); events.emit('hitstop', { duration: 0.14 }); events.emit('camera:shake', { intensity: 0.45, duration: 0.3 });
+    // the attacker reels: small fauna stagger, bosses play their flinch and remember being parried
+    if (source.isFauna) source.staggerT = source.S?.big ? 0.9 : 1.5;
+    else source.debug?.play?.('flinch');
+    source.parried = (source.parried || 0) + 1;
+    // iai counter: the blade comes out of the sheath straight into a slash
+    parryReady = false; P.weaponDrawn = true; view.setInHand(true); invuln = Math.max(invuln, 0.35);
+    if (from) P.facing = Math.atan2(from.x - P.position.x, from.z - P.position.z);
+    setState('light2', 0.04);
+    events.emit('player:parry', { source }); events.emit('player:parryReady', { on: false });
+  }
+  P.receiveHit = ({ damage = 0, knockback = 0, from, kind, stun, source } = {}) => {
     if (P.dead || iframe > 0 || invuln > 0 || frozen) return false;
-    { // armour: defence curve, buffs, fire resistance + Heatward; Steadfast shortens stuns
-      const G = P.gear; damage *= (1 - G.defense / (G.defense + 500)) * G.buffDef;
+    if (P.state === 'parry' && t <= PARRY_WIN && parryable(kind, source) && !B.silenced) {
+      const to = from ? new THREE.Vector3(from.x - P.position.x, 0, from.z - P.position.z).normalize() : fwd(new THREE.Vector3());
+      if (fwd(new THREE.Vector3()).dot(to) > -0.2) { parrySuccess(source, from); return false; }
+    }
+    if (P.state === 'sleep') { damage *= 1.5; game.status?.clear('sleep'); } // a rude awakening
+    { // armour: defence curve, buffs, fire resistance + Heatward; Steadfast shortens stuns; defence / resistance down
+      const G = P.gear; damage *= (1 - G.defense / (G.defense + 500)) * G.buffDef / M.def;
+      if (kind && !['physical', 'roar', 'aoe', 'projectile'].includes(kind)) damage /= M.elemRes;
       if (kind === 'fire') damage *= Math.max(0.4, 1 - (G.res.fire || 0) * 0.03 - (G.skills.heatward || 0) * 0.05);
       if (stun) stun *= Math.max(0.1, 1 - 0.3 * (G.skills.steadfast || 0));
     }
@@ -229,7 +285,7 @@ export async function createPlayer(game) {
     P.dead = true; P.hp = 0; setState('dead', 0.1); deadT = 0; P.respawnTime = 5; P.chargeLevel = 0; events.emit('player:died', {});
   }
   function respawn() {
-    spawn(); P.hp = P.maxHp; P.redHp = P.maxHp; P.stamina = P.maxStamina; P.dead = false; P.respawnTime = 0; vel.set(0, 0, 0);
+    airborne = false; vy = 0; parryReady = false; holdT = -1; spawn(); P.hp = P.maxHp; P.redHp = P.maxHp; P.stamina = P.maxStamina; P.dead = false; P.respawnTime = 0; vel.set(0, 0, 0);
     P.weaponDrawn = false; view.setInHand(false); setState('idle', 0.01); view.resetCloth(); invuln = 2; trail.clear();
     events.emit('player:respawn', {});
   }
@@ -259,13 +315,38 @@ export async function createPlayer(game) {
     }
     if (P.lockTarget && (P.lockTarget.hp <= 0 || P.lockTarget.state === 'dead') && !autoplay) P.lockTarget = null;
 
+    // ailments (src/core/status.js): sleep / stun take over the hunter, flinch staggers, debuffs scale everything
+    const S = game.status; M = S?.mods?.() || M; B = S?.blocks?.() || {};
+    if (!P.dead && !airborne) {
+      if (B.asleep && P.state !== 'sleep') { setState('sleep', 0.15); vel.set(0, 0, 0); holdT = -1; }
+      else if (B.stunned && !['stun', 'sleep', 'knockdown', 'getup'].includes(P.state)) { setState('stun', 0.08); holdT = -1; }
+      else if (pendingFlinch > 0 && !superArmor && !['sleep', 'stun', 'knockdown', 'getup'].includes(P.state)) { stunT = pendingFlinch; setState('hit', 0.05); holdT = -1; }
+    }
+    pendingFlinch = 0;
+    if (B.confused && wishLen > 0.01) { // scrambled directions: long = reversed, short = swung sideways and wobbling
+      const a = B.confused === 'long' ? Math.PI : Math.PI / 2 + 0.6 * Math.sin(clock * 1.7); const c = Math.cos(a), sn = Math.sin(a);
+      wish.set(wish.x * c + wish.z * sn, 0, -wish.x * sn + wish.z * c);
+    }
+    if (ATTACKS[P.state] || P.state === 'charge' || P.state === 'tcharge') t += dt * (M.atkSpeed - 1); // attack speed down
+    // light button held while drawn → sheathe into the parry stance; released early → an ordinary slash
+    if (holdT >= 0) {
+      if (!LOCO.has(P.state)) holdT = -1;
+      else if (!inp.lightHeld) { holdT = -1; startAttack('light'); }
+      else if ((holdT += dt) >= HOLD_SHEATHE) { holdT = -1; queued = 'parryReady'; setState('sheathe'); }
+    }
     const s = P.state, atk = ATTACKS[s];
     let maxSpeed = 0, accel = 14, turnRate = 0, rootMove = 0;
     if (LOCO.has(s)) {
       const sprinting = inp.sprint && wishLen > 0.1 && !P.exhausted;
-      if (sprinting && P.weaponDrawn) { setState('sheathe'); }
+      if (holdT >= 0) { maxSpeed = 2.7 * wishLen; accel = 9; turnRate = 7; } // deciding: tap or hold
+      else if (sprinting && P.weaponDrawn) { setState('sheathe'); }
       else if (take('dodge')) startDodge();
-      else if (take('light')) startAttack('light');
+      else if (inp.jump && useStamina(8)) startJump();
+      else if (take('light')) {
+        if (P.weaponDrawn && inp.lightHeld) holdT = 0;
+        else if (!P.weaponDrawn && parryReady) { if (B.silenced) events.emit('player:silenced', {}); else setState(inp.lightHeld ? 'parryPrep' : 'parry', 0.06); }
+        else startAttack('light');
+      }
       else if (take('heavy')) startAttack('heavy');
       else if (take('potion')) startItem('potion');
       else if (take('whetstone')) startItem('whetstone');
@@ -285,6 +366,8 @@ export async function createPlayer(game) {
       if (s === 'sheathe' && !attachDone && t >= 0.5) { attachDone = true; view.setInHand(false); events.emit('sfx', { name: 'sheathe', position: P.position.clone(), volume: 0.6 }); }
       if (t >= CLIPS[s].dur) {
         P.weaponDrawn = s === 'draw';
+        if (P.weaponDrawn && parryReady) { parryReady = false; events.emit('player:parryReady', { on: false }); }
+        if (!P.weaponDrawn && queued === 'parryReady') { queued = null; parryReady = true; events.emit('player:parryReady', { on: true }); }
         const q = queued; queued = null; setState(P.weaponDrawn ? 'idle' : 'idle', 0.15);
         if (q === 'light' || q === 'heavy') startAttack(q); else if (q === 'guard') setState('guard'); else if (q?.startsWith('item:')) { const o = queuedOpts; queuedOpts = null; startItem(q.slice(5), o); }
       }
@@ -301,19 +384,19 @@ export async function createPlayer(game) {
       }
       superArmor = !!atk.tackle && t > 0.03 && t < 0.46;
       if (t >= atk.combo[0] && t <= atk.combo[1]) {
-        if (atk.tackle) { if (inp.heavyHeld || take('heavy')) { setState('tcharge', 0.1); lastLevel = 0; superArmor = false; } }
+        if (atk.tackle) { if (!B.silenced && (inp.heavyHeld || take('heavy'))) { setState('tcharge', 0.1); lastLevel = 0; superArmor = false; } }
         else if (atk.next && take('light')) setState(atk.next, 0.08);
-        else if ((s === 'heavy' || s === 'trueslash') && take('heavy')) { setState('tackle', 0.06); events.emit('sfx', { name: 'tackle', position: P.position.clone(), volume: 0.8 }); }
+        else if ((s === 'heavy' || s === 'trueslash') && !B.silenced && take('heavy')) { setState('tackle', 0.06); events.emit('sfx', { name: 'tackle', position: P.position.clone(), volume: 0.8 }); }
         else if (take('heavy')) { setState('charge', 0.12); lastLevel = 0; }
       }
       if (P.state !== s) superArmor = false;
       if (P.state === s && t >= atk.cancel && buffer?.a === 'dodge') { take('dodge'); startDodge(); }
-      if (P.state === s && t >= CLIPS[s].dur) { setState('idle', 0.2); }
+      if (P.state === s && t >= CLIPS[STATE_CLIP[s]].dur) { setState('idle', 0.2); }
     } else if (s === 'charge' || s === 'tcharge') {
       turnToward(aimDir(), 2.2, dt);
       const LV = s === 'tcharge' ? TRUE_LV : CHARGE_LV;
       const lvl = t >= LV[2] ? 3 : t >= LV[1] ? 2 : t >= LV[0] ? 1 : 0;
-      if (s === 'charge' && take('light')) { P.chargeLevel = 0; setState('tackle', 0.06); events.emit('sfx', { name: 'tackle', position: P.position.clone(), volume: 0.8 }); }
+      if (s === 'charge' && !B.silenced && take('light')) { P.chargeLevel = 0; setState('tackle', 0.06); events.emit('sfx', { name: 'tackle', position: P.position.clone(), volume: 0.8 }); }
       else {
       if (lvl > lastLevel) {
         lastLevel = lvl; const pts = view.bladeWorld(); sparks.burst(pts[5], new THREE.Vector3(0, 1, 0), 10 + lvl * 8, 0.5 + lvl * 0.25, 1);
@@ -322,17 +405,41 @@ export async function createPlayer(game) {
       P.chargeLevel = lvl;
       if (!inp.heavyHeld || t >= CHARGE_MAX) { heavyLevel = lvl; P.chargeLevel = 0; setState(s === 'tcharge' ? 'trueslash' : 'heavy', 0.03); events.emit('camera:fov', { kick: 4 + heavyLevel * (s === 'tcharge' ? 4 : 3) }); }
       }
+    } else if (s === 'parryPrep') { // counter stance: hand on the hilt, release to parry
+      maxSpeed = 0; turnToward(aimDir(), 6, dt);
+      if (take('dodge')) startDodge(); else if (!inp.lightHeld || t > 3) setState('parry', 0.04);
+    } else if (s === 'parry') {
+      turnToward(aimDir(), 8, dt);
+      if (t > PARRY_WIN) setState('parryMiss', 0.1); // nothing to catch: brief recovery
+    } else if (s === 'parryMiss') {
+      animT = Math.min(0.5, t * 0.8);
+      if (take('dodge')) startDodge(); else if (t >= 0.45) setState('idle', 0.15);
+    } else if (s === 'sleep') {
+      vel.multiplyScalar(Math.max(0, 1 - 4 * dt)); animT = Math.min(t, 1.2);
+      if (!B.asleep) { setState('getup', 0.15); invuln = 0.6; }
+    } else if (s === 'stun') { // dazed: wobble on the spot; mashing shakes it off a little faster
+      vel.multiplyScalar(Math.max(0, 1 - 6 * dt)); animT = 0.07 + 0.05 * Math.sin(t * 9);
+      if (inp.dodge || inp.lightAttack || inp.heavyAttack) S?.shake?.('stun', 0.2);
+      if (t % 0.4 < dt) world.spawnDust?.(P.position.clone().setY(P.position.y + 1.9), 0.12);
+      if (!B.stunned) setState('idle', 0.2);
+    } else if (s === 'jump' || s === 'plunge') {
+      // airborne: keep momentum, a little air control; light / heavy in the air = plunging attack
+      if (wishLen > 0.01) { vel.addScaledVector(wish, 3 * dt); const h = Math.hypot(vel.x, vel.z); if (h > 6.5) { vel.x *= 6.5 / h; vel.z *= 6.5 / h; } }
+      if (s === 'plunge') animT = Math.min(t * 1.5, 0.32);
+      else if (take('light') || take('heavy')) startPlunge();
     } else if (s === 'guard') {
       turnToward(aimDir(), 3, dt);
-      if (!inp.guard) setState('idle', 0.15);
+      if (take('dodge')) startDodge(); else if (!inp.guard) setState('idle', 0.15);
     } else if (s === 'dodge') {
-      const d = CLIPS.dodge.dur; iframe = t > 0.03 && t < 0.25 ? 0.02 : iframe;
-      rootMove = t < 0.5 ? 7.5 * (1 - t / 0.55) + 0.8 : 0.6;
+      // invulnerable only inside [iStart, iEnd): cleared the frame the window ends (no lingering i-frames)
+      const d = CLIPS.dodge.dur; iframe = t >= ROLL.iStart && t < ROLL.iEnd ? 1e-3 : 0;
+      rootMove = (t < 0.5 ? 7.5 * (1 - t / 0.55) + 0.8 : 0.6) * (ROLL.dist / 2.5); // base curve covers ~2.5 m
       if (t > 0.46 && buffer && buffer.a !== 'dodge' && P.weaponDrawn) { const a = buffer.a; buffer = null; t = d; if (a === 'light' || a === 'heavy') startAttack(a); }
       else if (t >= d) setState(P.weaponDrawn ? 'idle' : 'idle', 0.15);
     } else if (s === 'hit') {
       vel.multiplyScalar(Math.max(0, 1 - 8 * dt));
       if (t >= Math.max(0.5, stunT)) { stunT = 0; setState('idle', 0.2); }
+      else if (stunT <= 0.5 && t > 0.3 && take('dodge')) startDodge();
     } else if (s === 'knockdown') {
       vel.multiplyScalar(Math.max(0, 1 - 4 * dt)); invuln = Math.max(invuln, t > 0.5 ? 0.1 : 0);
       if (t >= 1.25 && (wishLen > 0.1 || t > 1.8 || take('dodge') || buffer)) { setState('getup', 0.12); invuln = 1.3; }
@@ -343,24 +450,33 @@ export async function createPlayer(game) {
       if (deadT >= 5) respawn();
     } else if (s === 'item' || s === 'whetstone') {
       maxSpeed = s === 'item' ? 1.0 * wishLen : 0; turnRate = 3; accel = 6;
-      view.rig.flask.visible = s === 'item' && t > 0.15 && t < 1.25; view.rig.whet.visible = s === 'whetstone' && t > 0.25 && t < 1.55;
-      if (s === 'item' && t >= 0.75 && t - dt < 0.75) { if (itemOpts) { healLeft = itemOpts.heal || 0; try { itemOpts.onUse?.(); } catch (e) { console.warn(e); } } else { P.potions--; healLeft = 50; } events.emit('item:used', { kind: itemOpts?.id || 'potion' }); events.emit('sfx', { name: 'drink', position: P.position.clone() }); }
+      // drink time: the swallow (effect + consumption) lands at D seconds; the clip is stretched to match
+      const D = s === 'item' ? itemOpts?.drink || 0.75 : 0;
+      if (s === 'item') animT = t < D ? 0.75 * t / D : 0.75 + (t - D);
+      const at = animT ?? t;
+      view.rig.flask.visible = s === 'item' && at > 0.15 && at < 1.25; view.rig.whet.visible = s === 'whetstone' && t > 0.25 && t < 1.55;
+      if (s === 'item' && t >= D && t - dt < D) { if (itemOpts) { healLeft = (itemOpts.heal || 0) * M.heal; try { itemOpts.onUse?.(); } catch (e) { console.warn(e); } } else { P.potions--; healLeft = 50 * M.heal; } events.emit('item:used', { kind: itemOpts?.id || 'potion' }); events.emit('sfx', { name: 'drink', position: P.position.clone() }); }
       if (s === 'whetstone' && t > 0.4 && t < 1.4 && Math.floor(t * 4) !== Math.floor((t - dt) * 4)) { events.emit('sfx', { name: 'whetstone', position: P.position.clone(), volume: 0.6 }); sparks.burst(view.rig.whet.getWorldPosition(new THREE.Vector3()), new THREE.Vector3(0, 1, 0), 5, 0.3, 1); }
       if (s === 'whetstone' && t >= 1.4 && t - dt < 1.4) { P.sharpness = 1; itemOpts?.onUse?.(); events.emit('player:sharpened', {}); }
-      if (t >= CLIPS[STATE_CLIP[s]].dur) { view.rig.flask.visible = view.rig.whet.visible = false; setState('idle', 0.2); }
-      if (take('dodge') && t > 0.3) { view.rig.flask.visible = view.rig.whet.visible = false; startDodge(); }
+      if (at >= CLIPS[STATE_CLIP[s]].dur) { view.rig.flask.visible = view.rig.whet.visible = false; setState('idle', 0.2); }
+      else if (take('dodge') && t > 0.1) { // cancel: before the swallow nothing is used up
+        const early = s === 'item' ? t < D : t < 1.4; view.rig.flask.visible = view.rig.whet.visible = false;
+        if (startDodge() && early) events.emit('item:cancel', { kind: itemOpts?.id || s });
+      }
     }
     if (healLeft > 0) { const h = Math.min(healLeft, 70 * dt); healLeft -= h; P.hp = Math.min(P.maxHp, P.hp + h); P.redHp = Math.max(P.redHp, P.hp); if (healLeft <= 0) events.emit('player:heal', {}); }
     // recoverable (red) health: after 1.5s without being hit, hp regenerates toward redHp while redHp slowly decays toward hp
     sinceHit += dt;
     if (P.redHp > P.hp && !P.dead) {
-      if (sinceHit > 1.5) P.hp = Math.min(P.redHp, P.hp + 3.5 * dt);
+      if (sinceHit > 1.5) P.hp = Math.min(P.redHp, P.hp + 3.5 * M.heal * dt);
       P.redHp = Math.max(P.hp, P.redHp - 1.5 * dt);
     } else P.redHp = P.hp;
     P.recoverableHp = P.redHp;
 
     // movement integration
-    if (maxSpeed > 0 || LOCO.has(P.state) || SELF_MOVE.has(P.state)) {
+    maxSpeed *= M.speed; rootMove *= P.state === 'dodge' ? 1 : M.speed;
+    if (AIR.has(P.state)) { /* airborne: velocity carried, steered above */ }
+    else if (maxSpeed > 0 || LOCO.has(P.state) || SELF_MOVE.has(P.state)) {
       if (wishLen > 0.01) turnToward(wish, turnRate, dt);
       const f = fwd(new THREE.Vector3());
       const align = wishLen > 0.01 ? Math.max(0, f.dot(wish)) : 0;
@@ -373,12 +489,18 @@ export async function createPlayer(game) {
     }
     P.position.x += vel.x * dt; P.position.z += vel.z * dt;
     collide();
-    P.position.y = world.getHeight(P.position.x, P.position.z);
+    { // vertical: ground snap, or gravity while airborne; walking off a ledge starts a fall
+      const gh = world.getHeight(P.position.x, P.position.z);
+      if (airborne) { vy -= GRAVITY * dt; P.position.y += vy * dt; if (P.position.y <= gh && vy <= 0) land(gh); }
+      else if (LOCO.has(P.state) && lastGround - gh > 0.9 && Math.hypot(P.position.x - lastX, P.position.z - lastZ) < 0.5 && !P.dead) { startFall(); P.position.y = lastGround; }
+      else P.position.y = gh;
+      lastGround = airborne ? gh : P.position.y; lastX = P.position.x; lastZ = P.position.z;
+    }
     speedNow = Math.hypot(vel.x, vel.z);
     object3d.rotation.y = P.facing;
 
     // stamina
-    if ((stamDelay -= dt) <= 0) P.stamina = Math.min(P.maxStamina, P.stamina + (P.state === 'guard' ? 12 : 32) * dt);
+    if ((stamDelay -= dt) <= 0) P.stamina = Math.min(P.maxStamina, P.stamina + (P.state === 'guard' ? 12 : 32) * M.stamRegen * dt);
     if (P.exhausted && P.stamina > 30) P.exhausted = false;
 
     // locomotion phase + footsteps
@@ -398,7 +520,7 @@ export async function createPlayer(game) {
     trail.update(clock);
   };
   function animParams() {
-    return { t, phase, amt, drawn: P.weaponDrawn || view.inHand, sprint: P.state === 'sprint', tremble: P.state === 'charge' || P.state === 'tcharge' ? P.chargeLevel * 0.6 : 0 };
+    return { t: animT ?? t, phase, amt, drawn: P.weaponDrawn || view.inHand, sprint: P.state === 'sprint', tremble: P.state === 'charge' || P.state === 'tcharge' ? P.chargeLevel * 0.6 : 0 };
   }
   function collide() {
     for (const c of world.colliders || []) {
