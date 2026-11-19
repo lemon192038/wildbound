@@ -3,6 +3,8 @@
 // plus: canWalk(x,z), regionAt(x,z), region (current id), chunks (streamer, for the debug overlay), stats.
 // Boot is staged and reports real progress through game.loading (far terrain sampling → textures → near tiles).
 import { createIslandField } from './islandField.js';
+import { makeWaterMaterial } from '../water.js';
+import { buildWaterfall } from '../waterfall.js';
 import { createChunkStreamer, TILE } from './chunks.js';
 import { createIslandProps } from './props.js';
 import { createIslandLandmarks } from './landmarks.js';
@@ -100,8 +102,27 @@ export async function createIslandWorld(game) {
   timings.macro = performance.now() - T0 - timings.setup - timings.far;
 
   // ---- sea ----
-  const sea = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x0b1519, roughness: 0.14, metalness: 0.0, envMapIntensity: 1.2 }));
+  // the sea uses the shared water shader (normal ripples, fresnel, depth tint, shore foam): a polar mesh whose per-vertex
+  // depth comes from the island field, so shallows turn turquoise and foam breaks along the coast
+  const { mat: seaMat, uniforms: seaU } = makeWaterMaterial(THREE);
+  const sea = (() => {
+    const NR = low ? 40 : 64, NA = low ? 160 : 256, pos = [], dep = [], flw = [], idx = [];
+    for (let i = 0; i <= NR; i++) { const r = 380 + Math.pow(i / NR, 2.2) * 5200; for (let k = 0; k <= NA; k++) { const a = (k / NA) * Math.PI * 2, x = Math.cos(a) * r, z = Math.sin(a) * r; pos.push(x, 0, z); dep.push(-F.height(x, z)); flw.push(0, 0); } }
+    for (let i = 0; i < NR; i++) for (let k = 0; k < NA; k++) { const a0 = i * (NA + 1) + k, b0 = a0 + 1, c0 = a0 + NA + 1, d0 = c0 + 1; idx.push(a0, c0, b0, b0, c0, d0); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(pos.map((_, i) => (i % 3 === 1 ? 1 : 0)), 3));
+    g.setAttribute('aDepth', new THREE.Float32BufferAttribute(dep, 1)); g.setAttribute('aFlow', new THREE.Float32BufferAttribute(flw, 2)); g.setIndex(idx); g.computeBoundingSphere();
+    const m = new THREE.Mesh(g, seaMat); m.renderOrder = 1; m.frustumCulled = false; return m;
+  })();
   sea.name = 'sea'; sea.position.y = 0; sea.receiveShadow = false; scene.add(sea);
+  // waterfalls where the coast drops off in cliffs (a few, spread around the island)
+  const wfU = { uTime: { value: 0 } }; const falls = [];
+  { const cands = [];
+    for (let deg = 0; deg < 360; deg += 2) { const a = deg * Math.PI / 180, dx = Math.cos(a), dz = Math.sin(a);
+      for (let r = F.coastR - 260; r < F.coastR + 160; r += 6) { const h0 = F.height(dx * r, dz * r), h1 = F.height(dx * (r + 14), dz * (r + 14)); if (h0 > 10 && h0 - h1 > 9 && F.lava(dx * r, dz * r, {}).sd > 15) { cands.push({ a, r, h0, h1, drop: h0 - h1 }); break; } } }
+    cands.sort((p, q) => q.drop - p.drop);
+    for (const c of cands) { if (falls.length >= 5) break; if (falls.some((f) => Math.abs(Math.atan2(Math.sin(f.a - c.a), Math.cos(f.a - c.a))) < 0.6)) continue; falls.push(c); }
+    for (const c of falls) { const dx = Math.cos(c.a), dz = Math.sin(c.a); const wf = buildWaterfall(THREE, { x: dx * (c.r + 2), z: dz * (c.r + 2), top: c.h0 + 0.4, bottom: Math.max(0, c.h1), dx, dz, w: 5 + c.drop * 0.08, uniforms: wfU }); scene.add(wf); c.base = wf.userData.base; }
+  }
 
   // ---- near tiles around the spawn: everything the hunter can reach in the first seconds is built before play ----
   progress(game, 'chunks', 0);
@@ -163,7 +184,7 @@ export async function createIslandWorld(game) {
     if (burnT <= 0) { burnT = 0.45; P.drain?.(8); game.status?.apply('burn', 'large'); game.events?.emit('camera:shake', { intensity: 0.18, duration: 0.2 }); _p.set(x, Ls.level, z); fx.spawnSplash(_p, 0.6); }
   }
 
-  let time = 0, region = null, lavaT = 0; const _cam = new THREE.Vector3(), camDir = new THREE.Vector3();
+  let time = 0, region = null, lavaT = 0, fallT = 0; const _cam = new THREE.Vector3(), camDir = new THREE.Vector3();
   function update(dt, rawDt) {
     time += rawDt; timeU.value = time; sky.material.uniforms.uTime.value = time; shared.uTime.value = time;
     const P = game.player?.position || sp;
@@ -178,6 +199,8 @@ export async function createIslandWorld(game) {
     scene.fog.color.copy(fogBase).lerp(glowCol, flash * 0.1).multiplyScalar(1 + flash * 0.2);
     shared.uPulse.value = 1 + flash * 0.6;
     // the Volcano Slime event (src/field/volcano.js): a weakening flow slows and darkens the lava; stopped lava crusts over
+    seaU.uTime.value = time; wfU.uTime.value = time;
+    if (falls.length && (fallT -= rawDt) <= 0) { fallT = 0.4; for (const c of falls) if (c.base && camera.position.distanceToSquared(c.base) < 140 * 140) fx.spawnSplash?.(c.base.clone().setY(c.base.y + 0.2), 0.5); }
     const flow = game.volcanoFlow ?? 1; lavaT += rawDt * (0.15 + 0.85 * flow);
     for (const m of [opts.lavaMat, opts.farLavaMat]) { m.uniforms.uTime.value = lavaT; m.uniforms.uBoost.value = (0.16 + 0.84 * flow) * (1 + flash * 0.5); }
     lightT -= rawDt; if (lightT <= 0) { lightT = 0.6; placeLights(P.x, P.z); }

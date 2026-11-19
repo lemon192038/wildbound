@@ -4,6 +4,7 @@
 // tiles only own small matrix arrays that are packed into the shared instance buffers when the tile set changes.
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { makeNoise2D, mulberry32 } from '../noise.js';
+import { EXTRA_PROPS, buildExtraGeometries, extraMaterial } from './propsExtra.js';
 
 // per-tile counts by region
 const DENSITY = {
@@ -15,6 +16,8 @@ const DENSITY = {
   crystal: { crystal: 14, peaks: 1, caldera: 2 },
 };
 const CAP = { boulder: 2400, pillar: 500, pine: 2600, deadtree: 500, fungus: 1100, crystal: 1300 };
+for (const [k, v] of Object.entries(EXTRA_PROPS)) { DENSITY[k] = v[1]; CAP[k] = v[2]; } // 21 more types (propsExtra.js)
+const SHORE = new Set(['palm', 'driftwoodPile']);
 
 function colorize(THREE, g, fn) {
   const p = g.attributes.position, n = g.attributes.normal, c = new Float32Array(p.count * 3); const o = [0, 0, 0];
@@ -57,7 +60,7 @@ function buildGeometries(THREE, seed) {
 }
 
 export function createIslandProps(THREE, scene, F, { low = false, seed = 1337, clear = [], staticColliders = [] } = {}) {
-  const geos = buildGeometries(THREE, seed);
+  const geos = { ...buildGeometries(THREE, seed), ...buildExtraGeometries(THREE, seed) };
   const mats = {
     boulder: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0 }),
     pillar: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0, flatShading: true }),
@@ -66,11 +69,12 @@ export function createIslandProps(THREE, scene, F, { low = false, seed = 1337, c
     fungus: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0, emissive: 0x3a1004, emissiveIntensity: 0.7 }),
     crystal: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.12, metalness: 0.05, emissive: 0x0b5a78, emissiveIntensity: 0.9, flatShading: true }),
   };
+  for (const k of Object.keys(EXTRA_PROPS)) mats[k] = extraMaterial(THREE, k);
   const meshes = {};
   for (const k of Object.keys(geos)) {
     const m = new THREE.InstancedMesh(geos[k], mats[k], low ? Math.round(CAP[k] * 0.6) : CAP[k]);
     m.count = 0; m.frustumCulled = false; m.name = 'props-' + k;
-    m.castShadow = !low && (k === 'boulder' || k === 'pillar' || k === 'pine' || k === 'fungus'); m.receiveShadow = true;
+    m.castShadow = !low && (k === 'boulder' || k === 'pillar' || k === 'pine' || k === 'fungus' || (EXTRA_PROPS[k] && EXTRA_PROPS[k][6] >= 5)); m.receiveShadow = true;
     meshes[k] = m; scene.add(m);
   }
   const live = new Set(); let dirty = false; const colliders = [];
@@ -90,17 +94,19 @@ export function createIslandProps(THREE, scene, F, { low = false, seed = 1337, c
         const x = x0 + rnd() * size, z = z0 + rnd() * size; const reg = F.regionAt(x, z);
         if (clear.some((c) => Math.hypot(x - c.x, z - c.z) < c.r)) continue; // camps / spawn points stay open
         if (!(dens[reg] > 0) || rnd() > dens[reg] / Math.max(...Object.values(dens))) continue;
-        const h = heightAt(x, z); if (h < (type === 'boulder' || type === 'pillar' ? 0.3 : 2.2)) continue;
-        if (sdAt(x, z) < (type === 'pine' || type === 'fungus' ? 10 : 5)) continue;
+        const X = EXTRA_PROPS[type];
+        const h = heightAt(x, z); if (h < (type === 'boulder' || type === 'pillar' || SHORE.has(type) ? 0.3 : 2.2)) continue;
+        if (SHORE.has(type) && h > 9) continue;
+        if (sdAt(x, z) < (type === 'pine' || type === 'fungus' || type === 'palm' || type === 'giantFern' ? 10 : type === 'obsidianShard' || type === 'ventChimney' ? 2.5 : 5)) continue;
         const sl = Math.hypot(heightAt(x + 1.5, z) - heightAt(x - 1.5, z), heightAt(x, z + 1.5) - heightAt(x, z - 1.5)) / 3;
-        if (sl > (type === 'boulder' ? 0.9 : type === 'pillar' ? 0.7 : 0.45)) continue;
-        const s = type === 'boulder' ? 0.5 + Math.pow(rnd(), 2.2) * 3.2 : type === 'pillar' ? 0.8 + rnd() * 0.9 : type === 'crystal' ? 0.6 + rnd() * 1.4 : 0.7 + rnd() * 0.7;
+        if (sl > (type === 'boulder' ? 0.9 : type === 'pillar' || type === 'spire' ? 0.7 : type === 'rockArch' || type === 'ruinWall' || type === 'fallenLog' || type === 'ribcage' ? 0.3 : 0.45)) continue;
+        const s = X ? X[4][0] + rnd() * (X[4][1] - X[4][0]) : type === 'boulder' ? 0.5 + Math.pow(rnd(), 2.2) * 3.2 : type === 'pillar' ? 0.8 + rnd() * 0.9 : type === 'crystal' ? 0.6 + rnd() * 1.4 : 0.7 + rnd() * 0.7;
         e.set(type === 'boulder' ? (rnd() - 0.5) * 0.5 : (rnd() - 0.5) * 0.12, rnd() * Math.PI * 2, type === 'boulder' ? (rnd() - 0.5) * 0.5 : (rnd() - 0.5) * 0.12);
         q.setFromEuler(e); sv.set(s * (type === 'boulder' ? 0.8 + rnd() * 0.5 : 1), s, s * (type === 'boulder' ? 0.8 + rnd() * 0.5 : 1));
         pv.set(x, h - (type === 'boulder' ? s * 0.18 : 0.15), z); mtx.compose(pv, q, sv);
         arr.push(...mtx.elements);
-        const cr = type === 'boulder' ? (s > 1.1 ? s * 0.85 : 0) : type === 'pillar' ? 1.1 * s : type === 'pine' ? 0.45 * s : type === 'deadtree' ? 0.35 * s : type === 'fungus' ? 0.55 * s : s > 1 ? 0.8 * s : 0;
-        if (cr > 0) out.colliders.push({ x, z, r: cr, kind: type, h: s * (type === 'pine' ? 9 : type === 'deadtree' ? 6 : type === 'fungus' ? 5 : type === 'pillar' ? 6 : type === 'boulder' ? 1.6 : 2) }); // kind / height: grappling-hook targets (src/player/grapple.js)
+        const cr = X ? X[5] * s : type === 'boulder' ? (s > 1.1 ? s * 0.85 : 0) : type === 'pillar' ? 1.1 * s : type === 'pine' ? 0.45 * s : type === 'deadtree' ? 0.35 * s : type === 'fungus' ? 0.55 * s : s > 1 ? 0.8 * s : 0;
+        if (cr > 0) out.colliders.push({ x, z, r: cr, kind: type, h: s * (X ? X[6] : type === 'pine' ? 9 : type === 'deadtree' ? 6 : type === 'fungus' ? 5 : type === 'pillar' ? 6 : type === 'boulder' ? 1.6 : 2) }); // kind / height: grappling-hook targets (src/player/grapple.js)
       }
       if (arr.length) out.types[type] = new Float32Array(arr);
     }

@@ -2,7 +2,8 @@
 import { WATER_LEVEL } from './terrain.js';
 import { createWaterNormal } from './textures.js';
 
-export function createWater(THREE, scene, terrain, sunDir) {
+// the shared water surface (ponds, streams, the island sea): per-vertex aDepth (m below the surface) and aFlow
+export function makeWaterMaterial(THREE) {
   const tN = createWaterNormal(THREE, 5, 256);
   const uniforms = { uTime: { value: 0 }, tWN: { value: tN } };
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.05, metalness: 0.0, transparent: true, envMapIntensity: 1.2 });
@@ -42,6 +43,10 @@ uniform float uTime; uniform sampler2D tWN; varying float vDepth; varying vec2 v
       .replace('#include <normal_fragment_maps>', 'normal = normalize((viewMatrix * vec4(waterN, 0.0)).xyz);');
   };
   mat.customProgramCacheKey = () => 'wb-water-v1';
+  return { mat, uniforms };
+}
+export function createWater(THREE, scene, terrain, sunDir) {
+  const { mat, uniforms } = makeWaterMaterial(THREE);
 
   const group = new THREE.Group(); group.name = 'water'; scene.add(group);
   // ---- pond ----

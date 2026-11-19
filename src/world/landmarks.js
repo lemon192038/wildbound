@@ -1,5 +1,6 @@
 // Hand-placed landmarks that give the arena identity: a ribcage of stone arches (NW), a tall rock spire (NE),
 // a fallen ancient tree (W) and a cliff waterfall feeding the pond (E). All procedural, with colliders.
+import { buildWaterfall } from './waterfall.js';
 import { makeNoise2D, mulberry32, clamp, lerp, smoothstep } from './noise.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rockGeo } from './foliage.js';
@@ -117,43 +118,12 @@ export function createLandmarks(THREE, scene, terrain, mats, opts = {}) {
     for (let t = 0; t <= 1.001; t += 0.1) colliders.push({ x: lerp(A[0], B[0], t), z: lerp(A[2], B[2], t), r: lerp(1.7, 0.9, t) });
   }
 
-  // ---- waterfall ribbon ----
+  // ---- waterfall (shared look: src/world/waterfall.js) ----
   const wfU = { uTime: { value: 0 } };
   const base = { x: 0, z: L.cliff.z };
   {
-    const top = cliffTop - 1.2, bot = WATER_LEVEL - 0.1; base.x = lipX - 1.9; const W = 3.6, SY = 16, SX = 4;
-    const pos = [], uv = [], idx = [];
-    for (let j = 0; j <= SY; j++) {
-      const t = j / SY; const y = lerp(top, bot, t); const xo = lipX + 0.2 - Math.sin(t * Math.PI * 0.5) * 1.8 - t * 0.3;
-      for (let i = 0; i <= SX; i++) { const s = (i / SX - 0.5) * W * (1 + t * 0.35); pos.push(xo, y, base.z + s); uv.push(i / SX, t * (top - bot) / 4); }
-    }
-    for (let j = 0; j < SY; j++) for (let i = 0; i < SX; i++) { const a = j * (SX + 1) + i, b = a + 1, c = a + SX + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
-    g.computeVertexNormals(); g.computeBoundingSphere();
-    const mat = new THREE.ShaderMaterial({
-      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, wfU]), fog: true, transparent: true, depthWrite: false, side: THREE.DoubleSide,
-      vertexShader: `varying vec2 vUv; varying float vT;
-#include <fog_pars_vertex>
-void main(){ vUv = uv; vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mvPosition;
-#include <fog_vertex>
-}`,
-      fragmentShader: `uniform float uTime; varying vec2 vUv;
-#include <fog_pars_fragment>
-float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(h(i), h(i+vec2(1,0)), f.x), mix(h(i+vec2(0,1)), h(i+vec2(1,1)), f.x), f.y); }
-void main(){
-  vec2 p = vec2(vUv.x * 9.0, vUv.y - uTime * 1.6);
-  float s = vn(vec2(p.x, p.y * 3.0)) * 0.6 + vn(vec2(p.x * 2.3, p.y * 7.0)) * 0.4;
-  float edge = smoothstep(0.0, 0.18, vUv.x) * smoothstep(1.0, 0.82, vUv.x);
-  float a = edge * (0.45 + 0.55 * smoothstep(0.3, 0.75, s));
-  vec3 c = mix(vec3(0.42, 0.55, 0.58), vec3(1.0, 0.98, 0.94), smoothstep(0.35, 0.85, s));
-  gl_FragColor = vec4(c * 1.15, a * 0.92);
-  #include <fog_fragment>
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
-}`,
-    });
-    const m = new THREE.Mesh(g, mat); m.renderOrder = 2; m.name = 'waterfall'; group.add(m);
+    const top = cliffTop - 1.2, bot = WATER_LEVEL - 0.1; base.x = lipX - 1.9;
+    group.add(buildWaterfall(THREE, { x: lipX + 0.2, z: base.z, top, bottom: bot, dx: -1, dz: 0, w: 3.6, uniforms: wfU }));
   }
 
   let mistT = 0;
