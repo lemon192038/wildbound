@@ -102,5 +102,81 @@ export function weaponClips({ STAND, READY, lunge }) {
   C.rope_fire = { dur: 0.3, keys: [{ t: 0 }, { t: 0.1, upperArmR: [-2.0, 0, -0.3], foreArmR: [-0.6, 0, 0], chest: [0, 0.3, 0], ik: [0, null, 1], ease: 'out' }, { t: 0.3, upperArmR: [-1.6, 0, -0.1], foreArmR: [-0.1, 0, 0], ik: [0, null, 1] }] };
   C.rope_pull = { dur: 0.3, hold: true, keys: [{ t: 0, ik: [0, null, 0] }, { t: 0.3, upperArmR: [-2.4, 0, -0.15], foreArmR: [-0.3, 0, 0], upperArmL: [-2.2, 0, 0.15], foreArmL: [-0.5, 0, 0],
     thighL: [-1.0, 0, 0.12], shinL: [1.4, 0, 0], thighR: [-0.4, 0, -0.12], shinR: [0.9, 0, 0], spine: [0.15, 0, 0], ik: [0, null, 0], ease: 'out' }] };
+
+  // ================================================================ stage 6c classes
+  // generic slash builder: wind-up arc a → b (contact) → c (follow-through) around the hit time th
+  const slash = (base, dur, a, b, c, th, { wind = 0.1, body = {}, end = {}, lng = 1, extra = {} } = {}) => ({ dur, from: base, keys: [{ t: 0, ...extra },
+    { t: Math.max(0.02, th - wind), w: a, ...body, ...extra, ease: 'inOut' }, { t: th, w: b, ...lunge(0.8 * lng), ...extra, ease: 'in' },
+    { t: th + wind * 0.8, w: c, ...end, ...lunge(lng), ...extra, ease: 'out' }, { t: dur, ...base }] });
+  const TWIST_R = { chest: [0.1, 0.55, 0], hips: [0, 0.3, 0] }, TWIST_L = { chest: [-0.05, -0.6, 0], spine: [0, -0.2, 0] }, BOW_F = { spine: [0.4, 0, 0], chest: [0.25, 0, 0] }, BACK = { spine: [-0.25, 0, 0], chest: [-0.2, 0, 0] };
+  const MOUTH = { head: [0.05, 0, 0] };
+
+  // three-blade style (blades in both hands + one in the teeth)
+  C.tb_1 = slash(D1, 0.5, HI_L, MID, LO_R, 0.16, { body: { ...TWIST_L, ...OFF_HI }, end: { ...TWIST_R, ...OFF_X } });
+  C.tb_2 = slash(D1, 0.5, R_SIDE, FRONT_MID, L_SIDE, 0.16, { body: { ...TWIST_R, ...OFF_OUT }, end: { ...TWIST_L, ...OFF_X } });
+  C.tb_3 = slash(D1, 0.72, OVER, w([0, 0.35, 0.35], [0, 1, 0.35], [0, -0.35, 1]), OVER_HIT, 0.26, { wind: 0.12, body: { ...BACK, ...OFF_HI }, end: { ...BOW_F, ...OFF_X }, lng: 1.1 });
+  const storm = [{ t: 0 }]; for (let i = 0; i < 7; i++) storm.push({ t: 0.15 + i * 0.15, w: i % 2 ? L_SIDE : R_SIDE, ...(i % 2 ? OFF_OUT : OFF_X), hips: [0, -(i + 1) * 0.9, 0], ...lunge(0.9), ease: 'linear' });
+  storm.push({ t: 1.2, ...D1, hips: [0, -6.28, 0], ease: 'out' }, { t: 1.45, ...D1, hips: [0, -6.28, 0] }); C.tb_storm = { dur: 1.45, from: D1, keys: storm };
+  // machete (one hand, no shield)
+  const MC = { ...R1, upperArmL: [-0.4, 0, 0.35], foreArmL: [-0.8, 0, 0] };
+  C.mc_1 = slash(MC, 0.42, HI_L, MID, LO_R, 0.13, { wind: 0.07, body: TWIST_L, end: TWIST_R, lng: 0.7 });
+  C.mc_2 = slash(MC, 0.4, R_SIDE, FRONT_MID, L_SIDE, 0.12, { wind: 0.07, body: TWIST_R, end: TWIST_L, lng: 0.7 });
+  C.mc_hack = slash(MC, 0.72, OVER, w([0, 0.35, 0.35], [0, 1, 0.35], [0, -0.35, 1]), OVER_HIT, 0.25, { wind: 0.13, body: BACK, end: BOW_F, lng: 1.1 });
+  // mace
+  C.ma_1 = slash(MC, 0.58, R_SIDE, FRONT_MID, L_SIDE, 0.21, { wind: 0.1, body: TWIST_R, end: TWIST_L, lng: 0.9 });
+  C.ma_2 = slash(MC, 0.56, L_SIDE, FRONT_MID, R_SIDE, 0.2, { wind: 0.1, body: TWIST_L, end: TWIST_R, lng: 0.9 });
+  C.ma_crush = slash(MC, 0.9, OVER, w([0, 0.35, 0.35], [0, 1, 0.35], [0, -0.35, 1]), OVER_HIT, 0.32, { wind: 0.16, body: BACK, end: BOW_F, lng: 1.25 });
+  // war horn (two hands, blunt): wide swings and an overhead; the performance lifts the horn high
+  C.hr_1 = slash(HM, 0.8, R_SIDE, FRONT_MID, L_SIDE, 0.3, { wind: 0.14, body: TWIST_R, end: TWIST_L, lng: 1 });
+  C.hr_1b = slash(HM, 0.78, L_SIDE, FRONT_MID, R_SIDE, 0.28, { wind: 0.14, body: TWIST_L, end: TWIST_R, lng: 1 });
+  C.hr_2 = slash(HM, 0.95, OVER, w([0, 0.4, 0.4], [0, 1, 0.4], [0, -0.4, 1]), OVER_HIT, 0.38, { wind: 0.16, body: BACK, end: BOW_F, lng: 1.2 });
+  C.hr_perform = { dur: 1.5, from: HM, keys: [{ t: 0 }, { t: 0.3, w: w([0, 0.55, 0.15], [0, 1, 0.1], [0, 0.2, 1]), ...BACK, head: [-0.3, 0, 0], ease: 'out' },
+    { t: 0.55, w: w([0.05, 0.6, 0.2], [0.1, 1, 0.2], [0, 0.2, 1]), hips: [0, 1.2, 0], ease: 'inOut' }, { t: 0.75, w: OVER_HIT, ...BOW_F, hips: [0, 0, 0], ...lunge(1.2, -0.25), ease: 'out' }, { t: 1.5, ...HM }] };
+  // cannon lance: shells fired from the lance tip behind the tower shield
+  C.cl_fire = { dur: 0.62, from: LN, keys: [{ t: 0 }, { t: 0.08, w: w([0.14, 0.02, 0.32], [0.03, 0.05, 1], [0, -1, 0]), spine: [0.2, 0, 0], ...lunge(0.9, -0.16), ease: 'out' },
+    { t: 0.16, w: w([0.14, 0.08, 0.18], [0.03, 0.3, 1], [0, -1, 0]), spine: [-0.05, 0, 0], ease: 'out' }, { t: 0.62, ...LN }] };
+  C.cl_aim = { dur: 0.3, hold: true, from: LN, keys: [{ t: 0 }, { t: 0.3, w: w([0.14, 0.0, 0.3], [0.03, 0.05, 1], [0, -1, 0]), spine: [0.25, 0, 0], ...lunge(1, -0.18), ease: 'out' }] };
+  // shift axe: axe mode (long two-handed swings), sword mode (shorter, faster), discharge, morph
+  C.sx_a1 = slash(HM, 0.85, OVER, w([0, 0.4, 0.4], [0, 1, 0.4], [0, -0.4, 1]), OVER_HIT, 0.32, { wind: 0.14, body: BACK, end: BOW_F, lng: 1.1 });
+  C.sx_a2 = slash(HM, 0.82, R_SIDE, FRONT_MID, L_SIDE, 0.3, { wind: 0.14, body: TWIST_R, end: TWIST_L, lng: 1.1 });
+  C.sx_aheavy = slash(HM, 1.0, OVER, w([0, 0.4, 0.4], [0, 1, 0.4], [0, -0.4, 1]), OVER_HIT, 0.44, { wind: 0.2, body: { ...BACK, head: [-0.25, 0, 0] }, end: BOW_F, lng: 1.3 });
+  C.sx_s1 = slash(LS, 0.6, HI_L, MID, LO_R, 0.2, { wind: 0.09, body: TWIST_L, end: TWIST_R });
+  C.sx_s2 = slash(LS, 0.58, R_SIDE, FRONT_MID, L_SIDE, 0.19, { wind: 0.09, body: TWIST_R, end: TWIST_L });
+  C.sx_discharge = { dur: 1.7, from: LS, keys: [{ t: 0 }, { t: 0.2, w: THRUST1, spine: [0.3, 0, 0], ...lunge(1.2, -0.2), ease: 'out' }, { t: 1.1, w: w([0.06, 0.05, 0.6], [0.02, 0.1, 1], [0, -1, 0]), spine: [0.3, 0, 0], ...lunge(1.2, -0.2) },
+    { t: 1.25, w: w([0.05, 0.4, 0.4], [0.05, 0.8, 0.6], [0, -0.6, 1]), spine: [-0.1, 0, 0], ease: 'out' }, { t: 1.7, ...LS }] };
+  C.sx_morph = slash(LS, 0.7, w([0.1, -0.3, 0.2], [0.3, -0.6, 0.6], [0, 1, 0.3]), w([0, 0.2, 0.5], [0, 0.6, 1], [0, 0.2, -1]), OVER, 0.22, { wind: 0.1, body: BOW_F, end: BACK });
+  // bulwark axe: vial charge (blade into the shield), morph to axe, axe swings, vial burst
+  C.ba_charge = { dur: 0.9, from: R1, keys: [{ t: 0, ...SHIELD }, { t: 0.25, ...SHIELD_UP, w: w([-0.1, 0.0, 0.35], [-0.6, 0.2, 0.6], [0, -1, 0]), chest: [0, -0.3, 0], ease: 'out' },
+    { t: 0.6, ...SHIELD_UP, w: w([-0.12, -0.05, 0.38], [-0.65, 0.15, 0.6], [0, -1, 0]) }, { t: 0.9, ...R1, ...SHIELD }] };
+  C.ba_morph = slash(R1, 0.85, w([0.15, -0.3, 0.2], [0.4, -0.5, 0.6], [0, 1, 0.3]), w([0, 0.3, 0.45], [0, 0.8, 0.7], [0, 0.3, -1]), OVER, 0.3, { wind: 0.12, body: BOW_F, end: BACK, extra: SHIELD_UP });
+  C.ba_a1 = slash(R1, 0.85, OVER, w([0, 0.4, 0.4], [0, 1, 0.4], [0, -0.4, 1]), OVER_HIT, 0.32, { wind: 0.14, body: BACK, end: BOW_F, lng: 1.1, extra: SHIELD_UP });
+  C.ba_a2 = slash(R1, 0.82, R_SIDE, FRONT_MID, L_SIDE, 0.3, { wind: 0.14, body: TWIST_R, end: TWIST_L, lng: 1.1, extra: SHIELD_UP });
+  C.ba_burst = slash(R1, 1.15, OVER, w([0, 0.4, 0.4], [0, 1, 0.4], [0, -0.4, 1]), OVER_HIT, 0.46, { wind: 0.22, body: { ...BACK, head: [-0.3, 0, 0] }, end: BOW_F, lng: 1.35, extra: SHIELD_UP });
+  // vault staff
+  const STF = { ...READY, w: w([0.05, -0.1, 0.3], [0.9, 0.1, 0.3], [0, 1, 0]) };
+  C.st_1 = { dur: 0.6, from: STF, keys: [{ t: 0 }, { t: 0.1, w: R_SIDE, ...TWIST_R, ease: 'out' }, { t: 0.2, w: L_SIDE, ...TWIST_L, hips: [0, -1.4, 0], ...lunge(0.8), ease: 'inOut' }, { t: 0.3, w: R_SIDE, hips: [0, -3.0, 0], ease: 'out' }, { t: 0.6, ...STF, hips: [0, -6.28, 0] }] };
+  C.st_2 = slash(STF, 0.66, OVER, w([0, 0.35, 0.35], [0, 1, 0.35], [0, -0.35, 1]), OVER_HIT, 0.24, { wind: 0.1, body: BACK, end: BOW_F, lng: 1.1 });
+  C.st_vault = { dur: 0.4, from: STF, keys: [{ t: 0 }, { t: 0.15, w: w([0.05, -0.4, 0.4], [0.05, -1, 0.3], [0, 0, 1]), spine: [0.35, 0, 0], ...lunge(1.1, -0.25), ease: 'in' }, { t: 0.4, ...STF, thighL: [-1.1, 0, 0.1], shinL: [1.5, 0, 0], thighR: [-0.6, 0, -0.1], shinR: [1.2, 0, 0], ik: [1, 1, 0] }] };
+  C.st_air = { dur: 0.45, from: STF, keys: [{ t: 0, ik: [1, 1, 0] }, { t: 0.06, w: OVER, ...BACK, thighL: [-1.2, 0, 0.1], shinL: [1.6, 0, 0], thighR: [-0.8, 0, -0.1], shinR: [1.4, 0, 0], ik: [1, 1, 0], ease: 'out' },
+    { t: 0.2, w: OVER_HIT, hips: [1.2, 0, 0], ease: 'inOut' }, { t: 0.45, w: OVER_HIT, hips: [6.28, 0, 0], thighL: [-1.0, 0, 0.1], shinL: [1.4, 0, 0], ik: [1, 1, 0] }] };
+  // guns: two-handed (barrel along the weapon's -Y, so b points back; the left hand rides the barrel), pistol one-handed
+  const GUN = w([0.08, 0.14, 0.3], [0, 0.02, -1], [0, 1, 0]), GUN_KICK = w([0.08, 0.17, 0.2], [0, 0.12, -1], [0, 1, 0.1]);
+  const GN = { ...READY, w: GUN, ik: [1, 1, 1], chest: [0, 0.15, 0], head: [0, -0.1, 0], hips: [0, 0.1, 0] };
+  C.gun_aim = { dur: 0.2, hold: true, from: GN, keys: [{ t: 0 }, { t: 0.2, w: GUN, ...lunge(0.5, -0.06), ease: 'out' }] };
+  C.gun_shot = { dur: 0.35, from: GN, keys: [{ t: 0, w: GUN }, { t: 0.06, w: GUN_KICK, ease: 'out' }, { t: 0.35, ...GN }] };
+  C.gun_shot_h = { dur: 0.6, from: GN, keys: [{ t: 0, w: GUN, ...lunge(0.5, -0.06) }, { t: 0.08, w: w([0.08, 0.2, 0.08], [0, 0.25, -1], [0, 1, 0.2]), spine: [-0.15, 0, 0], ease: 'out' }, { t: 0.6, ...GN }] };
+  C.gun_reload = { dur: 1.0, from: GN, keys: [{ t: 0 }, { t: 0.25, w: w([0.0, -0.1, 0.25], [0.3, -0.5, -0.8], [0, 1, 0]), chest: [0.2, 0.3, 0], ease: 'out' }, { t: 0.7, w: w([0.0, -0.08, 0.25], [0.3, -0.45, -0.8], [0, 1, 0]) }, { t: 1.0, ...GN }] };
+  C.mg_fire = { dur: 0.1, hold: true, from: GN, keys: [{ t: 0 }, { t: 0.1, w: w([0.08, 0.13, 0.28], [0, 0.0, -1], [0, 1, 0]), ...lunge(0.7, -0.1), ease: 'out' }] };
+  const PS = { ...R1, w: w([0.12, 0.12, 0.42], [0, 0.05, 1], [0, 1, 0]), chest: [0, 0.2, 0], upperArmL: [-0.3, 0, 0.3], foreArmL: [-0.6, 0, 0] };
+  C.pistol_shot = { dur: 0.22, from: PS, keys: [{ t: 0 }, { t: 0.04, w: w([0.12, 0.17, 0.36], [0, 0.35, 1], [0, 1, 0]), ease: 'out' }, { t: 0.22, ...PS }] };
+  C.pistol_fan = { dur: 0.55, from: PS, keys: [{ t: 0 }, { t: 0.05, w: w([0.05, 0.12, 0.42], [-0.3, 0.1, 1], [0, 1, 0]), upperArmL: [-1.2, 0, 0.2], foreArmL: [-0.8, 0, 0] }, { t: 0.15, w: w([0.12, 0.12, 0.42], [0, 0.1, 1], [0, 1, 0]) },
+    { t: 0.25, w: w([0.2, 0.12, 0.4], [0.3, 0.1, 1], [0, 1, 0]) }, { t: 0.55, ...PS }] };
+  C.pistol_reload = { dur: 0.9, from: PS, keys: [{ t: 0 }, { t: 0.2, w: w([0.0, 0.0, 0.3], [0, 0.6, 0.6], [0, 0.3, -1]), upperArmL: [-1.0, 0, -0.2], foreArmL: [-1.4, 0, 0], ease: 'out' }, { t: 0.65, w: w([0.0, 0.0, 0.3], [0, 0.6, 0.6], [0, 0.3, -1]) }, { t: 0.9, ...PS }] };
+  // ancient anchor: huge two-handed sweeps, chain throw
+  const AN = { ...READY, w: w([0.18, -0.3, 0.1], [0.5, 0.5, -0.7], [0, 0, 1]), hip: [0, -0.1, 0] };
+  C.an_1 = slash(AN, 1.15, R_SIDE, FRONT_MID, L_SIDE, 0.48, { wind: 0.22, body: { ...TWIST_R, hips: [0, 0.6, 0] }, end: { ...TWIST_L, hips: [0, -0.5, 0] }, lng: 1.3 });
+  C.an_2 = slash(AN, 1.35, OVER, w([0, 0.45, 0.4], [0, 1, 0.4], [0, -0.4, 1]), OVER_HIT, 0.55, { wind: 0.25, body: { ...BACK, head: [-0.3, 0, 0] }, end: BOW_F, lng: 1.4 });
+  C.an_throw = { dur: 1.3, from: AN, keys: [{ t: 0 }, { t: 0.25, w: R_SIDE, ...TWIST_R, hips: [0, 0.8, 0], ease: 'inOut' }, { t: 0.35, w: w([0.05, 0.1, 0.55], [0.1, 0.1, 1], [0, 1, 0]), ...TWIST_L, ...lunge(1.2), ease: 'out' },
+    { t: 0.7, w: w([0.05, 0.05, 0.55], [0.1, 0.05, 1], [0, 1, 0]), ...lunge(1.2) }, { t: 0.95, w: w([0.15, -0.1, 0.3], [0.5, 0.3, 0.4], [0, 0, 1]), ease: 'inOut' }, { t: 1.3, ...AN }] };
   return C;
 }

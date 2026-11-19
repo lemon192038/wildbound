@@ -6,11 +6,11 @@ export class Input {
     addEventListener('keydown', (e) => { if (!this.keys.has(e.code)) this.pressed.add(e.code); this.keys.add(e.code); });
     addEventListener('keyup', (e) => this.keys.delete(e.code));
     dom.addEventListener('mousedown', (e) => {
-      if (!this.locked) { dom.requestPointerLock?.(); }
       if (e.button === 0 && this.keys.has('KeyG')) { // grappling hook: hold G and double-click the target (the crosshair while the mouse is captured)
         const now = performance.now(); if (now - (this._lastClick || 0) < 350) { this.ropeTarget = this.locked ? 'center' : { x: e.clientX, y: e.clientY }; this._lastClick = 0; } else this._lastClick = now;
         return;
       }
+      if (!this.locked) { dom.requestPointerLock?.(); }
       if (e.button === 0) { this.mouse.left = true; this.mouse.leftPressed = true; }
       if (e.button === 2) { this.mouse.right = true; this.mouse.rightPressed = true; }
     });

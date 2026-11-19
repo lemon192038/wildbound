@@ -210,6 +210,9 @@ ok(r.state.ledger.length > 5 && r.state.ledger.every((l) => typeof l.d === 'numb
   r = await act(H.token, 'craftWeapon', { def: 'basaltMaul' }); ok(r.ok && r.result.uid, 'forge a hammer (Basalt Maul)');
   r = await act(H.token, 'equip', { slot: 'weapon', uid: r.result.uid }); ok(r.ok && r.state.stats.cls === 'hammer' && r.state.stats.attack === 480, 'equipped loadout reports weapon class "hammer"');
   ok(r.state.stats && (await act(H.token, 'craftWeapon', { def: 'venomStringBow' })).error === 'missing', 'a bow still needs its materials');
+  await give(hid, { ironOre: 8, monsterBone: 3 }); await store.mutateSave(hid, (d) => { d.coins += 5000; });
+  r = await act(H.token, 'craftWeapon', { def: 'rustedAnchor' }); r = await act(H.token, 'equip', { slot: 'weapon', uid: r.result.uid });
+  ok(r.ok && r.state.stats.cls === 'anchor', 'stage 6c class weapon (Rusted Ancient Anchor) forged and equipped: loadout class "anchor"');
 }
 
 // ---- island ecosystem (server/world.js, src/shared/ecosystem.js)

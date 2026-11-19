@@ -134,6 +134,12 @@ export function createUI(game) {
   events.on('player:ropeMiss', (e) => toast(e?.why && e.why !== 'none' ? t('f.ropeRefused', { k: t('rk.' + e.why) }) : t('f.ropeMiss')));
   events.on('player:ropeCooldown', (e) => toast(t('f.ropeCd', { s: Math.ceil(e?.left || 0) })));
   events.on('player:focus', (e) => toast(t('f.focus', { n: e?.level || 1 })));
+  events.on('player:overheat', () => toast(t('f.overheat')));
+  events.on('player:lowGauge', () => toast(t('f.lowGauge')));
+  events.on('player:melodyReady', () => toast(t('f.melodyReady')));
+  events.on('player:melody', () => toast(t('f.melody')));
+  events.on('player:vials', (e) => toast(t('f.vials', { n: e?.vials || 0 })));
+  events.on('player:mode', (e) => { if (e?.mode) toast(t('f.mode', { m: t('res.mode.' + e.mode) })); });
   events.on('player:weaponClass', (e) => { if (e?.cls) toast(t('f.weaponClass', { w: t('wc.' + e.cls) })); });
   events.on('monster:partRegen', (e) => { if (e?.monster && e.monster === M()) toast(t('f.regrew', { m: parseName(e.monster.name).name, p: partName(e.part) })); });
   const chipRage = chip('wb-chip-rage', SVG.rage, t('chip.rage')), chipTired = chip('wb-chip-tired', SVG.tired, t('chip.tired')), limp = chip('wb-chip-limp', SVG.limp, t('chip.limp'));

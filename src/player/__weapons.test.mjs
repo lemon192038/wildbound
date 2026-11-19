@@ -28,10 +28,11 @@ try {
     const away = () => m.position.set(0, -50, -40);
     const reset = (cls) => { P.setWeaponClass(cls); P.debug.setDrawn(false); P.hp = P.maxHp; P.stamina = P.maxStamina; P.sharpness = 1; P.lockTarget = null; P.position.set(0, 0, 6); P.facing = Math.PI; P.setState('idle'); step(0.6); P.position.set(0, 0, 6); away(); m.hits.length = 0; };
     const front = (d) => m.position.set(P.position.x + Math.sin(P.facing) * d, 1.4, P.position.z + Math.cos(P.facing) * d);
-    const CLS = ['greatsword', 'sword', 'dual', 'longsword', 'hammer', 'lance', 'bow'];
+    const CLS = Object.keys(window.__WC || {}).length ? Object.keys(window.__WC) : ['greatsword', 'sword', 'dual', 'longsword', 'hammer', 'lance', 'bow', 'tri', 'machete', 'mace', 'horn', 'cannonlance', 'shiftaxe', 'bulwarkaxe', 'staff', 'lightxbow', 'heavyxbow', 'pistol', 'machinegun', 'anchor'];
+    const RANGED = new Set(['bow', 'lightxbow', 'heavyxbow', 'pistol', 'machinegun']);
     for (const cls of CLS) {
       reset(cls); P.debug.setDrawn(true); step(0.1);
-      front(cls === 'bow' ? 12 : cls === 'lance' ? 3.2 : 2.3); if (cls === 'bow') P.lockTarget = m;
+      front(RANGED.has(cls) ? 12 : cls === 'lance' || cls === 'cannonlance' ? 3.2 : 2.3); if (RANGED.has(cls)) P.lockTarget = m;
       const hp0 = m.hp, s0 = P.sharpness; let presses = 0;
       step(4, (i) => { const at = i % 24 === 0; if (at) presses++; return at ? { lightAttack: true } : {}; }); // mash light for 4 s
       const dmg = hp0 - m.hp, hits = m.hits.length; const wear = (s0 - P.sharpness) / Math.max(1, hits);
@@ -41,8 +42,9 @@ try {
       m.hp = m.maxHp;
     }
     // balance: sustained light-chain damage within a band of the great sword's
-    const ref = table.greatsword.dps; check('light-chain damage per second within 0.5×–1.6× of the great sword', Object.values(table).every((r) => r.dps > ref * 0.5 && r.dps < ref * 1.6), { ref });
+    const ref = table.greatsword.dps; check('light-chain damage per second: melee 0.5×–1.6×, ranged 0.45×–1.2× of the great sword (ranged trades damage for safety)', Object.entries(table).every(([k, r]) => (RANGED.has(k) ? r.dps > ref * 0.45 && r.dps < ref * 1.2 : r.dps > ref * 0.5 && r.dps < ref * 1.6)), { ref });
     check('part-break aptitude differs (hammer > bow)', table.hammer.breakMul > 1.3 && table.bow.breakMul < 0.8, { hammer: table.hammer.breakMul, bow: table.bow.breakMul });
+    check('machete wears fastest, guns do not wear, mace breaks parts better than the sword', table.machete.wearPerHit > table.sword.wearPerHit && table.pistol.wearPerHit === 0 && table.mace.breakMul > table.sword.breakMul, { machete: table.machete.wearPerHit, mace: table.mace.breakMul });
     check('edge wear differs (dual blades wear fastest per hit, hammer least, bow none)', table.dual.wearPerHit > table.hammer.wearPerHit && table.bow.wearPerHit === 0, { dual: table.dual.wearPerHit, hammer: table.hammer.wearPerHit });
     // charges: hammer level 3 → spin; bow level 3 → 4 arrows
     reset('hammer'); P.debug.setDrawn(true); step(0.1); step(1.9, (i) => ({ heavyAttack: i === 0, heavyHeld: true })); const lv = P.chargeLevel; step(0.05);
@@ -68,6 +70,51 @@ try {
     step(6, (i) => (i % 24 === 0 ? { lightAttack: true } : {})); const f0 = P.focus.gauge;
     for (let k = 0; k < 3; k++) { step(0.05, press('heavyAttack')); step(0.4); } step(1.2); // thrust → rising slash → spirit roundslash
     check('long sword: cuts build Focus; the spirit roundslash spends it for a Focus level', f0 >= 0.5 && P.focus.level >= 1, { gauge: f0, level: P.focus.level });
+
+    // ---------------- stage 6c mechanics ----------------
+    // guns: the clip empties, a reload refills it; the machine gun overheats under sustained fire
+    reset('pistol'); P.debug.setDrawn(true); step(0.1); front(10); P.lockTarget = m; m.hits.length = 0;
+    step(4, (i) => (i % 18 === 0 ? { lightAttack: true } : {})); const reloaded = P.res.ammo;
+    check(`pistol: shots hit at range, the clip empties and reloads (${m.hits.length} hits)`, m.hits.length >= 8 && reloaded > 0, { ammo: reloaded });
+    reset('machinegun'); P.debug.setDrawn(true); step(0.1); front(10); P.lockTarget = m; m.hits.length = 0;
+    step(3.5, (i) => ({ heavyAttack: i === 0, heavyHeld: true })); const heat = P.res.heat, lock = P.res.lock;
+    check(`machine gun: held fire hits repeatedly and overheats (${m.hits.length} hits)`, m.hits.length >= 12 && lock > 0, { heat, lock, state: P.state });
+    reset('heavyxbow'); P.debug.setDrawn(true); step(0.1); front(14); P.lockTarget = m; m.hits.length = 0;
+    step(1.6, (i) => ({ heavyAttack: i === 0, heavyHeld: true })); step(0.6); const big = m.hits[0]?.damage || 0;
+    step(0.05, press('lightAttack')); step(0.6); const small = m.hits[1]?.damage || 0;
+    check('heavy crossbow: a charged cannon shot hits harder than a normal slug', big > small * 1.5 && small > 0, { big: Math.round(big), small: Math.round(small) });
+    // cannon lance shells: blast damage that ignores the edge, uses ammo
+    reset('cannonlance'); P.debug.setDrawn(true); step(0.1); front(2.6); m.hits.length = 0; const a0 = P.res.ammo;
+    step(0.05, press('heavyAttack')); step(0.7); P.sharpness = 0.05; step(0.05, press('heavyAttack')); step(0.7);
+    check('cannon lance: shells blast the target, use the clip, and ignore sharpness', m.hits.length >= 2 && P.res.ammo === a0 - 2 && Math.abs(m.hits[0].damage - m.hits[1].damage) < 1, { ammo: P.res.ammo, d: m.hits.map((h) => Math.round(h.damage)) });
+    // shift axe: GUARD switches to sword mode, sword attacks spend the gauge and hit harder
+    reset('shiftaxe'); P.debug.setDrawn(true); step(0.1); front(2.4); m.hits.length = 0;
+    step(0.05, press('lightAttack')); step(0.9); const axeDmg = m.hits[0]?.damage; step(0.05, { guard: true }); step(0.8); const mode = P.res.mode, g0 = P.res.gauge;
+    step(0.05, press('lightAttack')); step(0.7); const swDmg = m.hits[m.hits.length - 1]?.damage;
+    check('shift axe: GUARD transforms to sword mode; sword swings spend the gauge', mode === 'sword' && P.res.gauge < g0 && swDmg > 0 && axeDmg > 0, { g0, g: P.res.gauge, axeDmg: Math.round(axeDmg), swDmg: Math.round(swDmg) });
+    // bulwark axe: sword hits build energy, HEAVY stores vials, GUARD+HEAVY morphs, axe HEAVY bursts them
+    reset('bulwarkaxe'); P.debug.setDrawn(true); step(0.1); front(2.3); m.hits.length = 0;
+    step(3, (i) => (i % 24 === 0 ? { lightAttack: true } : {})); const en = P.res.energy; step(0.4);
+    step(0.05, press('heavyAttack')); step(1.0); const vials = P.res.vials;
+    step(0.3, { guard: true }); step(0.05, { guard: true, heavyAttack: true }); step(1.0); const bmode = P.res.mode;
+    const hb0 = m.hits.length; step(0.05, press('heavyAttack')); step(1.3);
+    check(`bulwark axe: energy ${Math.round(en * 100)}% → ${vials} vials → axe burst (${m.hits.length - hb0} hits)`, en > 0.2 && vials >= 1 && bmode === 'axe' && P.res.vials === 0 && m.hits.length - hb0 >= vials, { bmode });
+    // war horn: notes a-a-b make a melody; GUARD performs it → attack up
+    reset('horn'); P.debug.setDrawn(true); step(0.1); away();
+    step(0.05, press('lightAttack')); step(0.5); step(0.05, press('lightAttack')); step(0.5); step(0.05, press('heavyAttack')); step(1.2); const mel = [...P.res.melodies];
+    step(0.05, { guard: true }); step(1.6);
+    check('war horn: a-a-b completes a melody; performing it grants attack up', mel.includes('aab') && P.res.buff.atk > 50, { mel, buff: P.res.buff.atk });
+    // vault staff: HEAVY vaults into the air, LIGHT in the air slashes and bounces off the target
+    reset('staff'); P.debug.setDrawn(true); step(0.1); front(5); m.position.y = 2.2; m.hits.length = 0;
+    step(0.05, press('heavyAttack')); step(0.3); const up = P.airborne, y1 = P.position.y; step(0.05, press('lightAttack')); step(0.4);
+    check('vault staff: vault into the air and strike from it', up && y1 > 0.8 && m.hits.length >= 1 && m.hits[0].motion === 'st_air', { y1: +y1.toFixed(2), hits: m.hits.length });
+    step(2);
+    // ancient anchor: the chain throw reaches far
+    reset('anchor'); P.debug.setDrawn(true); step(0.1); front(8); m.hits.length = 0;
+    step(0.05, press('heavyAttack')); step(1.3);
+    check('ancient anchor: the chain throw hits a target 8 m away', m.hits.length >= 1 && m.hits[0].motion === 'an_throw', { hits: m.hits.length });
+    // three-blade style: three blades cut — more hits per swing than dual blades
+    check('three-blade style lands more hits per chain than the sword', table.tri.hits > table.sword.hits, { tri: table.tri.hits, sword: table.sword.hits });
 
     // ---------------- grappling hook ----------------
     reset('greatsword'); away();

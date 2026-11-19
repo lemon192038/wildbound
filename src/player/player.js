@@ -7,7 +7,8 @@ import { HunterView } from './hunterView.js';
 import { CLIPS } from './anim.js';
 import { WeaponTrail, Sparks } from './vfx.js';
 import { createGrapple, GRAPPLE } from './grapple.js';
-import { WEAPON_CLASSES, CLASS_MOVES, CHARGES, classOf, ARROWS_BY_LEVEL, arrowFalloff } from '../shared/weaponClasses.js';
+import { t as tr } from '../shared/i18n.js';
+import { WEAPON_CLASSES, CLASS_MOVES, CHARGES, classOf, ARROWS_BY_LEVEL, arrowFalloff, MELODIES } from '../shared/weaponClasses.js';
 
 const ATTACK_POWER = 210;
 // t in seconds within the clip. move: [t0, t1, metres forward]. turn: until t the attack can still be aimed.
@@ -28,11 +29,13 @@ const LOCO = new Set(['idle', 'walk', 'run', 'sprint']);
 // Rolling: distance (m) and the invulnerable window (s into the roll). Exposed as P.roll for tuning / tests.
 const ROLL = { dist: 3.2, iStart: 0.03, iEnd: 0.3 };
 const HOLD_SHEATHE = 0.45, PARRY_WIN = 0.25, JUMP_V = 6.4, GRAVITY = 20;
-const AIR = new Set(['jump', 'plunge', 'ropePull']);
+const AIR = new Set(['jump', 'plunge', 'ropePull', 'st_air']);
 const SELF_MOVE = new Set(['draw', 'sheathe', 'item', 'whetstone', 'getup', 'parryPrep', 'parry', 'parryMiss']); // states that steer/decelerate with normal locomotion physics
 const STATE_CLIP = { draw: 'draw', sheathe: 'sheathe', light1: 'light1', light2: 'light2', light3: 'light3', charge: 'charge', tcharge: 'charge', heavy: 'heavy', tackle: 'tackle', trueslash: 'trueslash', guard: 'guard', dodge: 'dodge', hit: 'hit', knockdown: 'knockdown', getup: 'getup', dead: 'dead', jump: 'jump', plunge: 'light3', plungeLand: 'light3', parryPrep: 'guard', parry: 'guard', parryMiss: 'hit', sleep: 'knockdown', stun: 'hit', ropeFire: 'rope_fire', ropePull: 'rope_pull', item: 'potion', whetstone: 'whetstone' };
 // animation clip for a state (per weapon class: shield guards, charged-move holds, class moves)
 function clipOf(s, cls = 'greatsword') {
+  if (s === 'reload') return cls === 'pistol' ? 'pistol_reload' : 'gun_reload';
+  if (s === 'mgfire') return 'mg_fire';
   if (s === 'guard') { const g = classOf(cls).guard; if (g === 'shield') return 'sw_guard'; if (g === 'tower') return 'ln_guard'; }
   return ATTACKS[s]?.clip || CHARGES[s]?.clip || STATE_CLIP[s] || null;
 }
@@ -73,9 +76,18 @@ export async function createPlayer(game) {
   P.roll = { ...ROLL };
   // ---- weapon class (src/shared/weaponClasses.js): the equipped weapon decides moves, reach, speed, guard, roll
   P.cls = 'greatsword'; let C = classOf('greatsword'), focus = 0, focusLv = 0, focusT = 0;
+  // class resources: mode (transforming weapons), gauge (Shift Axe), energy + vials (Bulwark Axe), ammo (guns, Cannon Lance),
+  // heat (Machine Gun), notes + melodies + horn buffs (War Horn)
+  const RES = { mode: null, gauge: 1, energy: 0, vials: 0, ammo: 0, heat: 0, lock: 0, notes: [], melodies: [], buff: { atk: 0, def: 0, stam: 0 }, fireT: 0 };
+  P.res = RES;
+  const hornAtk = () => (RES.buff.atk > 0 ? MELODIES.aab.mul : 1), hornDef = () => (RES.buff.def > 0 ? MELODIES.abb.mul : 1);
+  const guardOk = () => !!C.guard && !(P.cls === 'bulwarkaxe' && RES.mode === 'axe');
+  function setMode(m) { RES.mode = m; view.setWeaponMode?.(m); events.emit('player:mode', { mode: m }); }
   P.setWeaponClass = (id) => {
     if (!WEAPON_CLASSES[id]) id = 'greatsword'; if (id === P.cls && view.cls) return;
     P.cls = id; C = classOf(id); view.setWeaponClass(id); P.roll.dist = C.roll; focus = 0; focusLv = 0;
+    RES.mode = C.modes ? Object.keys(C.modes)[0] : null; RES.gauge = 1; RES.energy = 0; RES.vials = 0; RES.ammo = C.ammo?.clip || 0; RES.heat = 0; RES.lock = 0; RES.notes = []; RES.melodies = [];
+    if (RES.mode) view.setWeaponMode?.(RES.mode); // model and player start in the same form
     if (ATTACKS[P.state] || CHARGES[P.state] || P.state === 'charge' || P.state === 'tcharge') setState('idle', 0.1);
     events.emit('player:weaponClass', { cls: id });
   };
@@ -101,17 +113,25 @@ export async function createPlayer(game) {
 
   function startAttack(kind) {
     if (!P.weaponDrawn) { queued = kind; setState('draw'); return; }
-    if (P.cls !== 'greatsword') { startMove(kind === 'light' ? C.light : C.heavy); return; }
+    if (P.cls !== 'greatsword') { const set = C.modes ? C.modes[RES.mode] : C; startMove(kind === 'light' ? set.light : set.heavy); return; }
     if (kind === 'light') setState('light1', 0.1);
     else if (kind === 'heavy') { setState('charge', 0.12); lastLevel = 0; }
   }
   // a class move by name (combo links go through here so stamina / Focus requirements always apply)
   function startMove(name) {
-    if (CHARGES[name]) { setState(name, 0.1); lastLevel = 0; return true; }
+    if (name === 'mgfire') { if (RES.lock > 0) { events.emit('player:overheat', {}); return false; } setState('mgfire', 0.06); RES.fireT = 0; return true; }
+    if (CHARGES[name]) { if (C.ammo && RES.ammo <= 0) { setState('reload', 0.1); return true; } setState(name, 0.1); lastLevel = 0; return true; }
     const a = ATTACKS[name]; if (!a) return false;
+    if (a.ammo && C.ammo && RES.ammo < a.ammo) { setState('reload', 0.1); return true; }                 // empty: reload first
+    if (P.cls === 'shiftaxe' && RES.mode === 'sword' && a.gauge < 0 && RES.gauge < -a.gauge) return startMove('sx_morph'); // out of gauge: back to the axe
+    if (a.gaugeAll && RES.gauge < 0.3) return false;
+    if (a.note) { RES.notes.push(a.note); if (RES.notes.length > 3) RES.notes.shift(); const k = RES.notes.join(''); if (MELODIES[k] && RES.melodies.length < 3 && !RES.melodies.includes(k)) { RES.melodies.push(k); RES.notes = []; events.emit('player:melodyReady', { melody: k }); } }
     if (a.focusCost && focus < a.focusCost) return startMove('ls_rise');      // not enough Focus: the plain rising slash
     if (a.stam && !useStamina(a.stam)) return false;
     if (a.focusCost) focus -= a.focusCost;
+    if (a.ammo && C.ammo) RES.ammo -= a.ammo;
+    if (a.gauge) RES.gauge = Math.max(0, Math.min(1, RES.gauge + a.gauge));
+    if (a.morph) setMode(P.cls === 'shiftaxe' ? (RES.mode === 'axe' ? 'sword' : 'axe') : (RES.mode === 'sword' ? 'axe' : 'sword'));
     setState(name, 0.07); return true;
   }
   function startDodge() {
@@ -190,12 +210,15 @@ export async function createPlayer(game) {
     const d = new THREE.Vector3(); game.camera.getWorldDirection(d); return game.camera.position.clone().addScaledVector(d, 40);
   }
   function fireArrows(n, spread, mv) {
-    const o = view.rig.bones.chest.getWorldPosition(new THREE.Vector3()).addScaledVector(fwd(new THREE.Vector3()), 0.6); o.y += 0.15;
+    const mz = view.rig.weapon.userData.muzzle; let o;
+    if (mz) { view.rig.weapon.updateMatrixWorld(true); o = mz.clone().applyMatrix4(view.rig.weapon.matrixWorld); }
+    else { o = view.rig.bones.chest.getWorldPosition(new THREE.Vector3()).addScaledVector(fwd(new THREE.Vector3()), 0.6); o.y += 0.15; }
+    const SH = C.shot || { speed: 58, gravity: 4 };
     const dir = aimPoint().sub(o).normalize();
     for (let i = 0; i < n; i++) {
       const a = (i - (n - 1) / 2) * spread, c = Math.cos(a), sn = Math.sin(a);
-      const v = new THREE.Vector3(dir.x * c + dir.z * sn, dir.y, -dir.x * sn + dir.z * c).multiplyScalar(58);
-      arrows.push({ p: o.clone(), v, o: o.clone(), life: 1.6, mv });
+      const v = new THREE.Vector3(dir.x * c + dir.z * sn, dir.y + (spread ? (Math.random() - 0.5) * spread * 0.5 : 0), -dir.x * sn + dir.z * c).multiplyScalar(SH.speed);
+      arrows.push({ p: o.clone(), v, o: o.clone(), life: 1.6, mv, g: SH.gravity });
     }
     events.emit('sfx', { name: 'swing', position: o, volume: 0.55 });
   }
@@ -204,7 +227,7 @@ export async function createPlayer(game) {
   function updateArrows(dt) {
     let n = 0;
     for (let i = arrows.length - 1; i >= 0; i--) {
-      const a = arrows[i]; _prev.copy(a.p); a.v.y -= 4 * dt; a.p.addScaledVector(a.v, dt); a.life -= dt;
+      const a = arrows[i]; _prev.copy(a.p); a.v.y -= (a.g ?? 4) * dt; a.p.addScaledVector(a.v, dt); a.life -= dt;
       let done = a.life <= 0 || a.p.y < world.getHeight(a.p.x, a.p.z);
       if (!done) {
         const targets = game.fauna ? game.monsters.concat(game.fauna.near(a.p, 12)) : game.monsters;
@@ -214,8 +237,8 @@ export async function createPlayer(game) {
             const c = hb.sphere.center; _seg.subVectors(a.p, _prev); const L2 = _seg.lengthSq(); const u = L2 > 0 ? Math.max(0, Math.min(1, _cl.subVectors(c, _prev).dot(_seg) / L2)) : 0;
             _cl.copy(_prev).addScaledVector(_seg, u); if (_cl.distanceTo(c) > hb.sphere.radius + 0.12) continue;
             const G = P.gear, aff = G.affinity + M.affinity, isCrit = aff > 0 && Math.random() < aff / 100;
-            let damage = a.mv * ATTACK_POWER * G.atk * G.buffAtk * G.sharp * (isCrit ? 1 + 0.25 * M.critDmg : 1) * M.atk * arrowFalloff(a.o.distanceTo(_cl), C.range);
-            const el = G.element; if (el && el.type !== 'blast') damage += el.value * 0.05 * M.elem * (m.weakness?.[el.type] ?? 1) * 0.6;
+            let damage = a.mv * ATTACK_POWER * G.atk * G.buffAtk * hornAtk() * G.sharp * (isCrit ? 1 + 0.25 * M.critDmg : 1) * M.atk * arrowFalloff(a.o.distanceTo(_cl), C.range);
+            const el = G.element; if (el && el.type !== 'blast') damage += el.value * 0.05 * M.elem * (atk.elemBoost || 1) * (m.weakness?.[el.type] ?? 1) * 0.6;
             noteDamage(m, 'local', hb.part); const nrm = _cl.clone().sub(c).normalize();
             const res = m.receiveHit({ damage, part: hb.part, point: _cl.clone(), normal: nrm, attackerId: 'local', isCrit, element: el?.type, elementValue: el?.value || 0, mv: a.mv, motion: 'arrow', breakMul: C.breakMul });
             const dealt = res && typeof res === 'object' && res.damage != null ? res.damage : Math.round(damage);
@@ -228,6 +251,60 @@ export async function createPlayer(game) {
       if (n < 48) { _q2.setFromUnitVectors(_z, _seg.copy(a.v).normalize()); _m2.compose(a.p, _q2, _one); arrowMesh.setMatrixAt(n++, _m2); }
     }
     arrowMesh.count = n; arrowMesh.instanceMatrix.needsUpdate = true;
+  }
+
+  // ---------------- class effects inside a move (shells, vial bursts, vaults, melodies, chain) ----------------
+  function blastAt(center, r, base, motion) {
+    const G = P.gear; let n = 0;
+    const targets = game.fauna ? game.monsters.concat(game.fauna.near(center, r + 6)) : game.monsters;
+    for (const m of targets) {
+      if (!m || m.hp <= 0 || m.state === 'dead' || m.dead) continue;
+      let best = null, bd = 1e9; for (const hb of m.getHitboxes()) { const d = hb.sphere.center.distanceTo(center) - hb.sphere.radius; if (d < bd) { bd = d; best = hb; } }
+      if (!best || bd > r) continue;
+      const damage = base * G.atk * hornAtk() * M.atk; noteDamage(m, 'local', best.part); const pt = best.sphere.center.clone();
+      const res = m.receiveHit({ damage, part: best.part, point: pt, normal: new THREE.Vector3(0, 1, 0), attackerId: 'local', mv: 0.3, motion, breakMul: C.breakMul, element: 'blast' });
+      events.emit('hit', { attacker: 'local', target: m, damage: res?.damage ?? Math.round(damage), part: best.part, point: pt, normal: new THREE.Vector3(0, 1, 0), motion, level: 0 }); n++;
+    }
+    world.spawnDust?.(center.clone(), 1.2 + r * 0.3); sparks.burst(center, new THREE.Vector3(0, 1, 0), 40, 2, 1);
+    events.emit('sfx', { name: 'slam', position: center.clone(), volume: 0.9 }); events.emit('camera:shake', { intensity: 0.35 + r * 0.06, duration: 0.3 });
+    return n;
+  }
+  P.blastAt = blastAt;
+  const chainMat = new THREE.LineBasicMaterial({ color: 0x5a5a62 }); const chainGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+  const chainLine = new THREE.Line(chainGeo, chainMat); chainLine.visible = false; chainLine.frustumCulled = false; scene.add(chainLine);
+  const crossT = (x) => t >= x && t - lastDt < x;
+  function classEffects(atk, s) {
+    const F = fwd(new THREE.Vector3());
+    if (atk.blast && crossT(atk.blast.t)) {
+      const B = atk.blast; if (B.dmg > 0) blastAt(P.position.clone().addScaledVector(F, B.ahead).setY(P.position.y + 1.1), B.r, B.dmg, s);
+      if (B.recoil) vel.addScaledVector(F, -B.recoil);
+    }
+    if (atk.vialCharge && crossT(atk.vialCharge)) { const add = RES.energy >= 0.2 ? Math.max(1, Math.round(RES.energy * 5)) : 0; RES.vials = Math.min(5, RES.vials + add); RES.energy = 0; events.emit('player:vials', { vials: RES.vials }); events.emit('sfx', { name: 'charge2', position: P.position.clone(), volume: 0.6 }); }
+    if (atk.vialBurst && crossT(atk.vialBurst.t)) { const V = atk.vialBurst; for (let i = 0; i < RES.vials; i++) blastAt(P.position.clone().addScaledVector(F, V.ahead + i * V.step).setY(P.position.y + 0.6), V.r, V.dmg, s); RES.vials = 0; }
+    if (atk.vault && crossT(atk.vault.t)) { airborne = true; vy = atk.vault.vy; fallFrom = P.position.y; vel.copy(F).multiplyScalar(atk.vault.fwd); setState('jump', 0.1); return; }
+    if (atk.perform && crossT(atk.perform)) { // War Horn recital: every stored melody takes effect
+      for (const k of RES.melodies) { const Mm = MELODIES[k]; if (Mm.buff === 'heal') { P.hp = Math.min(P.maxHp, P.hp + Mm.amount); P.redHp = Math.max(P.redHp, P.hp); } else { RES.buff[Mm.buff] = Mm.t; if (Mm.buff === 'stam') P.stamina = P.maxStamina; } }
+      events.emit('player:melody', { melodies: [...RES.melodies] }); events.emit('sfx', { name: 'roar', position: P.position.clone(), volume: 0.5 }); RES.melodies = [];
+    }
+    if (atk.chain) { // the anchor's chain, drawn while thrown
+      const pts = curBlade.length ? curBlade : null; chainLine.visible = !!pts && t > atk.chain.out[0] && t < atk.chain.back[1];
+      if (pts) { chainGeo.attributes.position.setXYZ(0, pts[0].x, pts[0].y, pts[0].z); const e = pts[pts.length - 1]; chainGeo.attributes.position.setXYZ(1, e.x, e.y, e.z); chainGeo.attributes.position.needsUpdate = true; }
+    } else chainLine.visible = false;
+  }
+  // class resource readout (ammo, heat, gauge, vials, notes)
+  let resEl = null, resKey = '';
+  function resHud() {
+    if (typeof document === 'undefined') return;
+    let txt = '';
+    if (C.ammo) txt = `${tr('res.ammo')} ${RES.ammo}/${C.ammo.clip}${P.state === 'reload' ? ' · ' + tr('res.reload') : ''}`;
+    else if (C.heat) txt = `${tr('res.heat')} ${Math.round(RES.heat * 100)}%${RES.lock > 0 ? ' · ' + tr('res.overheat') : ''}`;
+    else if (P.cls === 'shiftaxe') txt = `${tr('res.mode.' + RES.mode)} · ${tr('res.gauge')} ${Math.round(RES.gauge * 100)}%`;
+    else if (P.cls === 'bulwarkaxe') txt = `${tr('res.mode.' + RES.mode)} · ${tr('res.energy')} ${Math.round(RES.energy * 100)}% · ${tr('res.vials')} ${'●'.repeat(RES.vials)}${'○'.repeat(5 - RES.vials)}`;
+    else if (P.cls === 'horn') txt = `${tr('res.notes')} ${RES.notes.join(' ') || '-'} · ${tr('res.melodies')} ${RES.melodies.length}${RES.buff.atk > 0 ? ' · ' + tr('res.atkUp') : ''}${RES.buff.def > 0 ? ' · ' + tr('res.defUp') : ''}`;
+    else if (C.focus) txt = `${tr('res.focus')} ${Math.round(focus * 100)}% · Lv${focusLv}`;
+    if (txt === resKey) return; resKey = txt;
+    if (!resEl) { resEl = document.createElement('div'); resEl.style.cssText = 'position:fixed;left:max(16px,2vw);top:118px;z-index:12;padding:.2em .7em;border-radius:4px;background:rgba(10,7,4,.6);color:#f6e2aa;font:600 12px Georgia,serif;letter-spacing:.05em;pointer-events:none'; (document.getElementById('ui-root') || document.body).appendChild(resEl); }
+    resEl.style.display = txt ? 'block' : 'none'; resEl.textContent = txt;
   }
 
   function land(gh) {
@@ -269,6 +346,11 @@ export async function createPlayer(game) {
   const _n = new THREE.Vector3(), _c = new THREE.Vector3(), _mid = new THREE.Vector3();
   function doHits(atk) {
     if (atk.tackle) { const c = view.rig.bones.chest; curBlade = [c.localToWorld(new THREE.Vector3(-0.1, 0.1, 0.35)).addScaledVector(fwd(new THREE.Vector3()), 0.35)]; }
+    else if (atk.chain) { // anchor on its chain: a line from the hands out to the thrown head
+      const ch = atk.chain, f = t < ch.out[1] ? (t - ch.out[0]) / (ch.out[1] - ch.out[0]) : t < ch.back[0] ? 1 : 1 - (t - ch.back[0]) / (ch.back[1] - ch.back[0]);
+      const L = ch.reach * Math.max(0, Math.min(1, f)); const base = view.rig.bones.chest.getWorldPosition(new THREE.Vector3()); const F = fwd(new THREE.Vector3());
+      curBlade = []; for (let i = 0; i < 6; i++) curBlade.push(base.clone().addScaledVector(F, 0.6 + L * (i / 5)).setY(base.y - 0.3 * (i / 5)));
+    }
     else curBlade = view.bladeWorld(curBlade);
     if (!prevBlade.length) prevBlade = curBlade.map((v) => v.clone());
     const lvl = P.state === 'heavy' || P.state === 'trueslash' ? heavyLevel : 0;
@@ -295,15 +377,17 @@ export async function createPlayer(game) {
         // part hardness (src/core/parts.js): a blunt edge glances off very hard parts; hard parts wear the edge faster
         const hitPart = m.parts?.find((q) => q.name === hb.part); const hard = hitPart && !hitPart.broken ? hitPart.hardness ?? 0.5 : 0.4;
         const glance = !blunt && deflects(pierce ? hard - 0.2 : hard, P.sharpness, P.state); // blunt never glances; a point slips in more easily
-        let damage = mv * ATTACK_POWER * G.atk * G.buffAtk * sharpMult(P.sharpness) * G.sharp * (isCrit ? 1 + 0.25 * M.critDmg : weakHit ? 0.75 : 1) * (glance ? 0.35 : 1) * M.atk * (1 + 0.06 * focusLv);
+        let damage = mv * ATTACK_POWER * G.atk * G.buffAtk * sharpMult(P.sharpness) * G.sharp * (isCrit ? 1 + 0.25 * M.critDmg : weakHit ? 0.75 : 1) * (glance ? 0.35 : 1) * M.atk * (1 + 0.06 * focusLv) * hornAtk();
         const el = G.element; if (el && el.type !== 'blast') damage += el.value * 0.05 * M.elem * (m.weakness?.[el.type] ?? 1) * Math.min(1.5, mv / 0.4 + 0.3);
         noteDamage(m, 'local', hb.part); // material rights: this hunter damaged this part (and so the body)
-        const breakMul = (atk.shield ? 1.3 : C.breakMul) * (blunt && hard > 0.6 ? 1.15 : 1); // part-break aptitude of the weapon class
+        const breakMul = (atk.shield ? 1.3 : C.breakMul) * (atk.breakBonus || 1) * (blunt && hard > 0.6 ? 1.15 : 1); // part-break aptitude of the weapon class
         const res = m.receiveHit({ damage, part: hb.part, point, normal: _n.clone(), attackerId: 'local', isCrit, element: el?.type, elementValue: el?.value || 0, mv, motion: P.state, breakMul });
         const hz = m.parts?.find((p) => p.name === hb.part)?.hitzone ?? 1;
         const dealt = res && typeof res === 'object' && res.damage != null ? res.damage : typeof res === 'number' ? res : Math.round(damage * hz);
         events.emit('hit', { attacker: 'local', target: m, damage: dealt, part: hb.part, point, normal: _n.clone(), isCrit, weak: hz >= 1.2, motion: P.state, level: lvl, deflected: glance });
         P.sharpness = Math.max(0, P.sharpness - 0.011 * (atk.shield ? 0 : C.wear) * wearFactor(hard) * (glance ? 2 : 1) * (1 - 0.25 * (P.gear.skills.sharpEdge || 0)));
+        if (atk.energy && !swingFirstHit) RES.energy = Math.min(1, RES.energy + atk.energy);
+        if (atk.bounce && !swingFirstHit && airborne) vy = Math.max(vy, atk.bounce); // Vault Staff: a hit in the air bounces you up again
         if (C.focus) { focus = Math.min(1, focus + 0.08); if (P.state === 'ls_spirit' && !swingFirstHit) { focusLv = Math.min(3, focusLv + 1); focusT = 45; events.emit('player:focus', { level: focusLv }); } }
         if (glance) { events.emit('sfx', { name: 'clang', position: point, volume: 0.9 }); events.emit('player:deflect', { part: hb.part, target: m }); }
         const pw = Array.isArray(atk.stop) ? atk.stop[lvl] : atk.stop, sh = Array.isArray(atk.shake) ? atk.shake[lvl] : atk.shake;
@@ -365,7 +449,7 @@ export async function createPlayer(game) {
     }
     if (P.state === 'sleep') { damage *= 1.5; game.status?.clear('sleep'); } // a rude awakening
     { // armour: defence curve, buffs, fire resistance + Heatward; Steadfast shortens stuns; defence / resistance down
-      const G = P.gear; damage *= (1 - G.defense / (G.defense + 500)) * G.buffDef / M.def;
+      const G = P.gear; damage *= (1 - G.defense / (G.defense + 500)) * G.buffDef * hornDef() / M.def;
       if (kind && !['physical', 'roar', 'aoe', 'projectile'].includes(kind)) damage /= M.elemRes;
       if (kind === 'fire') damage *= Math.max(0.4, 1 - (G.res.fire || 0) * 0.03 - (G.skills.heatward || 0) * 0.05);
       if (stun) stun *= Math.max(0.1, 1 - 0.3 * (G.skills.steadfast || 0));
@@ -414,7 +498,7 @@ export async function createPlayer(game) {
   }
 
   // ---------------- update ----------------
-  let lastDt = 1 / 60;
+  let lastDt = 1 / 60, prevGuard = false;
   P.update = (dt, input, rawDt = dt) => {
     sparks.update(rawDt);
     if (slowT > 0 && (slowT -= rawDt) <= 0) game.engine.timeScale = 1;
@@ -464,6 +548,12 @@ export async function createPlayer(game) {
       if (ropeCd > 0) events.emit('player:ropeCooldown', { left: ropeCd });
       else { const hit = rope.pick(inp.ropeTarget, P.position); if (hit?.point) P.grappleTo(hit); else events.emit('player:ropeMiss', { why: hit?.refused || 'none' }); }
     }
+    const guardEdge = !!inp.guard && !prevGuard; prevGuard = !!inp.guard;
+    // class resources tick: Shift Axe gauge refills in axe mode, Machine Gun cools, horn buffs run out
+    if (P.cls === 'shiftaxe' && RES.mode === 'axe') RES.gauge = Math.min(1, RES.gauge + 0.04 * dt);
+    if (C.heat && P.state !== 'mgfire') RES.heat = Math.max(0, RES.heat - C.heat.cool * dt); RES.lock = Math.max(0, RES.lock - dt);
+    for (const k in RES.buff) RES.buff[k] = Math.max(0, RES.buff[k] - dt);
+    resHud();
     const s = P.state, atk = ATTACKS[s];
     let maxSpeed = 0, accel = 14, turnRate = 0, rootMove = 0;
     if (LOCO.has(s)) {
@@ -480,8 +570,11 @@ export async function createPlayer(game) {
       else if (take('heavy')) startAttack('heavy');
       else if (take('potion')) startItem('potion');
       else if (take('whetstone')) startItem('whetstone');
-      else if (inp.guard && C.guard && P.weaponDrawn) setState('guard', 0.1);
-      else if (inp.guard && C.guard && !P.weaponDrawn) { queued = 'guard'; setState('draw'); }
+      else if (guardEdge && P.weaponDrawn && C.guardAction === 'perform') startMove('hr_perform');
+      else if (guardEdge && P.weaponDrawn && C.guardAction === 'switch') { if (RES.mode === 'axe' && RES.gauge < 0.3) events.emit('player:lowGauge', {}); else startMove('sx_morph'); }
+      else if (guardEdge && P.weaponDrawn && P.cls === 'bulwarkaxe' && RES.mode === 'axe') startMove('ba_morph');
+      else if (inp.guard && guardOk() && P.weaponDrawn) setState('guard', 0.1);
+      else if (inp.guard && guardOk() && !P.weaponDrawn) { queued = 'guard'; setState('draw'); }
       else {
         maxSpeed = P.weaponDrawn ? C.walk * wishLen : (sprinting ? 7.2 : 4.7 * wishLen);
         accel = P.weaponDrawn ? 9 : 14; turnRate = P.weaponDrawn ? 7 : 11;
@@ -502,7 +595,8 @@ export async function createPlayer(game) {
         if (q === 'light' || q === 'heavy') startAttack(q); else if (q === 'guard') setState('guard'); else if (q?.startsWith('item:')) { const o = queuedOpts; queuedOpts = null; startItem(q.slice(5), o); }
       }
     } else if (atk) {
-      if (t < atk.turn) { const d = aimDir(); turnToward(d, 7, dt); }
+      if (t < atk.turn) { const d = C.dmg === 'ranged' ? (targetDir() || camF) : aimDir(); turnToward(d, C.dmg === 'ranged' ? 14 : 7, dt); }
+      classEffects(atk, s);
       for (const [a, b, dist] of atk.move) if (t >= a && t < b) rootMove = dist / (b - a);
       if (atk.rehit) for (const r of atk.rehit) if (t >= r && t - dt < r) { hitSets = new Map(); swingFirstHit = false; } // multi-hit moves
       if (atk.finisher && t >= atk.finisher.t && t - dt < atk.finisher.t) { hitSets = new Map(); swingFirstHit = false; }
@@ -525,7 +619,16 @@ export async function createPlayer(game) {
       }
       if (P.state !== s) superArmor = false;
       if (P.state === s && t >= atk.cancel && buffer?.a === 'dodge') { take('dodge'); startDodge(); }
-      if (P.state === s && t >= CLIPS[clipOf(s, P.cls)].dur) { setState('idle', 0.2); }
+      if (P.state === s && t >= CLIPS[clipOf(s, P.cls)].dur) { if (atk.gaugeAll) { RES.gauge = 0; setMode('axe'); } setState(airborne ? 'jump' : 'idle', 0.2); }
+    } else if (s === 'reload') { // guns / Cannon Lance: refill the clip (a roll cancels it; the clip stays empty)
+      maxSpeed = 1.2 * wishLen; turnRate = 4; accel = 8;
+      if (take('dodge')) startDodge();
+      else if (t >= (C.ammo?.reload || 1)) { RES.ammo = C.ammo?.clip || 0; events.emit('sfx', { name: 'draw', position: P.position.clone(), volume: 0.6 }); setState('idle', 0.15); }
+    } else if (s === 'mgfire') { // sustained fire while HEAVY is held, until it overheats
+      maxSpeed = 1.4 * wishLen; turnRate = 0; accel = 8; turnToward(P.lockTarget ? targetDir() : camF, 10, dt);
+      RES.fireT -= dt; if (RES.fireT <= 0) { RES.fireT = 0.09; fireArrows(1, 0.03 + RES.heat * 0.04, 0.055); RES.heat += C.heat.perShot; }
+      if (RES.heat >= 1) { RES.heat = 1; RES.lock = C.heat.lock; events.emit('player:overheat', {}); setState('idle', 0.2); }
+      else if (take('dodge')) startDodge(); else if (!inp.heavyHeld) setState('idle', 0.15);
     } else if (CHARGES[s]) { // hammer charge (walk while charging) / bow draw (strafe, face the aim)
       const CH = CHARGES[s]; const lvl = t >= CH.lv[2] ? 3 : t >= CH.lv[1] ? 2 : t >= CH.lv[0] ? 1 : 0;
       maxSpeed = CH.move * wishLen; accel = 8;
@@ -533,7 +636,7 @@ export async function createPlayer(game) {
       if (lvl > lastLevel) { lastLevel = lvl; const bw = view.bladeWorld(); sparks.burst(bw[bw.length - 1], new THREE.Vector3(0, 1, 0), 8 + lvl * 6, 0.4 + lvl * 0.2, 1); events.emit('sfx', { name: 'charge' + lvl, position: P.position.clone(), volume: 0.5 + lvl * 0.15 }); }
       P.chargeLevel = lvl; P.stamina = Math.max(0, P.stamina - CH.stamina * dt * P.gear.stamMul); stamDelay = 0.5;
       if (take('dodge')) { P.chargeLevel = 0; startDodge(); }
-      else if (!inp.heavyHeld || t >= CH.max || P.stamina <= 0) { heavyLevel = lvl; P.chargeLevel = 0; setState(CH.release[lvl], 0.04); }
+      else if (!inp.heavyHeld || t >= CH.max || P.stamina <= 0) { heavyLevel = lvl; P.chargeLevel = 0; const rel = CH.release[lvl]; if (ATTACKS[rel]?.ammo) startMove(rel); else setState(rel, 0.04); } // shells use the clip
     } else if (s === 'charge' || s === 'tcharge') {
       turnToward(aimDir(), 2.2, dt);
       const LV = s === 'tcharge' ? TRUE_LV : CHARGE_LV;
@@ -571,10 +674,11 @@ export async function createPlayer(game) {
       // airborne: keep momentum, a little air control; light / heavy in the air = plunging attack
       if (wishLen > 0.01) { vel.addScaledVector(wish, 3 * dt); const h = Math.hypot(vel.x, vel.z); if (h > 6.5) { vel.x *= 6.5 / h; vel.z *= 6.5 / h; } }
       if (s === 'plunge') animT = Math.min(t * 1.5, 0.32);
+      else if (C.air && P.weaponDrawn && take('light')) startMove(C.air); // Vault Staff: aerial slash
       else if (take('light') || take('heavy')) startPlunge();
     } else if (s === 'guard') {
       turnToward(aimDir(), 3, dt);
-      if (take('dodge')) startDodge(); else if (!inp.guard) setState('idle', 0.15);
+      if (take('dodge')) startDodge(); else if (P.cls === 'bulwarkaxe' && take('heavy')) startMove('ba_morph'); else if (!inp.guard) setState('idle', 0.15);
     } else if (s === 'dodge') {
       // invulnerable only inside [iStart, iEnd): cleared the frame the window ends (no lingering i-frames)
       const d = CLIPS.dodge.dur; iframe = t >= P.roll.iStart && t < P.roll.iEnd ? 1e-3 : 0;
@@ -650,7 +754,7 @@ export async function createPlayer(game) {
     object3d.rotation.y = P.facing;
 
     // stamina
-    if ((stamDelay -= dt) <= 0) P.stamina = Math.min(P.maxStamina, P.stamina + (P.state === 'guard' ? 12 : 32) * M.stamRegen * dt);
+    if ((stamDelay -= dt) <= 0) P.stamina = Math.min(P.maxStamina, P.stamina + (P.state === 'guard' ? 12 : 32) * M.stamRegen * (RES.buff.stam > 0 ? 1.5 : 1) * dt);
     if (P.exhausted && P.stamina > 30) P.exhausted = false;
 
     // locomotion phase + footsteps

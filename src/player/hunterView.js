@@ -43,27 +43,40 @@ export class HunterView {
     };
     put(weapon, weapon.userData.hand || 'R', _p.set(...(weapon.userData.back || [0, 0, 0])));
     put(this.off, 'L', _p.set(0.3, 0, 0));
+    if (this.mouth) { // third blade: held in the teeth while drawn, on the back otherwise
+      if (v) { bones.head.add(this.mouth); this.mouth.position.set(0.05, -0.04, 0.13); this.mouth.rotation.set(0, 0, -Math.PI / 2); }
+      else { bones.chest.add(this.mouth); this.mouth.position.copy(sockets.back.pos).add(_p.set(-0.25, 0.05, 0)); this.mouth.quaternion.copy(sockets.back.quat); }
+    }
     this.rig.harness.forEach((m) => { m.visible = !v && (this.cls || 'greatsword') === 'greatsword'; }); // scabbard straps only make sense with the great sword on the back
   }
   // weapon class (src/shared/weaponClasses.js): swap the models; the great sword is the rig's original weapon
   setWeaponClass(cls = 'greatsword') {
     if ((this.cls || 'greatsword') === cls) return;
     const rig = this.rig; rig.gsWeapon ||= rig.weapon; this._built ||= {};
-    for (const o of [rig.weapon, this.off, this.shield]) o?.parent?.remove(o);
+    for (const o of [rig.weapon, this.off, this.shield, this.mouth]) o?.parent?.remove(o);
     this.cls = cls; this.C = classOf(cls);
-    if (cls === 'greatsword') { rig.weapon = rig.gsWeapon; this.off = this.shield = null; }
-    else { const b = (this._built[cls] ||= buildClassWeapon(cls, rig.mats)); rig.weapon = b.main; this.off = b.off; this.shield = b.shield; }
+    if (cls === 'greatsword') { rig.weapon = rig.gsWeapon; this.off = this.shield = this.mouth = null; }
+    else { const b = (this._built[cls] ||= buildClassWeapon(cls, rig.mats)); rig.weapon = b.main; this.off = b.off; this.shield = b.shield; this.mouth = b.mouth || null; }
+    this.mode = null; if (rig.weapon.userData.modes) this.setWeaponMode(Object.keys(rig.weapon.userData.modes)[0]);
     rig.weapon.add(this.light);
     if (this.shield) { rig.bones.foreArmL.add(this.shield); this.shield.position.set(0.07, -0.16, 0.04); this.shield.rotation.set(0, -Math.PI / 2, 0); }
     this.setInHand(this.inHand, true);
   }
+  // transforming weapons (Shift Axe / Bulwark Axe): show the mode's parts, hit with the mode's samples
+  setWeaponMode(mode) {
+    const M = this.rig.weapon.userData.modes; if (!M?.[mode] || this.mode === mode) return; this.mode = mode;
+    for (const [k, v] of Object.entries(M)) v.group.visible = k === mode;
+    this.rig.weapon.userData.samples = M[mode].samples;
+    if (this.shield && this.cls === 'bulwarkaxe') this.shield.visible = mode === 'sword'; // the shield locks onto the blade as the axe head
+  }
   // per-class pose fixes on top of the sampled clip: one-handed classes free the left hand, the bow frees the right
   _classPose(flat) {
-    const C = this.C; if (!C || C.hands === 2) return;
+    const C = this.C; if (!C || C.hands === 2 || C.hands === 'gun2') return;
     flat[OK + 1] = 0; if (C.hands === 'bow') flat[OK] = 0;
     if (this.anim !== 'loco' || !this.inHand) return;
     const set = (b, x, y, z) => { const o = BONE_INDEX[b] * 3; flat[o] = x; flat[o + 1] = y; flat[o + 2] = z; };
-    if (C.hands === 1) { set('upperArmL', -0.95, 0.35, 0.55); set('foreArmL', -1.25, 0, 0); }           // shield in front
+    if (C.hands === 1 && !C.noShield) { set('upperArmL', -0.95, 0.35, 0.55); set('foreArmL', -1.25, 0, 0); }           // shield in front
+    else if (C.hands === 1 || C.hands === 'gun1') { set('upperArmL', -0.35, 0, 0.3); set('foreArmL', -0.7, 0, 0); }   // free off hand
     else if (C.hands === 'dual') { set('upperArmL', -0.55, 0, 0.35); set('foreArmL', -0.9, 0, 0); }    // second blade low
     else if (C.hands === 'bow') { set('upperArmL', -0.3, 0, 0.25); set('foreArmL', -0.6, 0, 0); }     // bow at the side
   }
@@ -154,6 +167,7 @@ export class HunterView {
     w.userData.samples.forEach((p, i) => { (out[i] ||= new THREE.Vector3()).copy(p).applyMatrix4(w.matrixWorld); });
     let n = w.userData.samples.length;
     if (this.off && this.inHand) { this.off.updateMatrixWorld(true); for (const p of this.off.userData.samples) (out[n++] ||= new THREE.Vector3()).copy(p).applyMatrix4(this.off.matrixWorld); } // dual blades: both edges cut
+    if (this.mouth && this.inHand) { this.mouth.updateMatrixWorld(true); for (const p of this.mouth.userData.samples) (out[n++] ||= new THREE.Vector3()).copy(p).applyMatrix4(this.mouth.matrixWorld); } // three-blade style: the third blade cuts too
     out.length = n; return out;
   }
   dispose() {

@@ -204,5 +204,69 @@ export function buildClassWeapon(cls, mats) {
     out.main = finish(g, [new THREE.Vector3(0, 0, 0)], new THREE.Vector3(0, 0.6, 0), new THREE.Vector3(0, 0.78, -0.1), 0x9fe0ff);
     out.main.userData.hand = 'L';
   }
+  if (out.main) return out;
+  // ---------------- stage 6c classes ----------------
+  const finishMesh = (g) => { g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } }); return g; };
+  const shortBlade = (len, curve = 0) => { const g = new THREE.Group(); g.add(mk(bladeShape(len, 0.06, { curve }), mats.blade)); g.add(mk(new THREE.BoxGeometry(0.035, 0.03, 0.16), mats.darkSteel, 0, 0.08, 0.01)); g.add(mk(new THREE.CylinderGeometry(0.016, 0.018, 0.15, 8), mats.leatherDark)); return g; };
+  if (cls === 'tri') {
+    out.main = finish(shortBlade(0.78, 0.06), line(0.16, 0.74, 0.01), new THREE.Vector3(0, 0.2, 0.01), new THREE.Vector3(0, 0.75, 0.04), 0xffc070);
+    out.off = finish(shortBlade(0.78, 0.06), line(0.16, 0.74, 0.01), new THREE.Vector3(0, 0.2, 0.01), new THREE.Vector3(0, 0.75, 0.04)); out.off.userData.hand = 'L';
+    out.mouth = finish(shortBlade(0.7, 0.03), line(0.16, 0.66, 0.01), new THREE.Vector3(0, 0.2, 0), new THREE.Vector3(0, 0.68, 0.03));
+  } else if (cls === 'machete') {
+    const g = new THREE.Group(); g.add(mk(bladeShape(0.62, 0.13, { curve: 0.03, tipLen: 0.1 }), mats.blade)); g.add(mk(new THREE.CylinderGeometry(0.02, 0.022, 0.18, 8), mats.leatherDark)); g.add(mk(new THREE.BoxGeometry(0.03, 0.025, 0.12), mats.darkSteel, 0, 0.09, 0.03));
+    out.main = finish(g, line(0.14, 0.6, 0.04), new THREE.Vector3(0, 0.2, 0.04), new THREE.Vector3(0, 0.6, 0.06), 0xffc070);
+  } else if (cls === 'mace') {
+    const g = new THREE.Group(); g.add(mk(new THREE.CylinderGeometry(0.02, 0.024, 0.7, 8), mats.leatherDark, 0, 0.2, 0));
+    g.add(mk(new THREE.SphereGeometry(0.11, 10, 8), mats.darkSteel, 0, 0.58, 0)); for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; g.add(mk(new THREE.BoxGeometry(0.03, 0.16, 0.06), mats.steel, Math.cos(a) * 0.1, 0.58, Math.sin(a) * 0.1, 0, -a, 0)); }
+    out.main = finish(g, [new THREE.Vector3(0, 0.3, 0), new THREE.Vector3(0, 0.45, 0), new THREE.Vector3(0, 0.55, 0.05), new THREE.Vector3(0, 0.6, 0.1), new THREE.Vector3(0, 0.62, 0), new THREE.Vector3(0, 0.58, -0.08), new THREE.Vector3(0, 0.66, 0.05)], new THREE.Vector3(0, 0.5, 0), new THREE.Vector3(0, 0.66, 0.1), 0xffa040);
+    out.main.userData.hitPad = 0.12;
+  } else if (cls === 'horn') {
+    const g = new THREE.Group(); g.add(mk(new THREE.CylinderGeometry(0.026, 0.03, 1.3, 8), mats.leatherDark, 0, 0.3, 0));
+    const bell = new THREE.CylinderGeometry(0.22, 0.06, 0.55, 12, 1, true); bell.rotateX(Math.PI / 2); g.add(mk(bell, mats.brass, 0, 1.0, 0.1));
+    g.add(mk(new THREE.TorusGeometry(0.22, 0.02, 6, 16), mats.bone, 0, 1.0, 0.37)); g.add(mk(new THREE.ConeGeometry(0.06, 0.3, 6), mats.bone, 0, 1.0, -0.25, -Math.PI / 2, 0, 0));
+    out.main = finish(g, [new THREE.Vector3(0, 0.6, 0), new THREE.Vector3(0, 0.8, 0.05), new THREE.Vector3(0, 0.95, 0.15), new THREE.Vector3(0, 1.0, 0.3), new THREE.Vector3(0, 1.05, 0.1), new THREE.Vector3(0, 1.0, -0.1), new THREE.Vector3(0, 1.0, 0.36)], new THREE.Vector3(0, 0.85, 0.2), new THREE.Vector3(0, 1.05, 0.35), 0xffd070);
+    out.main.userData.hitPad = 0.2;
+  } else if (cls === 'cannonlance') {
+    const g = new THREE.Group(); g.add(mk(new THREE.CylinderGeometry(0.06, 0.09, 1.9, 10), mats.darkSteel, 0, 1.1, 0)); g.add(mk(new THREE.ConeGeometry(0.06, 0.35, 10), mats.steel, 0, 2.2, 0));
+    g.add(mk(new THREE.CylinderGeometry(0.11, 0.11, 0.3, 10), mats.brass, 0, 0.3, 0)); g.add(mk(new THREE.CylinderGeometry(0.022, 0.024, 0.3, 8), mats.leatherDark, 0, -0.04, 0));
+    out.main = finish(g, line(0.6, 2.3, 0), new THREE.Vector3(0, 1.3, 0), new THREE.Vector3(0, 2.3, 0), 0xffa040); out.main.userData.muzzle = new THREE.Vector3(0, 2.35, 0); out.main.userData.hitPad = 0.08;
+    const sh = new THREE.Group(); sh.add(mk(new THREE.BoxGeometry(0.6, 0.95, 0.05), mats.darkSteel)); sh.add(mk(new THREE.CylinderGeometry(0.12, 0.12, 0.04, 12), mats.brass, 0, 0.1, 0.04, Math.PI / 2, 0, 0)); out.shield = finishMesh(sh);
+  } else if (cls === 'shiftaxe' || cls === 'bulwarkaxe') {
+    const g = new THREE.Group(); const axe = new THREE.Group(), sword = new THREE.Group();
+    g.add(mk(new THREE.CylinderGeometry(0.024, 0.028, cls === 'shiftaxe' ? 0.9 : 0.4, 8), mats.leatherDark, 0, cls === 'shiftaxe' ? 0.2 : 0, 0));
+    sword.add(mk(bladeShape(cls === 'shiftaxe' ? 1.25 : 0.95, 0.08, { y0: 0.12 }), mats.blade));
+    const head = new THREE.Shape(); head.moveTo(0, -0.18); head.quadraticCurveTo(0.42, -0.1, 0.42, 0.22); head.quadraticCurveTo(0.2, 0.25, 0, 0.18); const hg = new THREE.ExtrudeGeometry(head, { depth: 0.04, bevelEnabled: false }); hg.translate(0, 0, -0.02); hg.rotateY(-Math.PI / 2);
+    axe.add(mk(new THREE.CylinderGeometry(0.03, 0.03, cls === 'shiftaxe' ? 1.0 : 0.9, 8), mats.darkSteel, 0, cls === 'shiftaxe' ? 0.6 : 0.5, 0)); axe.add(mk(hg, mats.blade, 0, cls === 'shiftaxe' ? 1.0 : 0.85, 0.02));
+    g.add(axe, sword);
+    const swS = line(0.25, cls === 'shiftaxe' ? 1.2 : 0.9, 0.02), axS = [...line(0.5, cls === 'shiftaxe' ? 0.95 : 0.8, 0, 4), new THREE.Vector3(0, 1.0, 0.25), new THREE.Vector3(0, 1.1, 0.4), new THREE.Vector3(0, 0.9, 0.38)];
+    out.main = finish(g, axS, new THREE.Vector3(0, 0.8, 0.3), new THREE.Vector3(0, 1.15, 0.42), cls === 'shiftaxe' ? 0x9fe0ff : 0xff5030);
+    out.main.userData.modes = { axe: { group: axe, samples: axS }, sword: { group: sword, samples: swS } };
+    if (cls === 'bulwarkaxe') { const sh = new THREE.Group(); const d = new THREE.CylinderGeometry(0.3, 0.3, 0.05, 6); d.rotateX(Math.PI / 2); sh.add(mk(d, mats.darkSteel)); for (let i = 0; i < 5; i++) sh.add(mk(new THREE.CylinderGeometry(0.025, 0.025, 0.1, 6), mats.brass, -0.2 + i * 0.1, -0.2, 0.04)); out.shield = finishMesh(sh); }
+  } else if (cls === 'staff') {
+    const g = new THREE.Group(); g.add(mk(new THREE.CylinderGeometry(0.022, 0.022, 1.9, 8), mats.leatherDark, 0, 0.1, 0));
+    for (const y of [1.05, -0.85]) g.add(mk(bladeShape(0.32, 0.05, { y0: 0 }), mats.blade, 0, y * (y > 0 ? 1 : 1), 0, y > 0 ? 0 : Math.PI, 0, 0));
+    out.main = finish(g, [...line(-0.9, -0.5, 0, 3), ...line(0.6, 1.35, 0, 4)], new THREE.Vector3(0, 0.9, 0), new THREE.Vector3(0, 1.35, 0), 0x9fe0ff);
+  } else if (cls === 'lightxbow' || cls === 'heavyxbow' || cls === 'machinegun') {
+    // barrel along -Y (the left hand rides the barrel at -0.24 on the two-handed grip)
+    const H = cls === 'heavyxbow', MG = cls === 'machinegun', g = new THREE.Group(); const L = H ? 1.15 : MG ? 1.0 : 0.85;
+    g.add(mk(new THREE.BoxGeometry(0.09, L, 0.12), mats.darkSteel, 0, -L / 2 + 0.25, 0.02));
+    g.add(mk(new THREE.CylinderGeometry(H ? 0.05 : 0.03, H ? 0.05 : 0.03, L * 0.5, 10), mats.steel, 0, -L + 0.15, 0.08));
+    g.add(mk(new THREE.BoxGeometry(0.06, 0.3, 0.1), mats.leatherDark, 0, 0.32, -0.02)); // stock
+    if (!MG) { const bowL = new THREE.TorusGeometry(H ? 0.36 : 0.3, 0.018, 5, 16, Math.PI); bowL.rotateY(Math.PI / 2); g.add(mk(bowL, mats.bone, 0, -L + 0.3, 0.05)); }
+    else { g.add(mk(new THREE.BoxGeometry(0.1, 0.16, 0.2), mats.brass, 0, -0.15, -0.12)); for (let i = 0; i < 4; i++) g.add(mk(new THREE.CylinderGeometry(0.012, 0.012, L * 0.5, 6), mats.steel, Math.cos(i * 1.57) * 0.03, -L + 0.15, 0.08 + Math.sin(i * 1.57) * 0.03)); }
+    if (H) g.add(mk(new THREE.BoxGeometry(0.2, 0.18, 0.06), mats.steel, 0, -0.4, 0.1));
+    out.main = finish(g, [new THREE.Vector3(0, -L / 2, 0)], new THREE.Vector3(0, -0.2, 0), new THREE.Vector3(0, -L, 0.08), 0xffd070); out.main.userData.muzzle = new THREE.Vector3(0, -L - 0.1, 0.08);
+  } else if (cls === 'pistol') {
+    const g = new THREE.Group(); g.add(mk(new THREE.BoxGeometry(0.04, 0.3, 0.06), mats.darkSteel, 0, 0.13, 0.04)); g.add(mk(new THREE.CylinderGeometry(0.014, 0.014, 0.26, 8), mats.steel, 0, 0.16, 0.06));
+    g.add(mk(new THREE.BoxGeometry(0.035, 0.08, 0.13), mats.leatherDark, 0, -0.02, -0.02, 0.3, 0, 0)); g.add(mk(new THREE.CylinderGeometry(0.035, 0.035, 0.06, 8), mats.brass, 0, 0.04, 0.05));
+    out.main = finish(g, [new THREE.Vector3(0, 0.15, 0)], new THREE.Vector3(0, 0.1, 0.05), new THREE.Vector3(0, 0.3, 0.06), 0xffd070); out.main.userData.muzzle = new THREE.Vector3(0, 0.3, 0.06);
+  } else if (cls === 'anchor') {
+    const g = new THREE.Group(); g.add(mk(new THREE.CylinderGeometry(0.05, 0.06, 1.7, 8), mats.darkSteel, 0, 0.55, 0));
+    const fl = new THREE.TorusGeometry(0.45, 0.07, 6, 18, Math.PI); fl.rotateY(Math.PI / 2); fl.rotateX(Math.PI); g.add(mk(fl, mats.darkSteel, 0, 1.55, 0));
+    for (const z of [-0.45, 0.45]) g.add(mk(new THREE.ConeGeometry(0.1, 0.28, 4), mats.steel, 0, 1.6, z, z > 0 ? 0.6 : -0.6, 0, 0));
+    g.add(mk(new THREE.TorusGeometry(0.12, 0.03, 6, 12), mats.brass, 0, -0.35, 0, 0, Math.PI / 2, 0)); g.add(mk(new THREE.BoxGeometry(0.12, 0.08, 0.7), mats.darkSteel, 0, 1.35, 0));
+    out.main = finish(g, [new THREE.Vector3(0, 0.8, 0), new THREE.Vector3(0, 1.1, 0), new THREE.Vector3(0, 1.35, 0), new THREE.Vector3(0, 1.55, 0.35), new THREE.Vector3(0, 1.55, -0.35), new THREE.Vector3(0, 1.75, 0), new THREE.Vector3(0, 1.6, 0.5)], new THREE.Vector3(0, 1.1, 0), new THREE.Vector3(0, 1.75, 0.3), 0x9fe0ff);
+    out.main.userData.hitPad = 0.3;
+  }
   return out;
 }

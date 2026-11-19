@@ -353,7 +353,7 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
   - 30 s cooldown from use, shown on the ROPE button and the HUD. The rope deals no damage.
 
 **Partial / not implemented:**
-- 14 of the listed classes are not implemented: 三刀流, 鉈, メイス, 狩猟笛, ガンランス, スラッシュアックス, チャージアックス, 操虫棍, ライト/ヘビィボウガン, 拳銃, マシンガン, 古の碇. They need their own move sets and models; the engine (class table + clips) is ready for them.
+- (Done in stage 6c: the other 14 listed classes.)
 - Animations are hand-keyed and functional, not motion-captured quality; checked in headless renders only.
 - Roll i-frames are still validated on the client only (server validation belongs to the MMO stage).
 - Not checked on an iPad.
@@ -371,13 +371,55 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
 - All other suites passed (server 67, perception, fauna, parts, status, eco, player, combat 16/16).
 - Island test: 0 failed. Headless pose renders reviewed for each class.
 
+## Stage 6c: The remaining weapon classes (2026-11-19)
+**Implemented (all 14 remaining classes from the list, 20 classes in total):**
+
+| Class | Unique mechanic |
+|---|---|
+| 三刀流 Three-Blade Style | A third blade held in the teeth; every swing cuts with three blades; stamina whirlwind. |
+| 鉈 Machete | One hand, no shield; very fast short chops (highest edge wear); a hacking blow with a part-break bonus; can drink drawn. |
+| メイス Mace | One-handed blunt (never glances, break ×1.35), crushing overhead. |
+| 戦角笛 War Horn (狩猟笛-style) | Blunt swings add notes (a / b). a-a-b, a-b-b, b-a-b and a-b-a make melodies (attack up, defence up, stamina, heal); GUARD performs them. |
+| 砲槍 Cannon Lance (ガンランス-style) | Thrusts behind a tower shield. Shells (fixed blast damage that ignores sharpness, 5-shell clip) and a charged big shell; automatic reload. |
+| 変形斧 Shift Axe (スラッシュアックス-style) | Axe mode refills a gauge. GUARD transforms to sword mode (stronger element, spends the gauge; empty → back to the axe). Discharge finisher with blast. |
+| 蓄力盾斧 Bulwark Axe (チャージアックス-style) | Sword & shield (guard): hits build energy, HEAVY stores it in up to 5 vials. GUARD + HEAVY morphs to the axe, whose HEAVY bursts every vial as explosions; GUARD morphs back. |
+| 跳躍棍 Vault Staff (操虫棍-style) | Spinning combo; HEAVY vaults into the air; LIGHT in the air = aerial slash that bounces off the target. |
+| 軽弩 Light Crossbow | Fast bolts, 5-pellet scatter shot, 8-bolt clip, quick reload. |
+| 重弩 Heavy Crossbow | Heavy slugs, hold HEAVY for a charged cannon (with recoil), 4-shot clip, long reload, slow walk. |
+| 拳銃 Pistol | One hand, very mobile, quick shots and a three-shot fan, 8-round clip. |
+| マシンガン Machine Gun | Bursts on LIGHT; hold HEAVY for sustained fire with growing spread until it overheats (3 s lock). |
+| 古の碇 Ancient Anchor | Huge, slow blunt sweeps (break ×1.6, little wear); chain throw that strikes along a line out to 10 m and back. |
+
+- Each class has its own model, its own clips, its numbers in the class table, and a class resource readout on the HUD (ammo / heat / gauge / energy + vials / notes + melodies / Focus).
+- 26 new craftable weapons (2 per class) with JA names.
+- **Names:** the play styles of 狩猟笛 / ガンランス / スラッシュアックス / チャージアックス / 操虫棍 are kept under original in-game names (戦角笛 / 砲槍 / 変形斧 / 蓄力盾斧 / 跳躍棍), per the rule against reusing another game's content names.
+- The Vault Staff has no insect companion. The design document's fauna are wild creatures, so a bound bug would add lore; ask the user before adding one.
+
+**Partial / unverified:**
+- Animations are hand-keyed: functional, checked in headless pose renders only.
+- Balance figures are first passes, measured on the bench (light-chain damage per second):
+  - great sword 162 · tri 130 · machete 97 · mace 151 · horn 194 · cannon lance 139 · shift axe 175 · bulwark axe 127 · staff 205 · anchor 181;
+  - ranged: light crossbow 88 · heavy crossbow 118 · pistol 87 · machine gun 98 (ranged trades damage for safety).
+- Not checked on an iPad.
+
+### Stage 6c tests (2026-11-19)
+- `node src/player/__weapons.test.mjs`: **54/54 passed**.
+  - Every one of the 20 classes lands its light chain.
+  - Balance bands; machete wear > sword; guns don't wear; mace break > sword.
+  - Pistol clip empties and reloads; machine gun overheats; charged heavy-crossbow cannon > slug.
+  - Cannon Lance shells use the clip and ignore sharpness.
+  - Shift Axe switches mode and spends the gauge; Bulwark Axe energy → 5 vials → morph → burst.
+  - War Horn a-a-b → perform → attack up; Vault Staff vault + aerial hit; Anchor chain hits at 8 m; three blades > sword hits.
+  - All the earlier class and rope checks still pass.
+- `server/api.test.mjs`: **98/98 on SQLite and pg-mem** (forge + equip a Rusted Ancient Anchor → loadout `cls: 'anchor'`).
+- All other suites passed. Island test: 0 failed. Pose renders reviewed; a Bulwark Axe start-form mismatch was found and fixed.
+
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
   - island content
   - all new species
   - part system v2
   - materials, carving and gear expansion
-  - the remaining weapon classes (see stage 6b)
   - enchanting
   - Volcano Slime event
   - MMO world server and 100-player load tests
