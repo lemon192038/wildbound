@@ -414,6 +414,74 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
 - `server/api.test.mjs`: **98/98 on SQLite and pg-mem** (forge + equip a Rusted Ancient Anchor → loadout `cls: 'anchor'`).
 - All other suites passed. Island test: 0 failed. Pose renders reviewed; a Bulwark Axe start-form mismatch was found and fixed.
 
+## Stage 7: Volcano Slime (hidden world event) + ~10 weapons per class (2026-11-19)
+**Implemented — event** (server `server/volcano.js`; client `src/field/volcano.js`; boss `src/monster/volcanoSlime.js`):
+- **Server-authoritative state machine, persisted** in `world_state('volcano')`. It stores:
+  - phase, cycle, slime kills, lava flow, magma chamber, devour count;
+  - victim id / name / last heartbeat, boss HP and seed / start time, contributors, rewarded flag, log.
+  - Clients can only report facts.
+- **flowing:**
+  - every Magma Slime killed by a hunter (reported through the ecosystem) lowers the flow: `flow = 1 − kills / 300` (`VOLCANO_STOP_KILLS`);
+  - the magma chamber fills by what stopped (`chamber = 1 − flow`);
+  - on the client the lava slows and darkens with the flow; stopped rivers crust over and stop burning.
+- **stopped:**
+  - the crater devours anyone who enters it (it always does), and each devour counts on one world counter (15 s cooldown per hunter);
+  - the 100th devour is decided inside a serial chain, so it awakens exactly once even when hunters arrive together;
+  - that hunter becomes the victim and respawns on the rim.
+- **awakened:**
+  - victim rules exactly as specified: death, logout (no heartbeat for 30 s, or `/api/logout`) or leaving the volcano region → the slime returns, the lava flows, everything resets;
+  - other hunters' deaths do not matter.
+- **Boss:**
+  - HP 100,000 on the server; damage reports are idempotent and capped at 900/s per account; three stages by HP;
+  - a colossal molten body rises from the crater and creeps slowly along the rim;
+  - its path and attack timeline come from the server seed + clock, so everyone sees the same thing.
+  - **Attacks:**
+    - magma shots (no wind-up);
+    - club-tentacle slams;
+    - a whip-tentacle ground sweep (jump it);
+    - spike tentacles from the ground;
+    - a rolling lava wave (jump it);
+    - a magma rain over the area;
+    - a closing ring of small tentacles (stage 3).
+  - 4 tentacle shapes (whip / club / spike / cluster); idle tentacles above the body (more per stage).
+- **Defeat:**
+  - rewards (Primordial Magma, Cooled Slime Crust, Molten Tendril, Calamity Core — new materials) go once to every hunter who damaged it, scaled by share; the victim gets an extra core;
+  - after 20 min a new cycle starts.
+- **Rampage while awake:**
+  - every Magma Slime attacks hunters and all other creatures, swarming outward from the crater;
+  - small creatures and predators flee, moles go underground, Golems and Crystal Tusks fight, birds lift off;
+  - the server ecosystem pushes non-slimes out of slime ground and lets slimes split freely (`W.rampage`).
+- **Hidden:**
+  - not in quests, guides or the boss list;
+  - co-op host hit intents skip the world boss (damage goes straight to the server).
+- **Town NPC マメ・チシキー** (by the fountain):
+  - 13 monster hints without names (weak points, habits, relations from the design document) and 「火山の奥には何か眠っているらしい……」;
+  - only while the lava is stopped: 「火口に飛びこめ！100を記した時、古の災いが目覚めるだろう……」 (reads `/api/volcano`).
+
+**Implemented — weapons:**
+- 14 material lines (`src/shared/lineGear.js`): one per island monster and boss, plus the new Calamity line from the Volcano Slime rewards.
+- Every class now has 11 weapons (great sword 14): **223 weapons** in total, no duplicate names.
+- The forge has class filter chips (default: the equipped weapon's class), sorted by rarity.
+
+**Partial / unverified:**
+- **Shared behaviour on the server:** the boss's path and attack timing are shared, but each client aims the attacks at its own hunter. Rampage individuals are simulated per client; the server shares the population effects.
+- **Visuals:** the crusting of distant lava rivers was not visually confirmed. The NPC dialogue was checked through the dialogue code and a town render only.
+- **Real players:** the 100-devour count was verified with API tests (simultaneous requests), not with 100 real players.
+
+### Stage 7 tests (2026-11-19)
+- `server/api.test.mjs`: **120/120 on SQLite and pg-mem** (20 new volcano checks). Covered:
+  - flow / chamber from an ecosystem slime kill; stop at 300;
+  - devours ignored while flowing; cooldown; the 100th race awakens exactly once; clients cannot set the state;
+  - another hunter's death ignored; idempotent and capped damage;
+  - victim logout timeout / leave / death / `/api/logout` each reset everything;
+  - defeat rewards once (bystanders get nothing, victim gets a core); new cycle; persistence; a Calamity weapon forged from the rewards.
+- `node src/fauna/__fauna.test.mjs`: rampage checks added — slimes hit other creatures (38 hits), others flee, moles hide, hunters attacked.
+- `tools/volcano-test.mjs` (built game, `?volcano=awakened` local view):
+  - boss with HP 100,000 among the monsters; rampage on; lava stopped;
+  - all 7 attack types hurt the hunter (shot 60, slam 46, spikes 68, wave 38, rain 90, grasp 50, sweep 40);
+  - blows damage it; entering the crater devours; the normal state has no boss.
+- All other suites passed (server 67, perception, parts, status, eco, player, combat, weapons 54/54). Island test 0 failed.
+
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
   - island content
@@ -421,7 +489,6 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
   - part system v2
   - materials, carving and gear expansion
   - enchanting
-  - Volcano Slime event
   - MMO world server and 100-player load tests
   - iPad device verification
 

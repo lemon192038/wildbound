@@ -190,5 +190,5 @@ export default {
     brute: { full: 'Gorvath, the Cinderfist', short: 'Gorvath', title: 'The Cinderfist' },
   },
   npcs: { quest: 'Guildmistress Ysolde', smith: 'Master Smith Borrik', alchemy: 'Alchemist Nerith', shop: 'Merchant Pell', storage: 'Quartermaster Iva', dock: 'Captain Maro', sage: 'Mame Chishikii' },
-  facilities: { quest: "Hunters' Guild", smith: 'Forge', alchemy: 'Alchemy Atelier', shop: 'Market', storage: 'Item Box', dock: 'Departure Dock' },
+  facilities: { quest: "Hunters' Guild", smith: 'Forge', alchemy: 'Alchemy Atelier', shop: 'Market', storage: 'Item Box', dock: 'Departure Dock', sage: 'Fountain Square' },
 };

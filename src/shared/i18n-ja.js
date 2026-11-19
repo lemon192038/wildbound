@@ -319,5 +319,5 @@ export default {
     cinderdeep_hollow: ['燼底の大空洞', '火山の地下に広がる巨大な空洞。溶岩の滝が照らし、蒸気が立ち込める。燼拳のゴルヴァスの足音が大地を揺らす。', '燼の大地シンダーリーチ'],
   },
   npcs: { quest: 'ギルドマスター・イゾルデ', smith: '鍛冶頭ボリック', alchemy: '錬金術師ネリス', shop: '商人ペル', storage: '倉庫番イーヴァ', dock: 'マロ船長', sage: 'マメ・チシキー' },
-  facilities: { quest: '狩人ギルド', smith: '鍛冶場', alchemy: '錬金工房', shop: '市場', storage: 'アイテムボックス', dock: '出航桟橋' },
+  facilities: { quest: '狩人ギルド', smith: '鍛冶場', alchemy: '錬金工房', shop: '市場', storage: 'アイテムボックス', dock: '出航桟橋', sage: '噴水広場' },
 };
