@@ -123,6 +123,22 @@ try {
     const cp = P.crosshairPoint(); const onTarget = cp.distanceTo(m.position) < 1.6;
     window.__manualCam = true;
     check('aiming: GUARD with a bow aims (crosshair point lands on the monster in the crosshair)', aimOn && onTarget, { d: +cp.distanceTo(m.position).toFixed(2) });
+    // scope (user request): every ranged class — AIM while sheathed draws and aims; the camera goes into the eye and zooms by
+    // the class's scope power; the hunter's model is hidden; a shot fired through the scope lands on what is in the centre
+    window.__manualCam = false;
+    const scopeRes = {};
+    for (const cls of ['bow', 'lightxbow', 'heavyxbow', 'pistol', 'machinegun']) {
+      reset(cls); P.debug.setDrawn(false); P.facing = Math.PI; step(0.1); front(16); m.hits.length = 0; g.cameraRig.yaw = P.facing + Math.PI; g.cameraRig.pitch = 0.28;
+      const camStep = (sec, inp) => step(sec, (i) => { g.cameraRig.update(1 / 60, {}); return typeof inp === 'function' ? inp(i) : inp; });
+      camStep(1.6, { guard: true }); const fov = g.camera.fov, k = g.cameraRig.scopeK, vis = P.view.root.visible, drawn = P.weaponDrawn, aim = P.aiming;
+      const cp2 = P.crosshairPoint(); camStep(0.05, (i) => ({ guard: true, lightAttack: i === 0 })); camStep(1.2, { guard: true });
+      scopeRes[cls] = { drawn, aim, k: +k.toFixed(2), fov: +fov.toFixed(1), hidden: !vis, center: +cp2.distanceTo(m.position).toFixed(1), hits: m.hits.length };
+    }
+    const zooms = Object.fromEntries(Object.keys(scopeRes).map((c) => [c, window.__WC?.[c]?.scope?.zoom]));
+    check('scope: all 5 ranged classes draw + aim from sheathed, scope up, model hidden, centre on the target, the shot hits', Object.values(scopeRes).every((r) => r.drawn && r.aim && r.k > 0.95 && r.hidden && r.center < 2 && r.hits >= 1), scopeRes);
+    check('scope zoom differs by weapon (heavy crossbow most, pistol least)', scopeRes.heavyxbow.fov < scopeRes.lightxbow.fov && scopeRes.lightxbow.fov < scopeRes.pistol.fov, { fov: Object.fromEntries(Object.entries(scopeRes).map(([c, r]) => [c, r.fov])) });
+    step(0.1, {}); for (let i = 0; i < 30; i++) g.cameraRig.update(1 / 60, {}); step(0.05, {}); check('releasing AIM leaves the scope and shows the hunter again', g.cameraRig.scopeK < 0.2 && P.view.root.visible, { k: +g.cameraRig.scopeK.toFixed(2) });
+    window.__manualCam = true;
     const hbSave = m.getHitboxes; const head = new g.THREE.Vector3();
     m.getHitboxes = () => { head.set(m.position.x, m.position.y + 1.6, m.position.z); return [{ part: 'body', sphere: new g.THREE.Sphere(m.position, 1.4) }, { part: 'head', sphere: new g.THREE.Sphere(head, 0.6) }]; };
     P.lockTarget = null; step(0.05, press('lockOn')); const p1 = P.lockPart; step(0.05, press('lockOn')); const p2 = P.lockPart, lp = P.lockPointOf().y; step(0.05, press('lockOn')); const p3 = P.lockTarget;

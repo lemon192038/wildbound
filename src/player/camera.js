@@ -1,6 +1,7 @@
 // Third-person orbit camera: mouse/right-stick orbit, lagged follow, terrain collision, lock-on framing,
 // FOV kicks, trauma-based shake (driven by rawDt so it keeps moving through hitstop). ?cam=x,y,z,tx,ty,tz = fixed shot.
 import * as THREE from 'three';
+import { WEAPON_CLASSES } from '../shared/weaponClasses.js';
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -24,6 +25,7 @@ export function createCameraRig(game) {
   const pos = cam.position.clone();
   let first = true;
 
+  const _eye = new THREE.Vector3(), _aim = new THREE.Vector3(), _cur = new THREE.Vector3(), _dir = new THREE.Vector3(), _look2 = new THREE.Vector3();
   const dirOf = (yaw, pitch, out) => out.set(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
   const blockers = [];
   function gatherBlockers() {
@@ -50,7 +52,8 @@ export function createCameraRig(game) {
     const lock = P.aiming ? null : P.lockTarget, lx = input.look?.x || 0, ly = input.look?.y || 0; const lockPos = lock ? (P.lockPointOf?.(new THREE.Vector3()) || lock.position) : null;
     if (Math.abs(lx) + Math.abs(ly) > 0) lastInput = rig.time;
     const aim = !!P.aiming; rig.aimK = (rig.aimK || 0) + ((aim ? 1 : 0) - (rig.aimK || 0)) * Math.min(1, rawDt * 10);
-    rig.yaw -= lx * (aim ? 0.6 : 1.0); rig.pitch = clamp(rig.pitch + ly * (aim ? 0.5 : 0.8), aim ? -0.75 : -0.35, aim ? 1.0 : 1.2);
+    const zoomNow = rig.scopeK > 0.5 && rig.scope ? rig.scope.zoom : 1, sens = 1 / Math.pow(zoomNow, 0.85); // a zoomed scope turns slower
+    rig.yaw -= lx * (aim ? 0.6 * sens : 1.0); rig.pitch = clamp(rig.pitch + ly * (aim ? 0.5 * sens : 0.8), aim ? -0.75 : -0.35, aim ? 1.0 : 1.2);
     // follow target with spring lag
     const st = P.state, low = st === 'knockdown' || st === 'dead' || st === 'dodge';
     desired.set(P.position.x, P.position.y + (low ? 1.0 : 1.55), P.position.z);
@@ -134,8 +137,19 @@ export function createCameraRig(game) {
       camAt(rig.yaw + rig.occYaw, 0.2, pos); pos.y = Math.max(pos.y, world.getHeight(pos.x, pos.z) + 0.5);
       cam.position.copy(pos); cam.lookAt(desired);
     }
+    // scope (ranged aiming, user request): the camera moves into the hunter's eye and zooms by the weapon's scope power
+    const SC = P.aiming ? WEAPON_CLASSES[P.cls]?.scope || null : null; if (SC) rig.scope = SC;
+    rig.scopeK = (rig.scopeK || 0) + ((SC ? 1 : 0) - (rig.scopeK || 0)) * Math.min(1, rawDt * 9);
+    if (rig.scopeK > 0.01 && rig.scope) {
+      const k = rig.scopeK * rig.scopeK * (3 - 2 * rig.scopeK); dirOf(rig.yaw, rig.pitch - 0.24, tmp3); // the shoulder view looks down a little; through the scope the same pitch input aims level // tmp3 points from the eye back toward the camera
+      _eye.set(P.position.x, P.position.y + 1.62, P.position.z).addScaledVector(tmp3, -0.35); _aim.copy(_eye).addScaledVector(tmp3, -80);
+      _cur.copy(cam.position); cam.getWorldDirection(_dir); _look2.copy(_cur).addScaledVector(_dir, 20);
+      cam.position.lerpVectors(_cur, _eye, k); cam.lookAt(_look2.lerp(_aim, k)); rig.offscreen = 0;
+    }
+    rig.scoped = rig.scopeK > 0.6;
     // FOV kicks: sprint widens, heavy release punches
     let fovT = baseFov - 14 * (rig.aimK || 0) + 7 * (rig.melee || 0) + (st === 'sprint' ? 6 : 0) + (st === 'charge' ? -3 * (P.chargeLevel || 0) * 0.5 : 0);
+    if (rig.scopeK > 0.01 && rig.scope) fovT += (baseFov / rig.scope.zoom - fovT) * rig.scopeK;
     rig.kick *= Math.max(0, 1 - rawDt * 4);
     const nf = cam.fov + (fovT + rig.kick - cam.fov) * Math.min(1, rawDt * 6);
     if (Math.abs(nf - cam.fov) > 0.01) { cam.fov = nf; cam.updateProjectionMatrix(); }

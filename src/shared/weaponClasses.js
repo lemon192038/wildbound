@@ -35,7 +35,7 @@ export const WEAPON_CLASSES = {
   lance: { ja: 'ランス', en: 'Lance', hands: 1, dmg: 'pierce', drawT: 0.6, sheatheT: 0.7, parry: 0.3, walk: 2.2, breakMul: 1.05, wear: 0.9, guard: 'tower', guardMul: 0.06, guardPush: 0.35, roll: 1.8, items: false,
     light: 'ln_1', heavy: 'ln_dash' },
   bow: { ja: '弓', en: 'Bow', hands: 'bow', dmg: 'ranged', drawT: 0.4, sheatheT: 0.45, parry: 0.2, walk: 3.6, breakMul: 0.7, wear: 0, guard: null, roll: 3.4, items: false,
-    light: 'bw_quick', heavy: 'bcharge', range: [5, 24] },
+    light: 'bw_quick', heavy: 'bcharge', range: [5, 24], scope: { zoom: 2.2, reticle: 'pins' } },
 };
 export const CLASS_IDS = Object.keys(WEAPON_CLASSES);
 
@@ -108,13 +108,13 @@ Object.assign(WEAPON_CLASSES, {
     modes: { sword: { light: 'ba_s1', heavy: 'ba_charge' }, axe: { light: 'ba_a1', heavy: 'ba_burst' } } },
   staff: { ja: '跳躍棍', en: 'Vault Staff', hands: 2, dmg: 'cut', drawT: 0.45, sheatheT: 0.5, parry: 0.25, walk: 3.8, breakMul: 0.9, wear: 0.9, guard: null, roll: 3.5, items: false, light: 'st_1', heavy: 'st_vault', air: 'st_air' },
   lightxbow: { ja: '軽弩', en: 'Light Crossbow', hands: 'gun2', dmg: 'ranged', drawT: 0.45, sheatheT: 0.5, parry: 0.2, walk: 3.7, breakMul: 0.7, wear: 0, guard: null, roll: 3.4, items: false,
-    light: 'lx_shot', heavy: 'lx_scatter', ammo: { clip: 8, reload: 1.0 }, range: [4, 22], shot: { speed: 75, gravity: 3, kind: 'bolt' } },
+    light: 'lx_shot', heavy: 'lx_scatter', ammo: { clip: 8, reload: 1.0 }, range: [4, 22], shot: { speed: 75, gravity: 3, kind: 'bolt' }, scope: { zoom: 3.5, reticle: 'mil' } },
   heavyxbow: { ja: '重弩', en: 'Heavy Crossbow', hands: 'gun2', dmg: 'ranged', drawT: 0.8, sheatheT: 0.85, parry: 0.2, walk: 2.0, breakMul: 0.9, wear: 0, guard: null, roll: 2.2, items: false,
-    light: 'hx_shot', heavy: 'xcharge', ammo: { clip: 4, reload: 2.2 }, range: [6, 30], shot: { speed: 90, gravity: 2, kind: 'slug' } },
+    light: 'hx_shot', heavy: 'xcharge', ammo: { clip: 4, reload: 2.2 }, range: [6, 30], shot: { speed: 90, gravity: 2, kind: 'slug' }, scope: { zoom: 6, reticle: 'mil' } },
   pistol: { ja: '拳銃', en: 'Pistol', hands: 'gun1', dmg: 'ranged', drawT: 0.2, sheatheT: 0.25, parry: 0.3, walk: 4.4, breakMul: 0.6, wear: 0, guard: null, roll: 3.7, items: true,
-    light: 'ps_shot', heavy: 'ps_fan', ammo: { clip: 8, reload: 0.9 }, range: [3, 16], shot: { speed: 85, gravity: 1.5, kind: 'bullet' } },
+    light: 'ps_shot', heavy: 'ps_fan', ammo: { clip: 8, reload: 0.9 }, range: [3, 16], shot: { speed: 85, gravity: 1.5, kind: 'bullet' }, scope: { zoom: 1.8, reticle: 'dot' } },
   machinegun: { ja: 'マシンガン', en: 'Machine Gun', hands: 'gun2', dmg: 'ranged', drawT: 0.6, sheatheT: 0.65, parry: 0.2, walk: 2.6, breakMul: 0.6, wear: 0, guard: null, roll: 3.0, items: false,
-    light: 'mg_burst', heavy: 'mgfire', range: [4, 20], shot: { speed: 95, gravity: 1, kind: 'bullet' }, heat: { perShot: 0.045, cool: 0.35, lock: 3 } },
+    light: 'mg_burst', heavy: 'mgfire', range: [4, 20], shot: { speed: 95, gravity: 1, kind: 'bullet' }, heat: { perShot: 0.045, cool: 0.35, lock: 3 }, scope: { zoom: 2.8, reticle: 'mil' } },
   anchor: { ja: '古の碇', en: 'Ancient Anchor', hands: 2, dmg: 'blunt', drawT: 0.9, sheatheT: 0.95, parry: 0.2, walk: 2.4, breakMul: 1.6, wear: 0.3, guard: null, roll: 2.8, items: false, light: 'an_1', heavy: 'an_throw' },
 });
 CLASS_IDS.splice(0, CLASS_IDS.length, ...Object.keys(WEAPON_CLASSES));
