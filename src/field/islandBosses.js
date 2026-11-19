@@ -23,6 +23,10 @@ export const TERRITORIES = [
   { kind: 'wyvern', id: 'flame', near: [-420, -380], site: { flatR: 18, maxSlope: 0.3 }, opts: { variant: 'flame', scale: 0.78, hp: 11000, nameKey: 'dragon.flame' } },
   { kind: 'wyvern', id: 'flameUpper', near: [250, -650], site: { flatR: 18, maxSlope: 0.3 }, opts: { variant: 'flame', scale: 0.92, hp: 15500, nameKey: 'dragon.flameUpper' } },
   { kind: 'wyvern', id: 'venom', near: [-380, 300], site: { flatR: 16, maxSlope: 0.3 }, opts: { variant: 'venom', scale: 0.85, hp: 13000, nameKey: 'dragon.venom' } },
+  // more dragons (user request: more monsters): a second Venom-fang female holding a southern territory and the Flame
+  // male that hunts for her (the species' pairs: a ground-guarding ♀ + a sky-hunting ♂ — src/field/dragonLife.js)
+  { kind: 'wyvern', id: 'venom2', near: [420, 380], site: { flatR: 16, maxSlope: 0.3 }, opts: { variant: 'venom', scale: 0.82, hp: 12500, nameKey: 'dragon.venom' } },
+  { kind: 'wyvern', id: 'flameRoam', near: [-180, 560], site: { flatR: 18, maxSlope: 0.3 }, opts: { variant: 'flame', scale: 0.8, hp: 11500, nameKey: 'dragon.flame' } },
   { kind: 'wyvern', id: 'cindaryl', near: [-660, -260], site: { flatR: 18, maxSlope: 0.3 }, opts: { variant: 'cindaryl', scale: 1.02, hp: 19500, nameKey: 'dragon.cindaryl', epithetKey: 'dragon.cindaryl.title' } },
 ];
 const MAKERS = { varkhul: createMonster, wyvern: createWyvern, brute: createBrute };
@@ -89,5 +93,5 @@ export function createIslandBosses(game, homes) {
     return best;
   }
 
-  return { spawnAll, update, focus, state, homes };
+  return { spawnAll, update, focus, state, homes, isActive: (m) => state.active.has(m) };
 }

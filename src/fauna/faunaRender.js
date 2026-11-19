@@ -257,30 +257,34 @@ const VERT = {
   if (aPart == 3.0) transformed.y += sin(ph * 3.0) * 0.05;`,
 };
 
+const GLOW_COL = { beetle: [1.0, 0.36, 0.05], slime: [1.0, 0.42, 0.06], bird: [1.0, 0.4, 0.08], lizard: [1.0, 0.32, 0.05], snakeSeg: [1.0, 0.34, 0.04], snakeHead: [1.0, 0.36, 0.05], wolf: [1.0, 0.3, 0.05], boar: [0.35, 0.85, 1.0], mole: [1.0, 0.45, 0.15], golem: [1.0, 0.36, 0.05], mound: [0, 0, 0], drake: [1.0, 0.32, 0.06] };
+const GEO = { beetle: beetleGeo, slime: slimeGeo, bird: birdGeo, lizard: lizardGeo, snakeSeg: snakeSegGeo, snakeHead: snakeHeadGeo, wolf: wolfGeo, boar: boarGeo, mole: moleGeo, golem: golemGeo, mound: moundGeo, drake: drakeGeo };
+// one species' instanced mesh with the shared animation shader (used by the herd renderer below and, with cap 1, by
+// constructs: src/tame/mountModel.js — the SAME model the wild creature uses)
+export function makeFaunaMesh(THREE, sp, cap, { shadow = true } = {}) {
+  const geo = GEO[sp](THREE);
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: sp === 'slime' ? 0.35 : 0.75, metalness: 0, side: sp === 'bird' ? THREE.DoubleSide : THREE.FrontSide });
+  mat.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aPart; attribute float aGlow; attribute vec4 aAnim; attribute float aBreak; varying float vGlow;\nfloat wbBit(float m, float b) { return mod(floor(m / b + 0.001), 2.0); }')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT[sp]}\n${BREAK_VERT[sp] || ''}\nvGlow = aGlow * (0.35 + aAnim.w) + (wbBit(aBreak, 32.0) > 0.5 && aPart == 0.0 ? 0.25 : 0.0);`);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vGlow;')
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += vec3(${GLOW_COL[sp].join(',')}) * vGlow * ${sp === 'slime' ? '1.3' : sp.startsWith('snake') ? '0.9' : '1.9'};`);
+  };
+  mat.customProgramCacheKey = () => 'wb-fauna-' + sp;
+  const anim = new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4); anim.setUsage(THREE.DynamicDrawUsage); geo.setAttribute('aAnim', anim);
+  const brk = new THREE.InstancedBufferAttribute(new Float32Array(cap), 1); brk.setUsage(THREE.DynamicDrawUsage); geo.setAttribute('aBreak', brk);
+  const m = new THREE.InstancedMesh(geo, mat, cap); m.count = 0; m.frustumCulled = false; m.castShadow = shadow; m.receiveShadow = false; m.name = 'fauna-' + sp;
+  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.setColorAt(0, new THREE.Color(1, 1, 1)); m.instanceColor.setUsage(THREE.DynamicDrawUsage);
+  return { mesh: m, anim, brk };
+}
 export function createFaunaRender(THREE, scene, { low = false, caps = { beetle: 340, slime: 280, bird: 100, lizard: 64, snakeSeg: 320, snakeHead: 16, wolf: 64, boar: 64, mole: 20, golem: 30, mound: 20, drake: 26 } } = {}) {
-  const geos = { beetle: beetleGeo(THREE), slime: slimeGeo(THREE), bird: birdGeo(THREE), lizard: lizardGeo(THREE), snakeSeg: snakeSegGeo(THREE), snakeHead: snakeHeadGeo(THREE), wolf: wolfGeo(THREE), boar: boarGeo(THREE), mole: moleGeo(THREE), golem: golemGeo(THREE), mound: moundGeo(THREE), drake: drakeGeo(THREE) };
-  const glowCol = { beetle: [1.0, 0.36, 0.05], slime: [1.0, 0.42, 0.06], bird: [1.0, 0.4, 0.08], lizard: [1.0, 0.32, 0.05], snakeSeg: [1.0, 0.34, 0.04], snakeHead: [1.0, 0.36, 0.05], wolf: [1.0, 0.3, 0.05], boar: [0.35, 0.85, 1.0], mole: [1.0, 0.45, 0.15], golem: [1.0, 0.36, 0.05], mound: [0, 0, 0], drake: [1.0, 0.32, 0.06] };
   const meshes = {}; const anims = {}; const breaks = {};
-  for (const sp of Object.keys(geos)) {
-    const cap = Math.round(caps[sp] * (low ? 0.7 : 1));
-    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: sp === 'slime' ? 0.35 : 0.75, metalness: 0, side: sp === 'bird' ? THREE.DoubleSide : THREE.FrontSide });
-    mat.onBeforeCompile = (sh) => {
-      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aPart; attribute float aGlow; attribute vec4 aAnim; attribute float aBreak; varying float vGlow;\nfloat wbBit(float m, float b) { return mod(floor(m / b + 0.001), 2.0); }')
-        .replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT[sp]}\n${BREAK_VERT[sp] || ''}\nvGlow = aGlow * (0.35 + aAnim.w) + (wbBit(aBreak, 32.0) > 0.5 && aPart == 0.0 ? 0.25 : 0.0);`);
-      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vGlow;')
-        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += vec3(${glowCol[sp].join(',')}) * vGlow * ${sp === 'slime' ? '1.3' : sp.startsWith('snake') ? '0.9' : '1.9'};`);
-    };
-    mat.customProgramCacheKey = () => 'wb-fauna-' + sp;
-    const anim = new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4); anim.setUsage(THREE.DynamicDrawUsage);
-    geos[sp].setAttribute('aAnim', anim);
-    const brk = new THREE.InstancedBufferAttribute(new Float32Array(cap), 1); brk.setUsage(THREE.DynamicDrawUsage); geos[sp].setAttribute('aBreak', brk); breaks[sp] = brk;
-    const m = new THREE.InstancedMesh(geos[sp], mat, cap); m.count = 0; m.frustumCulled = false; m.castShadow = !low; m.receiveShadow = false; m.name = 'fauna-' + sp;
-    m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    m.setColorAt(0, new THREE.Color(1, 1, 1)); m.instanceColor.setUsage(THREE.DynamicDrawUsage);
-    scene.add(m); meshes[sp] = m; anims[sp] = anim;
+  for (const sp of Object.keys(GEO)) {
+    const k = makeFaunaMesh(THREE, sp, Math.round(caps[sp] * (low ? 0.7 : 1)), { shadow: !low });
+    scene.add(k.mesh); meshes[sp] = k.mesh; anims[sp] = k.anim; breaks[sp] = k.brk;
   }
   const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(0, 0, 0, 'YXZ'), S = new THREE.Vector3(), C = new THREE.Color();
-  const counts = Object.fromEntries(Object.keys(geos).map((k) => [k, 0]));
+  const counts = Object.fromEntries(Object.keys(GEO).map((k) => [k, 0]));
   return {
     meshes,
     begin() { for (const k in counts) counts[k] = 0; },

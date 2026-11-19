@@ -33,7 +33,7 @@ export function createCarving(game, { expedition = null } = {}) {
   const srcOf = (o) => {
     if (o.isBrood) return o.src; // big-monster juvenile: its parent's loot key
     if (o.isFauna) { const k = o.kind || o.sp; return ISLAND_LOOT[k] ? k : null; }
-    const id = o.islandId === 'flameUpper' ? 'flame' : o.islandId || o.kind; return ISLAND_LOOT[id] ? id : null;
+    const A = { flameUpper: 'flame', flameRoam: 'flame', venom2: 'venom' }; const id = A[o.islandId] || o.islandId || o.kind; return ISLAND_LOOT[id] ? id : null;
   };
   const keyOf = (o) => (o.isBrood ? `${nonce}.J${o.id}` : o.isFauna ? `${nonce}.${o.id}` : `${nonce}.B${o.islandId || o.kind}`);
 

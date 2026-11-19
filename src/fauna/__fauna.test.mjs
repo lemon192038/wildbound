@@ -114,7 +114,7 @@ const alive = (f, sp) => f.list.filter((c) => !c.dead && (!sp || c.sp === sp));
     ok(Math.abs(S.pos.x) < 6, `snake spawned inside the lava (x=${S.pos.x.toFixed(1)})`);
     player.position.set(40, 5, S.pos.z); step(5); ok(damage.taken === 0 && Math.abs(S.pos.x) < 6, 'snake ignores a hunter far from the lava');
     player.position.set(9, 5, S.pos.z); step(4); ok(damage.hits > 0, `snake lunges / spits at a hunter on the bank (${damage.taken} dmg)`);
-    step(3); ok(Math.abs(S.pos.x) < 6.5, `snake slides back into the lava (x=${S.pos.x.toFixed(1)})`);
+    player.position.set(40, 5, S.pos.z); step(4); ok(Math.abs(S.pos.x) < 6.5, `snake slides back into the lava once the hunter leaves the bank (x=${S.pos.x.toFixed(1)})`); // (a hunter who stays on the bank keeps getting lunged at)
     S.receiveHit({ damage: S.maxHp * 0.2, part: 'head', attackerId: 'local' }); step(0.1);
     ok(S.ai === 'dive' && S.getHitboxes().length === 0, `struck snake dives (${S.ai}), untouchable while submerged`);
   }
@@ -242,6 +242,34 @@ const alive = (f, sp) => f.list.filter((c) => !c.dead && (!sp || c.sp === sp));
   player.position.set(sl[0].pos.x + 3, 5, sl[0].pos.z); const d0 = damage.taken; step(4);
   ok(damage.taken > d0, `rampaging slimes attack hunters too (${damage.taken - d0} dmg)`);
   game.volcanoRampage = false;
+}
+{ // ecology (ecology.js): a dragon overhead — Ash Birds drop low, a boar herd bunches with the young inside
+  const { game, fauna, player, step } = setup('ashplain'); step(1);
+  const birds = alive(fauna, 'bird').filter((b) => b.alt > 5);
+  const g = [...fauna.groups()].find((q) => q.sp === 'boar') || fauna.spawnGroup('boar', 30, 30);
+  const C = g.members[0].pos.clone(); player.position.set(C.x + 120, 5, C.z); // the hunter far off
+  const at = birds[0] ? birds[0].pos : C; game.monsters = [{ kind: 'wyvern', state: 'roam', position: new THREE.Vector3(at.x, 45, at.z) }];
+  step(1); const b0 = birds[0]; const alt0 = b0?.alt ?? 0; step(4);
+  ok(!b0 || b0.alt < alt0 - 4 || b0.alt < 6, `an Ash Bird drops low under a dragon (${alt0.toFixed(1)} → ${b0?.alt.toFixed(1)})`);
+  game.monsters[0].position.set(C.x, 45, C.z); const spread0 = Math.max(...g.members.filter((m) => !m.dead).map((m) => m.pos.distanceTo(C))); step(6);
+  let cx = 0, cz = 0, n = 0; for (const m of g.members) if (!m.dead) { cx += m.pos.x; cz += m.pos.z; n++; } cx /= n; cz /= n;
+  const spread = Math.max(...g.members.filter((m) => !m.dead).map((m) => Math.hypot(m.pos.x - cx, m.pos.z - cz)));
+  ok(spread < Math.max(5, spread0) && fauna.ecology.stats.huddle > 0, `the boar herd bunches under the dragon (spread ${spread0.toFixed(1)} → ${spread.toFixed(1)} m)`);
+}
+{ // juveniles run to the nearest adult of their kind when a predator comes; ectotherms bask by the heat
+  const { fauna, player, step } = setup('canyon', { river: true }); step(1); player.position.set(130, 5, 30); step(0.5); // watching from afar (but within the simulated range)
+  const juv = fauna.spawnOne('lizard', 30, 30, 0), mom = fauna.spawnOne('lizard', 40, 30, 2), wolf = fauna.spawnOne('wolf', 22, 30, 2, { noSpecial: true });
+  for (const o of alive(fauna)) if (![juv, mom, wolf].includes(o)) { o.dead = true; o.corpseT = 0.01; }
+  wolf.ai = 'rest'; const d0 = juv.pos.distanceTo(mom.pos); step(1.5);
+  ok(juv.pos.distanceTo(mom.pos) < d0 - 2 && fauna.ecology.stats.juvRun > 0, `a juvenile runs to an adult when a predator is near (${d0.toFixed(1)} → ${juv.pos.distanceTo(mom.pos).toFixed(1)} m)`);
+  const L = fauna.spawnOne('lizard', 34, 60, 2); L.cold = 1.4; L.hunger = 0; step(1);
+  ok(L.ai === 'bask' && L.baskAt && Math.abs(L.baskAt[0]) < 20, `a cold Fire Lizard goes to bask by the lava (${L.ai})`);
+}
+{ // taking an egg: the guarding parents turn on the hunter
+  const { fauna, player, step } = setup('fungal'); step(1);
+  const g = [...fauna.groups()].find((q) => q.sp === 'boar') || fauna.spawnGroup('boar', 20, 20); const C = g.members[0].pos;
+  const nest = { sp: 'boar', n: 2, x: C.x + 3, z: C.z, y: 5 }; player.position.set(C.x + 6, 5, C.z); fauna.eggTaken(nest);
+  ok(nest.n === 1 && g.hostile === player, 'taking a boar egg makes the herd hostile');
 }
 console.log(fails ? `${fails} FAILED` : 'all fauna tests passed');
 process.exit(fails ? 1 : 0);

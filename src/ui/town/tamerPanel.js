@@ -3,7 +3,7 @@
 import { MONSTERS, ITEMS } from '../../shared/gamedata.js';
 import { TAMES, TAME_ORDER, tameRecipe } from '../../shared/tame.js';
 import { t } from '../../shared/i18n.js';
-import { esc, matsList, costLine, btn, empty, monShort } from './common.js';
+import { esc, matsList, costLine, btn, empty, monShort, itemName } from './common.js';
 import { glyph } from './icons.js';
 
 export const tameName = (sp) => t('tm.name', { m: monShort(sp) });
@@ -11,7 +11,8 @@ export function createTamerPanel(ctx) {
   let tab = 'build'; let sel = TAME_ORDER[0];
   const st = () => ctx.state();
   const recipe = (sp) => tameRecipe(sp, MONSTERS, ITEMS);
-  const ready = (sp, s) => { const r = recipe(sp); return matsList(r.parts, s.box).ok && matsList(r.extra, s.box).ok && s.coins >= r.coins; };
+  const hasLife = (r, s) => (s.box[r.life.egg] || 0) > 0 || (s.box[r.life.juv] || 0) > 0;
+  const ready = (sp, s) => { const r = recipe(sp); return hasLife(r, s) && matsList(r.parts, s.box).ok && matsList(r.extra, s.box).ok && s.coins >= r.coins; };
   const traits = (sp) => TAMES[sp].traits.map((k) => `<span class="tw-pill gold" title="${esc(t('tm.traitD.' + k))}">${esc(t('tm.trait.' + k))}</span>`).join('');
   function row(sp, s) {
     const own = s.tames?.[sp]; const eq = s.tameEquip === sp;
@@ -27,8 +28,9 @@ export function createTamerPanel(ctx) {
       <p class="tw-flavor">${T.traits.map((k) => esc(t('tm.traitD.' + k))).join(' ')}</p><p class="tw-dim">${esc(t('tm.note'))}</p>`;
     if (own) return `${head}<footer class="tw-qd-f">${eq ? btn(t('tm.unequip'), 'unequip', { cls: 'tw-ghost' }) : btn(t('tm.equip'), 'equip', { cls: 'tw-primary', dis: !!s.quests?.expedition, why: t('tm.busy') })}</footer>`;
     const mp = matsList(r.parts, s.box), me = matsList(r.extra, s.box), c = costLine(r.coins, s.coins);
-    const why = !mp.ok ? t('tm.missingParts') : !me.ok ? t('tm.missingExtra') : s.coins < r.coins ? t('tm.noCoins') : s.quests?.expedition ? t('tm.busy') : '';
-    return `${head}<section><h4>${t('tm.parts')}</h4>${mp.html}</section><section><h4>${t('tm.extra')}</h4>${me.html}</section>${c.html}
+    const lifeHtml = `<div class="tw-mats">${[r.life.egg, r.life.juv].map((k) => `<div class="tw-mat ${(s.box[k] || 0) > 0 ? 'ok' : 'no'}"><span>${esc(itemName(k))}</span><b>${s.box[k] || 0} / 1</b></div>`).join('')}</div>`;
+    const why = !hasLife(r, s) ? t('tm.missingLife') : !mp.ok ? t('tm.missingParts') : !me.ok ? t('tm.missingExtra') : s.coins < r.coins ? t('tm.noCoins') : s.quests?.expedition ? t('tm.busy') : '';
+    return `${head}<section><h4>${t('tm.life')}</h4>${lifeHtml}</section><section><h4>${t('tm.parts')}</h4>${mp.html}</section><section><h4>${t('tm.extra')}</h4>${me.html}</section>${c.html}
       <footer class="tw-qd-f">${btn(t('tm.build'), 'build', { cls: 'tw-primary', dis: !!why, why })}</footer>`;
   }
   function stable(s) {

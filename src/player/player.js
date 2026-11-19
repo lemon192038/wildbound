@@ -896,10 +896,13 @@ export function createRemoteHunter(game, id) {
   const view = new HunterView(game, { cloth: 0x2f7f95, plume: 0x3fb4cf, mantle: 0x34505e, suit: 0x3a4a58, trim: 0xd8d0c0 });
   const object3d = view.root;
   let last = null, lastS = null, localT = 0, phase = 0, amt = 0, px = null, pz = null;
-  let mount = null; const seat0 = new THREE.Vector3(), _mv = new THREE.Vector3(); // co-op: the construct another hunter is riding
+  let mount = null, mountLoading = null; const seat0 = new THREE.Vector3(), _mv = new THREE.Vector3(); // co-op: the construct another hunter is riding
   function rideRemote(sp, flying, dt, speed) {
-    if (!sp) { if (mount) { game.scene.remove(mount.root); mount.dispose(); mount = null; } return false; }
-    if (mount?.sp !== sp) { if (mount) { game.scene.remove(mount.root); mount.dispose(); } mount = createMountModel(sp); mount.root.userData.global = true; game.scene.add(mount.root); mount.root.position.set(0, 0, 0); mount.root.rotation.y = 0; mount.seatWorld(seat0); }
+    if (!sp) { mountLoading = null; if (mount) { game.scene.remove(mount.root); mount.dispose(); mount = null; } return false; }
+    if (mount?.sp !== sp) {
+      if (mountLoading !== sp) { mountLoading = sp; createMountModel(sp).then((m) => { if (mountLoading !== sp) { m.dispose(); return; } if (mount) { game.scene.remove(mount.root); mount.dispose(); } mount = m; m.root.userData.global = true; game.scene.add(m.root); m.root.position.set(0, 0, 0); m.root.rotation.y = 0; m.seatWorld(seat0); }).catch(() => {}); }
+      if (mount?.sp !== sp) return false; // still loading
+    }
     const yaw = object3d.rotation.y; _mv.copy(seat0).applyAxisAngle(_Y, yaw);
     mount.root.position.copy(object3d.position).add(new THREE.Vector3(0, 0.9, 0)).sub(_mv); mount.root.rotation.y = yaw; mount.update(dt, speed, { flying });
     return true;

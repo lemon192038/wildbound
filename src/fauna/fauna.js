@@ -21,6 +21,7 @@ import { ECO, ABUNDANCE } from '../shared/ecosystem.js';
 import { createPredatorAI } from './predators.js';
 import { createHerdAI } from './herds.js';
 import { createEarthAI } from './earthkin.js';
+import { createEcologyAI } from './ecology.js';
 import { isJa } from '../shared/i18n.js';
 import { SpatialHash } from '../shared/spatialHash.js';
 import { mulberry32 } from '../world/noise.js';
@@ -162,7 +163,7 @@ export function createFauna(game) {
     if (sp === 'golem') { c.ai = 'dormant'; c.patient = rnd() < 0.4; c.slamCd = c.throwCd = c.chargeCd = 0; c.rise = 0; c.arm = 0; c.calmT = 0; }
     if (sp === 'lizard' || sp === 'drake') { c.ai = sp === 'drake' ? 'patrol' : 'ambush'; c.fireCd = 0; c.chargeCd = 0; }
     if (sp === 'snake') { c.ai = 'lurk'; c.ballCd = 3; c.jaw = 0; c.segs = 16; c.spacing = 0.85 * c.scale; c.trail = []; const L = F.lava(x, z, Ls); c.pos.y = L.level - 0.15; for (let i = 0; i < c.segs * 2 + 2; i++) c.trail.push(new THREE.Vector3(x - Math.sin(c.yaw) * i * c.spacing * 0.5, L.level - 0.35, z - Math.cos(c.yaw) * i * c.spacing * 0.5)); }
-    if (sp === 'bird') { c.alt = S.altitude[0] + rnd() * (S.altitude[1] - S.altitude[0]); c.altT = c.alt; c.ai = 'soar'; c.orbit = { r: 25 + rnd() * 35, dir: rnd() < 0.5 ? 1 : -1, a: rnd() * TAU }; }
+    if (sp === 'bird') { c.alt = S.altitude[0] + rnd() * (S.altitude[1] - S.altitude[0]); c.altT = c.alt; c.ai = 'soar'; c.orbit = { r: 40 + rnd() * 70, dir: rnd() < 0.5 ? 1 : -1, a: rnd() * TAU }; } // wide soaring circles over the home ground
     Object.assign(c, opts.extra || {});
     c.homeAi = c.ai; c.mem = { hit: 0, kin: 0, nest: 0, young: 0, motion: {}, elem: {}, w: 0 }; c.wary = 0;
     attach(c); list.push(c); stats.spawned++;
@@ -454,6 +455,7 @@ export function createFauna(game) {
   const EARTH = createEarthAI({ game, W, rnd, setAi, steer: (...a) => steer(...a), nearestOf: (...a) => nearestOf(...a), nearestHunter, noiseOf, die, shoot: (...a) => shoot(...a), ground, wrapA, pickSpot, okSpot: (...a) => okSpot(...a) });
   const countNear = (c, r, f) => { hash.query(c.pos.x, c.pos.z, r, _q); let n = 0; for (const o of _q) if (o !== c && f(o) && o.pos.distanceTo(c.pos) < r) n++; return n; };
   const PRED = createPredatorAI({ countNear, game, W, F, rnd, setAi, steer: (...a) => steer(...a), nearestOf: (...a) => nearestOf(...a), nearestHunter, noiseOf, die, shoot, ground, wrapA, pickSpot });
+  const ECOAI = createEcologyAI({ game, F, W, rnd, setAi, steer: (...a) => steer(...a), nearestOf: (...a) => nearestOf(...a), nearestHunter, ground });
   function steer(c, tx, tz, speed, dt, turn = 3) {
     if (c.breakMask & BREAK_BIT.legs) speed *= 0.45; // crippled leg
     const dx = tx - c.pos.x, dz = tz - c.pos.z, d = Math.hypot(dx, dz); if (d < 0.2) { c.move = 0; return d; }
@@ -598,7 +600,7 @@ export function createFauna(game) {
   let clock = 0; const sighted = new Set();
   function update(dt, rawDt) {
     if (dt <= 0) return; clock += dt; frame++; eruptT = Math.max(0, eruptT - dt);
-    eco?.update(dt, game.player?.position); ecoPropsTick(dt);
+    eco?.update(dt, game.player?.position); ecoPropsTick(dt); ECOAI.tick(dt);
     gatherHunters(); rebuildColliders();
     // spawn / despawn around hunters (twice a second)
     spawnT -= dt;
@@ -637,6 +639,7 @@ export function createFauna(game) {
       else if (learnedDodge(c, d)) { /* side-step started */ }
       else if (c.ai === 'wary') thinkWary(c, sdt);
       else if (wantWary(c, d)) setAi(c, 'wary');
+      else if (ECOAI.react(c, sdt)) { /* ecology: dragons overhead, juveniles, guarding, basking (ecology.js) */ }
       else if (c.sp === 'beetle') thinkBeetle(c, sdt); else if (c.sp === 'slime') thinkSlime(c, sdt); else if (c.sp === 'bird') thinkBird(c, sdt);
       else if (c.sp === 'boar') HERD.thinkBoar(c, sdt); else if (c.sp === 'wolf') HERD.thinkWolf(c, sdt);
       else if (c.sp === 'mole') EARTH.thinkMole(c, sdt); else if (c.sp === 'golem') EARTH.thinkGolem(c, sdt);
@@ -670,6 +673,8 @@ export function createFauna(game) {
   return {
     update, near, list, census, stats, render, engaged, eco, props, groups: () => HERD.groups, spawnGroup, eggTaken,
     spawnOne: (sp, x, z, stage = 2, opts = {}) => create(sp, x, z, stage, opts), // tests / scripted scenes
+    kill: (c, by) => { if (c && !c.dead && !c.isBrood) die(c, 'predation', by); }, // a dragon / big predator took it (src/field/dragonLife.js)
+    ecology: ECOAI,
     debug: () => { const by = { beetle: 0, slime: 0, bird: 0, lizard: 0, snake: 0, boar: 0, wolf: 0, mole: 0, golem: 0, drake: 0 }; const ai = {}; for (const c of list) if (!c.dead) { by[c.sp]++; ai[c.sp + ':' + c.ai] = (ai[c.sp + ':' + c.ai] || 0) + 1; } return { live: by, ai, groups: [...HERD.groups].map((g) => `${g.sp}#${g.id}:${g.state}(${HERD.alive(g).length})`), tiles: spawned.size, census: census.size, ...stats, shots: shots.length, eco: eco?.info(), wary: list.filter((c) => !c.dead && c.wary > 0).length }; },
   };
 }

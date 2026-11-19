@@ -54,7 +54,7 @@ export function createEarthAI(ctx) {
       const larva = nearestOf(c, 6, (o) => o.sp === 'beetle' && !o.dead && o.ai === 'burrowed');
       if (larva && rnd() < dt * 0.3) { ctx.die(larva, 'predation', c); setAi(c, 'feed'); c.dur = 6; return; }
       if (c.ai === 'feed') { c.move = 0; if (c.t > c.dur) setAi(c, 'roam'); return; }
-      if (!c.target || c.t > 25) { c.t = 0; const s = pickSpot(c.home.x, c.home.z, 4, 35, 'mole'); c.target = s || [c.home.x, c.home.z]; }
+      if (!c.target || c.t > 25) { c.t = 0; const s = pickSpot(c.home.x, c.home.z, 4, 55, 'mole'); c.target = s || [c.home.x, c.home.z]; }
       dig(c, c.target[0], c.target[1], S.digSpeed * 0.35, dt);
       return;
     }

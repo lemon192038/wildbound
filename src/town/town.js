@@ -190,9 +190,12 @@ export async function createTown(game) {
 
   // ---- Monster Workshop: a construct on show by Beastwright Jorun (the hunter's equipped one, else a sample) ----
   let showcase = null; const showAt = SPOTS.tamer.pen;
-  function setShowcase(sp) {
-    if (showcase?.sp === sp) return; if (showcase) { scene.remove(showcase.root); showcase.dispose(); }
-    showcase = createMountModel(sp); showcase.root.position.set(showAt[0], L.getHeight(showAt[0], showAt[1]), showAt[1]); showcase.root.rotation.y = -Math.PI * 0.6; add(showcase.root);
+  let showWant = null;
+  async function setShowcase(sp) {
+    if (showWant === sp) return; showWant = sp;
+    const m = await createMountModel(sp).catch(() => null); if (!m || showWant !== sp) { m?.dispose(); return; }
+    if (showcase) { scene.remove(showcase.root); showcase.dispose(); }
+    showcase = m; showcase.root.position.set(showAt[0], L.getHeight(showAt[0], showAt[1]), showAt[1]); showcase.root.rotation.y = -Math.PI * 0.6; add(showcase.root);
   }
   setShowcase('boar');
   game.events?.on?.('account:state', ({ state: st }) => setShowcase(st?.tameEquip && st.tames?.[st.tameEquip] ? st.tameEquip : 'boar'));

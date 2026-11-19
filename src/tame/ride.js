@@ -30,15 +30,26 @@ export function createRide(game) {
 
   // the server's choice when signed in; ?tame=<sp> only for offline / headless play (no account, nothing is earned there)
   function equipped() { const s = game.account?.state; if (s) return s.tameEquip && s.tames?.[s.tameEquip] ? s.tameEquip : null; return TAMES[game.tameOverride] ? game.tameOverride : null; }
+  // the real monster model loads asynchronously (the dragons come from a GLB): it is preloaded as soon as the equipped
+  // construct is known; a RIDE press before it is ready summons it the moment it arrives
+  let loading = null, pendingSummon = false;
   function ensureModel() {
-    const want = equipped(); if (want !== sp) { if (model) { scene.remove(model.root); model.dispose(); } model = null; sp = want; T = sp ? TAMES[sp] : null; summoned = false; active = false; }
-    if (sp && !model) { model = createMountModel(sp); model.root.visible = false; model.root.userData.global = true; scene.add(model.root); }
+    const want = equipped(); if (want !== sp) { if (model) { scene.remove(model.root); model.dispose(); } model = null; loading = null; sp = want; T = sp ? TAMES[sp] : null; summoned = false; active = false; }
+    if (sp && !model && !loading) {
+      const want2 = sp;
+      loading = createMountModel(sp).then((m) => {
+        loading = null; if (sp !== want2) { m.dispose(); return; }
+        model = m; model.root.visible = false; model.root.userData.global = true; scene.add(model.root);
+        if (pendingSummon) { pendingSummon = false; if (game.player && !game.player.dead) summon(game.player); }
+      }).catch((e) => { loading = null; pendingSummon = false; console.error('[wildbound] construct model failed', e); });
+    }
     return !!model;
   }
   const lavaSurface = (x, z) => W().lavaSurfaceAt?.(x, z) ?? null;
   function groundAt(x, z) { const g = W().getHeight(x, z); if (has('lavaSwim')) { const l = lavaSurface(x, z); if (l != null && l > g) return l; } return g; }
   function summon(P) {
-    if (!ensureModel()) { toast(t('f.noTame')); return false; }
+    if (!equipped()) { toast(t('f.noTame')); return false; }
+    if (!ensureModel()) { pendingSummon = true; return false; }
     _f.set(Math.sin(P.facing + Math.PI / 2), 0, Math.cos(P.facing + Math.PI / 2));
     let x = P.position.x + _f.x * 2.8, z = P.position.z + _f.z * 2.8;
     if ((W().lavaAt?.(x, z) && !has('lavaSwim')) || (W().canWalk && !W().canWalk(x, z))) { x = P.position.x; z = P.position.z; }
@@ -118,7 +129,7 @@ export function createRide(game) {
   }
   // a construct that is out but not ridden just stands; far behind → it trots after you, too far → it is recalled
   function update(dt) {
-    if (!model) return; const P = game.player;
+    if (!model) { if (equipped()) ensureModel(); return; } const P = game.player;
     if (!active && summoned && P) {
       const d = Math.hypot(P.position.x - pos.x, P.position.z - pos.z);
       if (d > 120) { summoned = false; model.root.visible = false; return; }
@@ -128,9 +139,9 @@ export function createRide(game) {
   }
   const pose = seatPose;
   const immune = (kind) => active && ((kind === 'burn' && (has('heatproof') || has('lavaSwim'))) || (kind === 'poison' && has('poisonproof')));
-  function reset() { if (model) { scene.remove(model.root); model.dispose(); } model = null; sp = null; T = null; summoned = false; active = false; }
+  function reset() { if (model) { scene.remove(model.root); model.dispose(); } model = null; loading = null; sp = null; T = null; summoned = false; active = false; }
   return {
-    toggle, summon, mount, dismount, drive, update, pose, immune, reset,
+    toggle, summon, mount, dismount, drive, update, pose, immune, reset, whenReady: () => { ensureModel(); return loading || Promise.resolve(); },
     get active() { return active; }, get summoned() { return summoned; }, get sp() { return sp; }, get flying() { return flying; }, get sturdy() { return has('sturdy'); },
     get scale() { return T?.s || 1; }, get position() { return pos; }, get model() { return model; }, has, stats, equipped,
   };

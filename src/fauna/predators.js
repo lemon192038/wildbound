@@ -122,7 +122,8 @@ export function createPredatorAI(ctx) {
     c.cd -= dt; c.ballCd -= dt; c.hunger = Math.min(1, c.hunger + dt / 90); // chronically hungry
     const hunterByLava = h && lavaInfo(h.pos.x, h.pos.z).sd < 9;
     if (c.ai === 'dive') { // 溶岩潜航: fast underwater, untouchable, resurfaces elsewhere (behind the hunter if fighting)
-      if (!c.target) c.target = (h && hunterByLava && c.hp > c.maxHp * S.fleeHp ? pickLavaSpot(c, 8, 16) : pickLavaSpot(c, 20, 40)) || [c.pos.x, c.pos.z];
+      if (!c.target) c.target = (h && hunterByLava && c.hp > c.maxHp * S.fleeHp ? pickLavaSpot(c, 8, 16) : pickLavaSpot(c, 20, 40) || pickLavaSpot(c, 6, 20)) || 'hold';
+      if (c.target === 'hold') { c.pos.y = surfaceY(c, 2.2); c.move = 0; c.mode = 0; if (c.t > 3) setAi(c, 'lurk'); return; } // a narrow channel: stay under the crust where it is
       const d = swim(c, c.target[0], c.target[1], S.lavaSpeed * 1.2, dt); c.pos.y = surfaceY(c, 2.2); c.mode = 0;
       if (d < 1 || c.t > 6) setAi(c, c.hp < c.maxHp * S.fleeHp && c.t < 25 ? 'hideDeep' : 'lurk');
       return;

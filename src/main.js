@@ -198,6 +198,12 @@ async function bootIsland({ quest = false } = {}) {
   const carving = createCarving(game, { expedition }); game.carving = carving; game.addUpdater((dt, rawDt) => carving.update(rawDt));
   const { createIslandGather } = await import('./field/islandGather.js');
   const igather = createIslandGather(game, { expedition }); game.islandGather = igather; game.addUpdater((dt, rawDt) => igather.update(rawDt));
+  // nests and juveniles of the big monsters + taking eggs (src/field/broods.js, eggs.js; constructs need an egg or a juvenile)
+  const [{ createBroods }, { createEggs }] = await Promise.all([import('./field/broods.js'), import('./field/eggs.js')]);
+  game.broods = createBroods(game, bosses.homes); game.addUpdater((dt) => game.broods.update(dt));
+  const { createDragonLife } = await import('./field/dragonLife.js');
+  game.dragonLife = createDragonLife(game, bosses.homes, bosses.isActive); game.addUpdater((dt) => game.dragonLife.update(dt));
+  game.eggs = createEggs(game, { expedition });
   if (game.campAt) { const { buildCamp } = await import('./field/campProps.js'); buildCamp(game, game.campAt); }
   const toTown = () => { const u = new URL(location.href); const k = new URLSearchParams(); for (const n of ['low', 'hq', 'touch', 'lang']) if (u.searchParams.has(n)) k.set(n, u.searchParams.get(n)); k.set('mode', 'town'); location.href = `${u.pathname}?${k}`; };
   if (!questCtx) game.questRuntime = { label: t('island.return'), confirm: t('island.returnQ'), abandon: async () => {

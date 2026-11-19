@@ -44,7 +44,7 @@ export const SPECIES = {
     senses: { sight: 16, hearing: 18, smell: 8 },                        // heat / vibration ambush sensing
     regions: { canyon: 0.6, core: 0.35, peaks: 0.3, ashplain: 0.25, geotherm: 0.35, crystal: 0.2 },
     eats: ['beetle', 'slime_small', 'bird_ground', 'beetle_larva'], fears: ['snake', 'wolf', 'boss'], rivals: ['bird', 'snake'],
-    territory: 28, giveUp: 22,                                           // poor long-distance chaser: gives up quickly
+    territory: 42, giveUp: 22,                                           // (range widened with the larger island population)                                           // poor long-distance chaser: gives up quickly
     attacks: { bite: { damage: 18, status: ['burn', 'small'] }, tail: { damage: 14, knockback: 7 }, charge: { damage: 22, knockback: 10 }, fire: { damage: 16, status: ['burn', 'medium'], speed: 18, cooldown: 9, range: [5, 14] } },
     fleeHp: 0.3,
     drops: ['fl_scale', 'fl_fang', 'fl_spine', 'fl_gland'],
@@ -86,7 +86,7 @@ export const SPECIES = {
     regions: { fungal: 0.06, peaks: 0.04, coast: 0.02, ashplain: 0.03, ruins: 0.05 },       // packs per tile (island ≈ 4–6 packs)
     eats: ['lizard', 'beetle', 'slime_small', 'boar_juvenile', 'bird_ground', 'carcass'], fears: ['boss', 'snake_lava', 'dragon'], rivals: ['varkhul', 'lizard'],
     attacks: { bite: { damage: 14, knockback: 4, creature: 160 }, lunge: { damage: 20, knockback: 7, creature: 220 } },
-    territory: 140,
+    territory: 240,                                                                     // packs range far (wider with more prey)
     drops: ['mw_fang', 'mw_pelt', 'mw_core'],
   },
   leader: { // the pack's strong individual — a Magma Wolf, not a separate species (stats assumed)
@@ -132,7 +132,7 @@ export const SPECIES = {
     senses: { sight: 24, hearing: 22, smell: 30 },
     regions: { core: 0.08, ashplain: 0.06, geotherm: 0.06, canyon: 0.05 },
     eats: ['bird_ground', 'beetle', 'slime', 'lizard_juvenile', 'carcass'], fears: ['wolf_pack', 'tusk', 'dragon', 'gorvath'], rivals: [],
-    roams: true, scavenger: true, territory: 40, giveUp: 26,
+    roams: true, scavenger: true, territory: 75, giveUp: 26,
     attacks: { bite: { damage: 24, status: ['burn', 'small'] }, tail: { damage: 20, knockback: 9 }, charge: { damage: 30, knockback: 12 }, fire: { damage: 22, status: ['burn', 'large'], speed: 16, cooldown: 10, range: [5, 13] } },
     fleeHp: 0.3,
     drops: ['jp_scale', 'jp_claw', 'jp_wing'],

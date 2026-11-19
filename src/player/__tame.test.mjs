@@ -32,11 +32,11 @@ try {
     g.world.lavaAt = (x) => x > 8 && x < 14; g.world.lavaSurfaceAt = (x, z) => (g.world.lavaAt(x, z) ? 0 : null); g.world.colliders = [];
     const ride = createRide(g); g.tame = ride; P.ride = ride;
     const tick = (sec, inp = {}) => step(sec, (i) => { ride.update(1 / 60); return typeof inp === 'function' ? inp(i) : inp; });
-    const use = (sp) => { if (ride.active) ride.dismount(P); g.tameOverride = sp; P.position.set(0, 0, 0); P.facing = Math.PI / 2; P.setState('idle'); P.hp = P.maxHp; g.status.clear(); tick(0.2); };
+    const use = async (sp) => { if (ride.active) ride.dismount(P); g.tameOverride = sp; P.position.set(0, 0, 0); P.facing = Math.PI / 2; P.setState('idle'); P.hp = P.maxHp; g.status.clear(); tick(0.2); await ride.whenReady(); }; // the real model loads asynchronously
     const press = (i) => (i === 0 ? { summon: true } : {});
 
     // --- the button cycle: summon → mount → dismount on the spot
-    use('wolf');
+    await use('wolf');
     tick(0.1, press); const s1 = ride.summoned && !ride.active && ride.model?.root.visible;
     tick(0.1, press); const s2 = ride.active;
     const pMount = P.position.clone();
@@ -52,22 +52,22 @@ try {
     // --- lava: blocked for an ordinary construct, crossed by the artificial Lava Snake
     tick(0.1, press); P.position.set(2, 0, 0); ride.mount(P); tick(3, { worldMove: new g.THREE.Vector3(1, 0, 0) });
     check('an ordinary construct stops at the lava edge', ride.position.x < 8.2 && ride.stats.lavaBlocked > 0, { x: +ride.position.x.toFixed(2) });
-    use('snake'); tick(0.1, press); tick(0.1, press); P.position.set(2, 0, 0); ride.mount(P);
+    await use('snake'); tick(0.1, press); tick(0.1, press); P.position.set(2, 0, 0); ride.mount(P);
     let inLava = 0, safe = true; tick(2.5, (i) => { if (g.world.lavaAt(ride.position.x)) { inLava++; if (!P.lavaSafe) safe = false; } return { worldMove: new g.THREE.Vector3(1, 0, 0) }; });
     check('人造ラヴァスネーク swims across the lava', ride.position.x > 14 && inLava > 10, { x: +ride.position.x.toFixed(1), frames: inLava });
     check('…and its rider is lava-safe and cannot be burned', safe && g.status.apply('burn', 'large') === false && !g.status.has?.('burn'), {});
     // --- flight: the artificial Flame Dragon
-    use('flame'); tick(0.1, press); tick(0.1, press); const gy = ride.position.y;
+    await use('flame'); tick(0.1, press); tick(0.1, press); const gy = ride.position.y;
     tick(2, (i) => (i % 15 === 0 ? { jump: true } : {})); const alt = ride.position.y - gy;
     check('人造火焔龍 flies (jump climbs)', ride.flying && alt > 8, { alt: +alt.toFixed(1) });
     tick(0.6, { worldMove: new g.THREE.Vector3(1, 0, 0) }); check('…and flies over lava', ride.position.x > 0 && ride.flying, { x: +ride.position.x.toFixed(1) });
     tick(4, (i) => (i % 10 === 0 ? { dodge: true } : {})); check('dodge descends until it lands', !ride.flying && ride.position.y < 0.05, { y: +ride.position.y.toFixed(2) });
     check('a fire-dragon rider cannot be burned (heatproof)', g.status.apply('burn', 'small') === false);
     // --- unseen: the artificial Stone Mole; camo: the artificial Boulder Golem only while still
-    use('mole'); tick(0.1, press); tick(0.1, press); tick(0.3);
+    await use('mole'); tick(0.1, press); tick(0.1, press); tick(0.3);
     check('人造ストーンモール: its rider is never targeted (P.unseen)', P.unseen === true);
     ride.dismount(P); check('…and is seen again on foot', P.unseen === false);
-    use('golem'); tick(0.1, press); tick(0.1, press); tick(0.3, { worldMove: new g.THREE.Vector3(0, 0, 1) }); const moving = P.unseen; tick(2.5);
+    await use('golem'); tick(0.1, press); tick(0.1, press); tick(0.3, { worldMove: new g.THREE.Vector3(0, 0, 1) }); const moving = P.unseen; tick(2.5);
     check('golem construct: hidden only when standing still (rock mimicry)', moving === false && P.unseen === true, { moving, active: ride.active, sp: ride.sp, st: P.state, sum: ride.summoned });
     // perception: an unseen hunter is not a candidate
     const { createPerception } = await import('/src/core/perception.js');
@@ -77,21 +77,21 @@ try {
     ride.dismount(P); const perc2 = createPerception(g, { position: P.position.clone().add(new g.THREE.Vector3(0, 0, 3)), yaw: Math.PI }); let seen2 = false; for (let i = 0; i < 120; i++) { perc2.update(1 / 20, [P]); if (perc2.state === 'AGGRESSIVE' || perc2.alert > 0.3) seen2 = true; }
     check('control: the same hunter on foot is noticed', seen2, { state: perc2.state, alert: +perc2.alert.toFixed(2) });
     // --- poison: venom dragon construct
-    use('venom'); tick(0.1, press); tick(0.1, press); check('venom-fang construct: rider cannot be poisoned', g.status.apply('poison', 'deadly') === false);
+    await use('venom'); tick(0.1, press); tick(0.1, press); check('venom-fang construct: rider cannot be poisoned', g.status.apply('poison', 'deadly') === false);
     ride.dismount(P); check('…on foot poison applies again', g.status.apply('poison', 'normal') !== false); g.status.clear();
     // --- hits: thrown off (not sturdy) vs sturdy
-    use('wolf'); tick(0.1, press); tick(0.1, press); P.receiveHit({ damage: 10, knockback: 3, from: P.position.clone().add(new g.THREE.Vector3(1, 0, 0)), kind: 'physical' });
+    await use('wolf'); tick(0.1, press); tick(0.1, press); P.receiveHit({ damage: 10, knockback: 3, from: P.position.clone().add(new g.THREE.Vector3(1, 0, 0)), kind: 'physical' });
     check('a hit throws the rider off an ordinary construct', !ride.active && ride.stats.thrown >= 1);
-    tick(1.5); use('tusk'); tick(0.1, press); tick(0.1, press); P.receiveHit({ damage: 10, knockback: 3, from: P.position.clone().add(new g.THREE.Vector3(1, 0, 0)), kind: 'physical' });
+    tick(1.5); await use('tusk'); tick(0.1, press); tick(0.1, press); P.receiveHit({ damage: 10, knockback: 3, from: P.position.clone().add(new g.THREE.Vector3(1, 0, 0)), kind: 'physical' });
     check('a sturdy construct (Crystal Tusk) keeps its rider on', ride.active);
     // --- bounce
-    use('slime'); tick(0.1, press); tick(0.1, press); let top = 0; tick(1.2, (i) => { top = Math.max(top, ride.position.y); return i === 0 ? { jump: true } : {}; });
+    await use('slime'); tick(0.1, press); tick(0.1, press); let top = 0; tick(1.2, (i) => { top = Math.max(top, ride.position.y); return i === 0 ? { jump: true } : {}; });
     check('slime construct: great leap', top > 4, { top: +top.toFixed(1) });
     ride.dismount(P);
     // --- every species builds a model with a saddle
     const { createMountModel } = await import('/src/tame/mountModel.js'); let built = 0;
-    for (const sp of Object.keys(TAMES)) { const m = createMountModel(sp); const s = m.seatWorld(new g.THREE.Vector3()); if (s.y > 0.8 && s.y < 5) built++; m.dispose(); }
-    check(`all ${Object.keys(TAMES).length} constructs build a saddled model`, built === Object.keys(TAMES).length, { built });
+    const seats = {}; for (const sp of Object.keys(TAMES)) { const m = await createMountModel(sp); const s = m.seatWorld(new g.THREE.Vector3()); seats[sp] = +s.y.toFixed(2); if (s.y > 0.5 && s.y < 9 && m.model.parts.length) built++; m.dispose(); }
+    check(`all ${Object.keys(TAMES).length} constructs use the real monster model with a saddle on its back`, built === Object.keys(TAMES).length, { built, seats });
     // --- input bindings
     const inp = g.input; inp.pressed.add('KeyT'); const sk = inp.poll(); check('keyboard T = RIDE', !!sk.summon);
     const btn = [...(inp.touch?.root?.querySelectorAll('.tc-btn') || [])].find((b) => b.dataset.act === 'summon');

@@ -16,7 +16,7 @@ import { createPerception } from '../core/perception.js';
 import { senseProfile } from '../shared/senses.js';
 import { makePart, resolvePartHit, tickRegen, disabled } from '../core/parts.js';
 
-const S0 = 16; // source mesh units → metres (wingspan ≈ 16 m at scale 1)
+export const S0 = 16; // source mesh units → metres (wingspan ≈ 16 m at scale 1)
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -35,11 +35,11 @@ const STATE_CODES = ['idle', 'roam', 'chase', 'attack', 'flinch', 'topple', 'dea
 const HOVER0 = 6.2, LANDED0 = 3.55, HIGH0 = 13;
 // The mesh is loaded once and cloned per individual (shared geometry + textures, own skeleton + materials).
 let gltfPromise = null;
-const loadWyvernGLB = () => (gltfPromise ||= new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}models/wyvern.glb`));
+export const loadWyvernGLB = () => (gltfPromise ||= new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}models/wyvern.glb`));
 // Variants of the same dragon species (design document): Cindral is the special male of the Flame Dragon (火焔龍 ♂);
 // regular Flame Dragons fight in the air with fire; Venom-fang Dragons (毒牙龍 ♀) can fly but prefer the ground
 // and poison; Cindaryl (猛毒姫) is the special female — nearly every attack is venomous.
-const VARIANTS = {
+export const VARIANTS = {
   cindral: { palette: 'fire', ground: false, tint: null },
   flame: { palette: 'fire', ground: false, tint: { color: [0.85, 0.78, 0.74], emissive: [1, 0.5, 0.15], ei: 0.12 }, mapStatus: (s) => (s && s[0] === 'poison' ? ['burn', 'large'] : s) },
   venom: { palette: 'venom', ground: true, tint: { color: [0.55, 0.72, 0.5], emissive: [0.45, 1, 0.3], ei: 0.15 }, mapStatus: (s) => (s ? ['poison', 'normal'] : s) },
@@ -461,8 +461,17 @@ export async function createWyvern(game, opts = {}) {
         if (perc.noticed || (dbgAttack && hs.length)) { m.aggro = true; pickTarget(); perc.engage(m.target); launch('roar'); }
         else if (!m.action) {
           // unaware: drift back over the home ground, otherwise slowly scan the field
+          // island ecology (src/field/dragonLife.js) may steer an unaware dragon: sky patrols, hunting creatures, roosting
+          const Wd = m.wander;
+          if (Wd) {
+            const hv = new THREE.Vector3(Wd.pos.x - m.position.x, 0, Wd.pos.z - m.position.z); const hd = hv.length();
+            faceTarget(dt, Wd.turn || 0.9, Wd.pos); const want = hd > 1 ? Math.min(Wd.speed, hd * 0.9 + 0.5) : 0; vel.lerp(new THREE.Vector3(Math.sin(m.yaw), 0, Math.cos(m.yaw)).multiplyScalar(want), Math.min(1, dt * 1.1)); m.position.addScaledVector(vel, dt);
+            const wantAlt = Wd.alt ?? HIGH; m.alt = lerp(m.alt, wantAlt, Math.min(1, dt * (Wd.dive ? 1.6 : 0.5))); flapAmp = lerp(flapAmp, m.alt < LANDED + 0.8 ? 0.08 : Wd.dive ? 0.25 : 0.55, dt * 2); flapRate = lerp(flapRate, Wd.dive ? 0.6 : 1.1, dt * 2);
+            pitch = lerp(pitch, Wd.dive ? 0.3 : clamp(vel.length() * 0.02, 0, 0.18), dt * 2); m.state = 'roam';
+          }
           const hv = new THREE.Vector3(spawn.x - m.position.x, 0, spawn.z - m.position.z); const hd = hv.length();
-          if (hd > 6) { faceTarget(dt, 1.0, spawn); vel.lerp(hv.normalize().multiplyScalar(Math.min(6, hd)), Math.min(1, dt * 1.2)); m.position.addScaledVector(vel, dt); m.state = 'roam'; }
+          if (Wd) { /* steered above */ }
+          else if (hd > 6) { faceTarget(dt, 1.0, spawn); vel.lerp(hv.normalize().multiplyScalar(Math.min(6, hd)), Math.min(1, dt * 1.2)); m.position.addScaledVector(vel, dt); m.state = 'roam'; }
           else { vel.multiplyScalar(Math.max(0, 1 - dt * 2)); m.yaw += dt * 0.15; }
         }
       }
