@@ -4,7 +4,7 @@ import { ITEMS } from '../../shared/gamedata.js';
 
 export const RARITY = ['#bdb6a6', '#bdb6a6', '#8ed08a', '#6cb2f0', '#b38cf5', '#f2c94c', '#ff9450', '#ff5c7a'];
 export const rarityColor = (r) => RARITY[Math.max(1, Math.min(7, r | 0))];
-export const ELEMENT = { fire: '#ff7a3d', water: '#4fb3ff', thunder: '#ffd84a', ice: '#a6ecff', dragon: '#c86bff', blast: '#ffb347' };
+export const ELEMENT = { fire: '#ff7a3d', water: '#4fb3ff', thunder: '#ffd84a', ice: '#a6ecff', dragon: '#c86bff', blast: '#ffb347', poison: '#9be45a' };
 
 const HUE = { green: '#4fc27a', gold: '#e8b84a', violet: '#a374f0', blue: '#4aa8f0', white: '#e4ecef', teal: '#3cc7b8', red: '#e2553f', grey: '#9aa0a8',
   yellow: '#f2d24a', purple: '#9b6be0', dark: '#4d4652', orange: '#f08a3a', navy: '#41608f' };

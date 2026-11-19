@@ -177,6 +177,22 @@ await act(A, 'failQuest', { iid: r.result.iid }); await act(A, 'abandonQuest');
   ok((await act(B, 'returnIsland', { iid: iiid })).error === 'no_expedition' && (await act(B, 'islandCarve', { iid: iiid, cid: 's1.99:b0', src: 'beetle' })).error === 'no_expedition', 'nothing can be claimed after returning');
 }
 
+// ---- island gear (stage 5b): forged from island materials, upgraded, compared through the shared stats
+{
+  ok((await act(B, 'craftWeapon', { def: 'venomFangSword' })).error === 'missing', 'island weapon needs island materials');
+  await give(bId, { vd_scale: 4, vd_fang: 1, vd_venom_sac: 1, vd_shell: 3, vd_tail: 1 });
+  await store.mutateSave(bId, (d) => { d.coins += 20000; });
+  let r = await act(B, 'craftWeapon', { def: 'venomFangSword' }); const vuid = r.result?.uid;
+  ok(r.ok && r.state.equip.some((e) => e.uid === vuid && e.def === 'venomFangSword') && !r.state.box.vd_venom_sac, 'forge the Venom-fang Greatsword (materials consumed)');
+  r = await act(B, 'upgrade', { uid: vuid });
+  ok(r.ok && r.state.equip.find((e) => e.uid === vuid).lvl === 1 && !r.state.box.vd_shell, 'upgrade it with Venom-fang shells + tail');
+  r = await act(B, 'equip', { slot: 'weapon', uid: vuid });
+  ok(r.ok && r.state.stats.element?.type === 'poison' && r.state.stats.element.value === 440, `equipped: poison element ${r.state.stats.element?.value}`);
+  await give(bId, { cb_hide: 4, cb_crystal: 3 }); // chest pieces cost ×1.25: 4 hides + 3 crystals
+  r = await act(B, 'craftArmor', { def: 'crystalboar_chest' });
+  ok(r.ok && r.state.equip.some((e) => e.def === 'crystalboar_chest'), 'forge a Crystal Boar chest piece');
+}
+
 // ---- persistence across login
 const stA = (await call('/api/state', null, A)).state;
 ok((await call('/api/logout', {}, A)).ok && (await call('/api/state', null, A)).status === 401, 'logout invalidates the session');

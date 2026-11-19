@@ -1,4 +1,5 @@
 import { ISLAND_ITEMS } from './islandLoot.js';
+import { ISLAND_WEAPONS, ISLAND_ARMOR_SETS } from './islandGear.js';
 // 日本語パック。キーは i18n-en.js と同じ。ゲームデータは gamedata.js の id をキーにした表（名前・説明）。
 // 表記方針: 落ち着いた和風ファンタジーの文体。UI ラベルは簡潔に、NPC の台詞は人物ごとの口調で。
 // 防具名は「シリーズ名＋部位」（例: エンバーハイドヘルム）。数値の桁区切りはそのまま、単位は「コイン」「秒」「分」。
@@ -257,13 +258,14 @@ export default {
     gv_core: ['臨界核', '決して冷めることのない、白熱した燼の心核。'],
   },
   weapons: {
+    ...Object.fromEntries(Object.entries(ISLAND_WEAPONS).map(([k, v]) => [k, [v.ja, v.jaEffect]])),
     marrowcleaver: ['髄断ち', '骨と鉄で打たれた、頼れる大剣。'],
     emberhideBlade: ['燼皮の大剣', '振るうたびに刃が鈍い赤に灯る。'],
     tideglassBlade: ['潮玻璃の大剣', '水属性。触れた燼の塊を冷やして鎮める。'],
     ashwingRender: ['燼翼の裂刃', '爆破属性。峰に不安定な爆岩腺が詰められている。'],
     cinderfistCrusher: ['燼拳の砕剣', '臨界の一撃: 白熱した部位への攻撃ダメージが15%上がる。'],
   },
-  armorSets: { leather: 'ハンター', iron: 'アイアン', emberhide: 'エンバーハイド', ashwing: 'アッシュウィング', cinderfist: 'シンダーフィスト' },
+  armorSets: { ...Object.fromEntries(Object.entries(ISLAND_ARMOR_SETS).map(([k, v]) => [k, v.ja])), leather: 'ハンター', iron: 'アイアン', emberhide: 'エンバーハイド', ashwing: 'アッシュウィング', cinderfist: 'シンダーフィスト' },
   slots: { head: 'ヘルム', chest: 'メイル', arms: 'アーム', waist: 'コイル', legs: 'グリーヴ' },
   slotLabel: { weapon: '武器', head: '頭', chest: '胴', arms: '腕', waist: '腰', legs: '脚' },
   skills: {
@@ -298,7 +300,7 @@ export default {
     brute: { full: '燼拳のゴルヴァス', short: 'ゴルヴァス', title: '燼拳' },
   },
   parts: { head: '頭部', forelegs: '前脚', back: '背中', tail: '尾', body: '胴体', wings: '翼', legs: '脚', fistL: '左拳', fistR: '右拳', shell: '外殻', crystal: '結晶', claw: '爪', core: 'コア', arm: '腕', mound: '地表' },
-  elements: { fire: '火', water: '水', thunder: '雷', ice: '氷', dragon: '龍', blast: '爆破' },
+  elements: { fire: '火', water: '水', thunder: '雷', ice: '氷', dragon: '龍', blast: '爆破', poison: '毒' },
   dests: {
     island: ['火山島', '霊峰カルドリスを中心とする火山島の全域。', '残り火の海'],
     ember_foothills: ['燼落の裾野', '霊峰カルドリスの開けた裾野。黒い溶岩原と噴気孔、古い玄武岩の尾根が燻る山頂の下に広がる。燼皮のヴァルクルが縄張りとする地。', '燼の大地シンダーリーチ'],

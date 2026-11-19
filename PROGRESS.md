@@ -142,7 +142,9 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
 | Simultaneous carving by several players | 🟡 | the server handles concurrent requests per user (5 parallel → 1 grant). Fauna are not shared between co-op clients yet, so each hunter carves their own copy (stage 8) |
 | The kill itself is not server-verified | 🟡 | the island is not server-simulated yet (stage 8); rate limits and caps bound abuse |
 | Potions used on the island are not deducted (carried items return in full) | 🟡 | stage 5b (potions / item use) |
-| Forge recipes using the island materials, armour slots, weapon categories, enchanting | ⬜ | stage 5b |
+| Island gear: 8 great swords (Carapace, Pack Fang, Crystal Tusk Cleaver, Obsidian Fang [fire], Golem Slab [heavy], Flame Dragon [strong fire], Venom-fang [poison], Venom Empress's Blade [very strong poison, durable edge]) and 8 armour sets × 5 slots (head / chest / arms / waist / legs) forged and upgraded from island materials; skills reuse the existing working skills (antivenom, heatward, steadfast…) | ✅ | `src/shared/islandGear.js`; the forge lists them with stats, comparison vs. equipped, owned/required materials |
+| New element: poison (weapons, UI colour and names) | ✅ | poison *build-up* on monsters is part of the status-effect stage |
+| Weapon categories beyond the great sword, enchanting, potions with drink times, jump / grapple | ⬜ | next |
 
 ### Stage 5a tests (2026-11-19)
 - `server/api.test.mjs`: 80 passed, on both SQLite and pg-mem (+14 island tests):
@@ -250,3 +252,15 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
   - The Flame Dragon only burns.
   - Cindral is unchanged (burns plus deadly-poison talon dive).
 - The original Cindral boss field (`?hunt=wyvern`) still loads normally with its original colours, with no errors.
+
+### Stage 5b tests (2026-11-19)
+- `server/api.test.mjs`: 85 passed on SQLite and pg-mem (+5 tests):
+  - An island weapon needs island materials.
+  - Forging the Venom-fang Greatsword consumes the materials; upgrading it works.
+  - Equipped, it gives poison 440.
+  - A Crystal Boar chest piece can be forged.
+- A flaky test assumption was fixed: random carves had left materials in the account.
+- End-to-end (local server + headless browser):
+  - Materials earned through real carving API calls (boar carcasses + a crystal piece) show in the forge.
+  - 結晶牙の大鉈 is listed with its stats; the comparison against the equipped blade shows attack +168 and sharpness +0.20; owned/required counts are shown per material.
+  - No errors.

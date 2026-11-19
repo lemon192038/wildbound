@@ -181,9 +181,9 @@ export default {
   },
   dests: { island: ['Volcanic Island', 'The whole island around Mount Kaldrith.', 'Sea of Embers'] },
   parts: { head: 'head', forelegs: 'forelegs', back: 'back', tail: 'tail', body: 'body', wings: 'wings', legs: 'legs', fistL: 'left fist', fistR: 'right fist', shell: 'shell', crystal: 'crystals', claw: 'claws', core: 'core', arm: 'arm', mound: 'mound' },
-  elements: { fire: 'Fire', water: 'Water', thunder: 'Thunder', ice: 'Ice', dragon: 'Dragon', blast: 'Blast' },
+  elements: { fire: 'Fire', water: 'Water', thunder: 'Thunder', ice: 'Ice', dragon: 'Dragon', blast: 'Blast', poison: 'Poison' },
   slotLabel: { weapon: 'Weapon', head: 'Head', chest: 'Chest', arms: 'Arms', waist: 'Waist', legs: 'Legs' },
-  armorSets: { leather: "Hunter's", iron: 'Ironclad', emberhide: 'Emberhide', ashwing: 'Ashwing', cinderfist: 'Cinderfist' },
+  armorSets: { carapace: 'Carapace', ashfeather: 'Ashfeather', magmawolf: 'Magma Wolf', crystalboar: 'Crystal Boar', stonemole: 'Stone Mole', flamedragon: 'Flame Dragon', venomfang: 'Venom-fang', cindaryl: 'Venom Empress', leather: "Hunter's", iron: 'Ironclad', emberhide: 'Emberhide', ashwing: 'Ashwing', cinderfist: 'Cinderfist' },
   monsters: {
     varkhul: { full: 'Varkhul, the Emberhide', short: 'Varkhul', title: 'The Emberhide' },
     wyvern: { full: 'Cindral, the Ashwing', short: 'Cindral', title: 'The Ashwing' },

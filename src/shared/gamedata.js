@@ -1,4 +1,5 @@
 import { ISLAND_ITEMS } from './islandLoot.js';
+import { ISLAND_WEAPONS, ISLAND_ARMOR_SETS } from './islandGear.js';
 // Wildbound shared game data — imported by BOTH the browser client and the Node server.
 // The server is authoritative: it validates every purchase/craft/upgrade/reward against these tables,
 // the client only uses them for display. Pure data + tiny pure helpers; no DOM, no Node APIs.
@@ -94,6 +95,7 @@ export const WEAPONS = {
     craft: { coins: 9000, mats: { gv_plate: 4, gv_knuckle: 2, gv_horn: 1, crimsonOre: 6 } },
     levels: [w(768, -15, { type: 'blast', value: 420 }, 1.1), w(816, -10, { type: 'blast', value: 480 }, 1.15, { coins: 14000, mats: { gv_tail: 1, gv_slag: 4, stormquartz: 3 } }), w(864, -5, { type: 'blast', value: 540 }, 1.2, { coins: 22000, mats: { gv_core: 1, gv_knuckle: 2, vk_gem: 1 } })] },
 };
+for (const [k, v] of Object.entries(ISLAND_WEAPONS)) { const { ja, jaEffect, ...def } = v; WEAPONS[k] = def; } // island gear (stage 5b)
 export const STARTER_WEAPON = 'marrowcleaver';
 
 // ---------------------------------------------------------------- armour
@@ -107,6 +109,7 @@ const ARMOR_SETS = {
   ashwing: { name: 'Ashwing', rarity: 4, def: 42, perLv: 5, maxLv: 5, res: { fire: 3, water: 0, thunder: -3, ice: 1, dragon: 0 }, skills: { head: { critEye: 1 }, chest: { antivenom: 1, critEye: 1 }, arms: { antivenom: 1 }, waist: { blastward: 1 }, legs: { critEye: 1, steadfast: 1 } }, craft: { coins: 2600, mats: { cw_scale: 3, cw_membrane: 1, crimsonOre: 2 } }, upMats: { cw_scale: 1, stormquartz: 1 }, upCoins: 1100 },
   cinderfist: { name: 'Cinderfist', rarity: 6, def: 60, perLv: 6, maxLv: 6, res: { fire: 5, water: -4, thunder: 2, ice: -2, dragon: 2 }, skills: { head: { blastward: 1, attackBoost: 1 }, chest: { healthBoost: 1, attackBoost: 1 }, arms: { blastward: 1, critEye: 1 }, waist: { attackBoost: 1 }, legs: { steadfast: 1, healthBoost: 1 } }, craft: { coins: 5200, mats: { gv_plate: 2, gv_slag: 2, crimsonOre: 3 } }, upMats: { gv_slag: 1, stormquartz: 1 }, upCoins: 2200 },
 };
+for (const [k, v] of Object.entries(ISLAND_ARMOR_SETS)) { const { ja, ...def } = v; ARMOR_SETS[k] = def; } // island sets (stage 5b)
 // Expand sets into per-piece definitions: id = `${set}_${slot}`.
 export const ARMOR = {};
 for (const [setId, s] of Object.entries(ARMOR_SETS)) {
