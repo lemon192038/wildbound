@@ -1,6 +1,7 @@
 import { ISLAND_ITEMS } from './islandLoot.js';
 import { ISLAND_WEAPONS, ISLAND_ARMOR_SETS } from './islandGear.js';
 import { CLASS_WEAPONS } from './classGear.js';
+import { LINE_WEAPONS } from './lineGear.js';
 // Wildbound shared game data — imported by BOTH the browser client and the Node server.
 // The server is authoritative: it validates every purchase/craft/upgrade/reward against these tables,
 // the client only uses them for display. Pure data + tiny pure helpers; no DOM, no Node APIs.
@@ -105,6 +106,7 @@ export const WEAPONS = {
 };
 for (const [k, v] of Object.entries(ISLAND_WEAPONS)) { const { ja, jaEffect, ...def } = v; WEAPONS[k] = def; } // island gear (stage 5b)
 for (const [k, v] of Object.entries(CLASS_WEAPONS)) { const { ja, jaEffect, ...def } = v; WEAPONS[k] = def; } // other weapon classes
+for (const [k, v] of Object.entries(LINE_WEAPONS)) { const { ja, jaEffect, ...def } = v; WEAPONS[k] = def; } // material lines: ~10 per class (src/shared/lineGear.js)
 for (const d of Object.values(WEAPONS)) d.cls ||= 'greatsword'; // every weapon belongs to a class (src/shared/weaponClasses.js)
 export const STARTER_WEAPON = 'marrowcleaver';
 

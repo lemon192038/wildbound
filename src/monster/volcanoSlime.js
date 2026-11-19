@@ -77,12 +77,12 @@ export function createVolcanoSlime(game, { seed = 1, t0 = 0, clock = () => 0, hp
     atk = { type, t: 0, dur: SLOT[st], r, tgt, hit: new Set(), st };
     tentacles.length = 0; globs.length = 0; rings.length = 0;
     const around = (k, rad) => { const a = r() * Math.PI * 2, d = rad * Math.sqrt(r()); return new THREE.Vector3(tgt.x + Math.cos(a) * d, 0, tgt.z + Math.sin(a) * d); };
-    if (type === 'shot') { const n = 3 + st * 2; for (let i = 0; i < n; i++) globs.push({ at: i * 0.14, p: null, v: null, aim: around(i, 5), done: false }); }
+    if (type === 'shot') { const n = 3 + st * 2; for (let i = 0; i < n; i++) globs.push({ at: i * 0.14, p: null, v: null, aim: i === 0 ? tgt.clone().setY(ground(tgt.x, tgt.z)) : around(i, 5), done: false }); }
     if (type === 'slam') { const n = 1 + st; for (let i = 0; i < n; i++) { const p = i === 0 ? tgt.clone() : around(i, 9); p.y = ground(p.x, p.z); tentacles.push({ shape: 'club', at: p, ring: 3.6, hitT: 1.0 }); rings.push({ p, r: 3.6, until: 1.0 }); } }
     if (type === 'sweep') { const dir = Math.atan2(tgt.x - m.position.x, tgt.z - m.position.z); tentacles.push({ shape: 'whip', a0: dir - 0.9, a1: dir + 0.9, len: m.position.distanceTo(tgt) + 10 }); }
     if (type === 'spikes') { const n = 4 + st * 2; for (let i = 0; i < n; i++) { const p = i === 0 ? tgt.clone() : around(i, 7); p.y = ground(p.x, p.z); const at = 0.6 + i * 0.12; tentacles.push({ shape: 'spike', at: p, hitT: at }); rings.push({ p, r: 1.8, until: at }); } }
     if (type === 'wave') atk.wave = true;
-    if (type === 'rain') { const n = 6 + st * 4; for (let i = 0; i < n; i++) { const p = around(i, 14); p.y = ground(p.x, p.z); const at = 0.7 + r() * 1.2; globs.push({ rain: true, at, p0: p.clone().setY(p.y + 60), land: p, done: false }); rings.push({ p, r: 2.6, until: at + 0.6 }); } }
+    if (type === 'rain') { const n = 6 + st * 4; for (let i = 0; i < n; i++) { const p = i === 0 ? tgt.clone() : around(i, 14); p.y = ground(p.x, p.z); const at = 0.7 + r() * 1.2; globs.push({ rain: true, at, p0: p.clone().setY(p.y + 60), land: p, done: false }); rings.push({ p, r: 2.6, until: at + 0.6 }); } }
     if (type === 'grasp') { const n = 8; for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; const p = new THREE.Vector3(tgt.x + Math.cos(a) * 9, 0, tgt.z + Math.sin(a) * 9); p.y = ground(p.x, p.z); tentacles.push({ shape: 'cluster', at: p, ang: a, center: tgt.clone() }); } rings.push({ p: tgt.clone().setY(ground(tgt.x, tgt.z)), r: 3, until: 1.4 }); }
   }
   // damage to the local hunter (no parry: these are area / environmental attacks)
@@ -95,8 +95,9 @@ export function createVolcanoSlime(game, { seed = 1, t0 = 0, clock = () => 0, hp
     const pg = ground(P.x, P.z), pAir = P.y - pg;
     if (atk.type === 'shot') for (const g of globs) {
       if (g.done || T < g.at) continue;
-      if (!g.p) { g.p = hitCenter(new THREE.Vector3()).add(_v.set(0, BODY_R * 0.4, 0)); const d = _w.subVectors(g.aim, g.p); const flight = 1.1; g.v = new THREE.Vector3(d.x / flight, (g.aim.y - g.p.y) / flight + 9.8 * 0.5 * flight + 3, d.z / flight); }
-      g.v.y -= 9.8 * dt; g.p.addScaledVector(g.v, dt);
+      if (!g.p) { g.p = hitCenter(new THREE.Vector3()).add(_v.set(0, BODY_R * 0.6, 0)); g.aim.y = ground(g.aim.x, g.aim.z); const vy = 12, dy = g.p.y - g.aim.y, ft = (vy + Math.sqrt(vy * vy + 56 * Math.max(-2, dy))) / 28; g.v = new THREE.Vector3((g.aim.x - g.p.x) / ft, vy, (g.aim.z - g.p.z) / ft); } // a high lob that clears the rim
+      g.v.y -= 28 * dt; g.p.addScaledVector(g.v, dt); // heavy magma: falls fast
+      if (_v.set(P.x - g.p.x, P.y + 1 - g.p.y, P.z - g.p.z).length() < 2.2) { g.done = true; W.spawnDust?.(g.p.clone(), 1.2); hurt('g' + g.at, 30, g.p, 6, 'fire', ['burn', 'medium']); continue; } // direct hit
       if (g.p.y <= ground(g.p.x, g.p.z)) { g.done = true; W.spawnDust?.(g.p.clone(), 1.2); if (_v.set(P.x - g.p.x, 0, P.z - g.p.z).length() < 3) hurt('g' + g.at, 30, g.p, 6, 'fire', ['burn', 'medium']); }
     }
     if (atk.type === 'rain') for (const g of globs) {
@@ -172,7 +173,7 @@ export function createVolcanoSlime(game, { seed = 1, t0 = 0, clock = () => 0, hp
     draw(time);
   };
   m.dispose = () => { for (const o of [body, glow, segMesh, ringMesh, globMesh, wave]) { scene.remove(o); o.geometry?.dispose?.(); } };
-  m.debug = { attack: (type) => { slotIdx = 1e9; startAttack(Math.floor(Math.random() * 1e6), 0, type); }, hold: (v) => { held = v; }, get atk() { return atk; }, ATTACKS };
+  m.debug = { attack: (type) => { slotIdx = 1e9; startAttack(Math.floor(Math.random() * 1e6), 0, type); }, hold: (v) => { held = v; }, get atk() { return atk; }, get globs() { return globs; }, ATTACKS };
   m.update(0);
   return m;
 }

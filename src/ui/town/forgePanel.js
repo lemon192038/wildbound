@@ -1,4 +1,5 @@
 // Master Smith's forge: forge weapons & armour, upgrade owned gear, sell equipment.
+import { CLASS_IDS } from '../../shared/weaponClasses.js';
 import { WEAPONS, ARMOR, ARMOR_SLOTS, SKILLS, weaponStats, armorStats, nextWeaponCost, nextArmorCost, loadoutStats } from '../../shared/gamedata.js';
 import { esc, fmt, matsList, costLine, deltaRow, elementTag, skillList, btn, empty, rarityTag, equipName, equipRarity, equipKind, cap, coins } from './common.js';
 import { equipIcon, rarityColor } from './icons.js';
@@ -41,7 +42,7 @@ export function statsBlock(entry) {
 }
 
 export function createForgePanel(ctx) {
-  let tab = 'weapon'; const sel = { weapon: null, armor: null, upgrade: null, sell: null };
+  let tab = 'weapon', wcls = null; const sel = { weapon: null, armor: null, upgrade: null, sell: null };
   const st = () => ctx.state();
   const owned = (s, def) => s.equip.filter((e) => e.def === def).length;
   const isWorn = (s, uid) => Object.values(s.loadout).includes(uid);
@@ -59,8 +60,10 @@ export function createForgePanel(ctx) {
       <footer class="tw-qd-f">${btn(kind === 'weapon' ? t('f.forgeWeapon') : t('f.forgeArmor'), 'forge', { cls: 'tw-primary', dis: !!why, why })}</footer>`;
   }
   function list(s) {
-    if (tab === 'weapon') {
-      return Object.entries(WEAPONS).filter(([, d]) => d.craft).map(([id, d]) => { const m = matsList(d.craft.mats, s.box); const can = m.ok && s.coins >= d.craft.coins; const n = owned(s, id);
+    if (tab === 'weapon') { // 20 classes × ~11 weapons: filter by class (default: the equipped weapon's class), sorted by rarity
+      const eq = s.equip.find((x) => x.uid === s.loadout?.weapon); wcls ||= WEAPONS[eq?.def]?.cls || 'greatsword';
+      const chips = `<div class="tw-chips" style="display:flex;flex-wrap:wrap;gap:4px;padding:4px 2px 8px">${['all', ...CLASS_IDS].map((c) => `<button class="tw-btn ${wcls === c ? 'tw-primary' : 'tw-ghost'}" style="padding:2px 8px;font-size:12px" data-a="wcls" data-id="${c}">${c === 'all' ? t('f.allClasses') : t('wc.' + c)}</button>`).join('')}</div>`;
+      return chips + Object.entries(WEAPONS).filter(([, d]) => d.craft && (wcls === 'all' || (d.cls || 'greatsword') === wcls)).sort((a, b) => a[1].rarity - b[1].rarity).map(([id, d]) => { const m = matsList(d.craft.mats, s.box); const can = m.ok && s.coins >= d.craft.coins; const n = owned(s, id);
         return `<button class="tw-row ${sel.weapon === id ? 'sel' : ''}" data-a="sel" data-id="${id}">${equipIcon('weapon', d.rarity, { element: d.levels[0].element?.type })}
         <span class="tw-row-m"><b style="color:${rarityColor(d.rarity)}">${esc(weaponName(id))}</b><small>${t('wc.' + (d.cls || 'greatsword'))} · ${t('st.attack')} ${fmt(d.levels[0].attack)} · ${d.levels[0].element ? elementName(d.levels[0].element.type) : t('st.raw')}</small></span>
         <span class="tw-row-r">${n ? `<i class="tw-pill gold">${t('f.owned')}</i>` : ''}${can ? `<i class="tw-pill ok">${t('f.canForge')}</i>` : ''}</span></button>`; }).join('');
@@ -116,6 +119,7 @@ export function createForgePanel(ctx) {
     },
     on: {
       sel(d) { sel[tab] = d.id; },
+      wcls(d) { wcls = d.id; },
       async forge() {
         const s = st(); const kind = tab; const def = sel[tab]; const d = kind === 'weapon' ? WEAPONS[def] : ARMOR[def];
         const dn = equipDefName(kind, def);

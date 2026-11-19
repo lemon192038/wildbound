@@ -262,6 +262,8 @@ ok(r.state.ledger.length > 5 && r.state.ledger.every((l) => typeof l.d === 'numb
   r = await call('/api/volcano'); const s1 = await call('/api/state', null, V1.tok), s2 = await call('/api/state', null, V2.tok), s3 = await call('/api/state', null, V3.tok);
   ok(r.volcano.phase === 'defeated' && s1.state.box.vs_gel > 0 && s1.state.box.vs_core >= 1 && s2.state.box.vs_gel > 0 && !s3.state.box.vs_gel, 'defeated: rewards sent to the hunters who damaged it (victim gets a core); bystanders get nothing');
   const g1 = s1.state.box.vs_gel; await vol(V2.tok, 'damage', { events: [{ eid: 'late', dmg: 100 }] }); ok((await call('/api/state', null, V1.tok)).state.box.vs_gel === g1, 'rewards are granted only once');
+  await store.mutateSave(V1.id, (d) => { d.coins += 30000; }); r = await act(V1.tok, 'craftWeapon', { def: 'calamity_greatsword' });
+  ok(r.ok && r.state.box.vs_gel === g1 - 4, 'the Calamity line is forged from the Volcano Slime rewards');
   clock += VOLCANO.AFTERMATH + 1000; await volcano.tick(); r = await call('/api/volcano'); ok(r.volcano.phase === 'flowing' && r.volcano.cycle === 2, 'after the aftermath a new cycle begins');
   await volcano.save(); const vrow = await store.getWorld('volcano'); ok(vrow && JSON.parse(vrow.data).cycle === 2, 'event state persisted in world_state');
 }
