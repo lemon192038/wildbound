@@ -31,10 +31,11 @@ export function createCarving(game, { expedition = null } = {}) {
 
   // what loot table a creature / boss uses
   const srcOf = (o) => {
+    if (o.isBrood) return o.src; // big-monster juvenile: its parent's loot key
     if (o.isFauna) { const k = o.kind || o.sp; return ISLAND_LOOT[k] ? k : null; }
     const id = o.islandId === 'flameUpper' ? 'flame' : o.islandId || o.kind; return ISLAND_LOOT[id] ? id : null;
   };
-  const keyOf = (o) => (o.isFauna ? `${nonce}.${o.id}` : `${nonce}.B${o.islandId || o.kind}`);
+  const keyOf = (o) => (o.isBrood ? `${nonce}.J${o.id}` : o.isFauna ? `${nonce}.${o.id}` : `${nonce}.B${o.islandId || o.kind}`);
 
   // ---- dropped pieces (one draw call)
   const pieceMesh = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.28, 0), new THREE.MeshStandardMaterial({ color: 0x3a2a1a, emissive: 0xffa040, emissiveIntensity: 1.4, roughness: 0.5 }), 32);
@@ -53,13 +54,18 @@ export function createCarving(game, { expedition = null } = {}) {
   events.on('fauna:died', (e) => { const c = e?.creature; if (c && hasBodyRight(c, 'local') && !c.eaten) c.corpseT = Math.max(c.corpseT, 150); });
 
   // ---- nearest carvable thing in reach
-  function bodyLeft(o) { const src = srcOf(o); if (!src) return 0; return ISLAND_LOOT[src].carves - (o.carvedLocal || 0); }
+  const juvenile = (o) => o.isBrood || (o.isFauna && o.stage === 0); // a juvenile: one carve, its remains (lifecycle.js)
+  function bodyLeft(o) { const src = srcOf(o); if (!src) return 0; return (juvenile(o) ? 1 : ISLAND_LOOT[src].carves) - (o.carvedLocal || 0); }
   function nearest(P) {
     let best = null, bd = REACH;
     for (const pc of pieces) { if (pc.done || !pc.right) continue; const d = pc.pos.distanceTo(P); if (d < bd) { bd = d; best = { kind: 'piece', pc }; } }
     for (const c of game.fauna?.list || []) {
       if (!c.dead || c.eaten || c.corpseT <= 0 || !hasBodyRight(c, 'local') || bodyLeft(c) <= 0) continue;
       const d = Math.hypot(c.pos.x - P.x, c.pos.z - P.z) - c.scale * 0.6; if (d < bd) { bd = d; best = { kind: 'body', o: c }; }
+    }
+    for (const b of game.broods?.list || []) { // juveniles of the big monsters (src/field/broods.js)
+      if (!b.dead || b.corpseT <= 0 || !hasBodyRight(b, 'local') || bodyLeft(b) <= 0) continue;
+      const d = Math.hypot(b.pos.x - P.x, b.pos.z - P.z) - b.scale; if (d < bd) { bd = d; best = { kind: 'body', o: b }; }
     }
     for (const m of game.monsters || []) {
       if (m.state !== 'dead' || !hasBodyRight(m, 'local') || bodyLeft(m) <= 0) continue;
@@ -73,11 +79,11 @@ export function createCarving(game, { expedition = null } = {}) {
   async function carve(target) {
     let cid, src, part, label;
     if (target.kind === 'piece') { const pc = target.pc; pc.done = true; src = pc.src; part = pc.part; cid = `${keyOf(pc.o)}:p${part}`; label = 'piece'; }
-    else { const o = target.o; const k = o.carvedLocal || 0; o.carvedLocal = k + 1; src = srcOf(o); part = 'body'; cid = `${keyOf(o)}:b${k}`; label = 'body'; }
+    else { const o = target.o; const k = o.carvedLocal || 0; o.carvedLocal = k + 1; src = srcOf(o); part = 'body'; cid = `${keyOf(o)}:b${k}`; label = 'body'; if (juvenile(o)) target.stage = 0; }
     events.emit('sfx', { name: 'scrape', position: game.player.position.clone(), volume: 0.8 });
     if (!expedition?.iid || !game.account?.loggedIn) { stats.refused++; show(t('cv.offline'), true); return; }
     busy = true;
-    const r = await game.account.act('islandCarve', { iid: expedition.iid, cid, src, part });
+    const r = await game.account.act('islandCarve', { iid: expedition.iid, cid, src, part, ...(target.stage === 0 ? { stage: 0 } : {}) });
     busy = false;
     if (r.ok) { stats.carved++; show(`+1 ${itemName(r.result.item)}${r.result.dup ? ' ✓' : ''}`); events.emit('carve:done', { item: r.result.item, src, part }); return; }
     stats.refused++;

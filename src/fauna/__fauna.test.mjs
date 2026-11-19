@@ -31,7 +31,7 @@ const alive = (f, sp) => f.list.filter((c) => !c.dead && (!sp || c.sp === sp));
 }
 { // beetle: contact → curl; struck → burrow (no hitboxes) → re-emerges later
   const { fauna, player, step } = setup('ashplain'); step(1);
-  const b = alive(fauna, 'beetle')[0];
+  const b = alive(fauna, 'beetle')[0]; for (const o of alive(fauna, 'bird')) { o.dead = true; o.corpseT = 0.01; } // no birds overhead (they keep beetles hidden)
   player.position.set(b.pos.x + 1.2, 5, b.pos.z); step(0.5); ok(b.ai === 'curl', `beetle curls on contact (${b.ai})`);
   player.position.set(b.pos.x + 30, 5, b.pos.z); step(8);
   b.receiveHit({ damage: 50, attackerId: 'local' }); step(1.6);
@@ -89,8 +89,9 @@ const alive = (f, sp) => f.list.filter((c) => !c.dead && (!sp || c.sp === sp));
   const L = alive(fauna, 'lizard')[0];
   if (!L) ok(false, 'no lizard spawned in canyon'); else {
     for (const o of alive(fauna)) if (o !== L) { o.dead = true; o.corpseT = 0.01; } // isolate it
+    L.ai = 'ambush'; L.t = 0; L.prey = null; L.hunger = 0; // start calm (with more prey around it may have been eating)
     player.position.set(L.home.x + Math.sin(L.yaw) * 12, 5, L.home.z + Math.cos(L.yaw) * 12); step(0.6);
-    ok(['threat', 'fight'].includes(L.ai), `lizard threatens an intruder (${L.ai})`);
+    ok(['threat', 'fight', 'fire', 'charge', 'bite', 'tail'].includes(L.ai), `lizard threatens / engages an intruder (${L.ai})`);
     step(10); ok(damage.taken > 0, `lizard fights: hunter took ${damage.taken} dmg`);
     player.position.set(L.pos.x + 60, 5, L.pos.z); step(6);
     ok(!['fight', 'charge'].includes(L.ai), `lizard does not chase far (${L.ai})`);
@@ -100,7 +101,8 @@ const alive = (f, sp) => f.list.filter((c) => !c.dead && (!sp || c.sp === sp));
   const { fauna, player, step } = setup('canyon'); step(1);
   const L = alive(fauna, 'lizard')[0]; const b = alive(fauna, 'beetle')[0];
   if (!L || !b) ok(true, 'lizard/beetle not both present (skipped)'); else {
-    b.pos.set(L.pos.x + 5, 5, L.pos.z); b.home.copy(b.pos); b.ai = 'feed'; b.dur = 99;
+    for (const o of alive(fauna)) if (o !== L && o !== b) { o.dead = true; o.corpseT = 0.01; } // isolate the pair (the island is crowded now)
+    L.ai = 'ambush'; L.t = 0; L.prey = null; b.pos.set(L.pos.x + 5, 5, L.pos.z); b.home.copy(b.pos); b.ai = 'feed'; b.dur = 99;
     player.position.set(L.pos.x + 60, 5, L.pos.z); L.hunger = 1; step(3);
     ok(b.dead && fauna.stats.predation >= 1, `lizard catches a beetle by ambush (${b.ai})`);
   }

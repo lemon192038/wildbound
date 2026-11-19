@@ -87,7 +87,11 @@ export function createPredatorAI(ctx) {
     if (inTerr && senses) { setAi(c, 'threat'); return; }
     // prey: ambush from the home rock
     const prey = nearestOf(c, S.roams ? 14 : 10, (o) => !o.dead && ((o.sp === 'beetle' && o.ai !== 'burrowed' && o.ai !== 'curl') || (o.sp === 'slime' && (o.stage <= 1 || S.roams)) || (o.sp === 'bird' && o.alt < 1) || (S.roams && o.sp === 'lizard' && o.stage === 0)));
-    if (prey && c.hunger > 0.3) { setAi(c, 'charge'); c.prey = prey; c.chargeAt = prey.pos.clone(); return; }
+    if (prey && c.hunger > 0.3) { // an ambush predator first turns its head onto the prey (still, low), then bursts
+      const ang = Math.abs(wrapA(Math.atan2(prey.pos.x - c.pos.x, prey.pos.z - c.pos.z) - c.yaw));
+      if (ang > 0.35) { face(c, prey.pos.x, prey.pos.z, dt, 3.5); c.move = 0; c.mode = 2; return; }
+      setAi(c, 'charge'); c.prey = prey; c.chargeAt = prey.pos.clone(); return;
+    }
     if (c.ai === 'scavenge') { const p = c.prey; if (!p || p.eaten || (!p.dead)) { c.prey = null; setAi(c, 'patrol'); return; } const d = steer(c, p.pos.x, p.pos.z, S.speed, dt, 2.5); c.mode = 0; if (d < 1.6 * c.scale) { setAi(c, 'eat'); c.prey = p; c.dur = 10; } return; }
     if (S.scavenger && c.hunger > 0.35) { const carcass = nearestOf(c, 40, (o) => o.dead && !o.eaten && o.corpseT > 6); if (carcass) { setAi(c, 'scavenge'); c.prey = carcass; return; } }
     if (c.ai === 'return') { const d = steer(c, c.home.x, c.home.z, S.speed, dt, 2.5); c.mode = 0; if (d < 1) setAi(c, S.roams ? 'patrol' : 'ambush'); return; }

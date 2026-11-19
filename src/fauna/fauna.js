@@ -17,7 +17,7 @@ import { SPECIES, STAGES, PARTS, BREAK_BIT, BODY_SIZE } from './species.js';
 import { makePart, resolvePartHit, tickRegen, disabled, pickTargetPart } from '../core/parts.js';
 import { createFaunaRender } from './faunaRender.js';
 import { createEcoClient } from './ecoClient.js';
-import { ECO } from '../shared/ecosystem.js';
+import { ECO, ABUNDANCE } from '../shared/ecosystem.js';
 import { createPredatorAI } from './predators.js';
 import { createHerdAI } from './herds.js';
 import { createEarthAI } from './earthkin.js';
@@ -90,7 +90,7 @@ export function createFauna(game) {
     C = { cap: {}, stored: {}, groups: [], regenT: REGEN_S * (0.5 + r()) };
     for (const [sp, S] of Object.entries(SPECIES)) {
       if (S.of) continue; // special individuals (Crystal Tusk, pack leader) are members of their species' groups
-      const dens = regs.reduce((a, g) => a + (S.regions[g] || 0), 0) / 4; let n = Math.floor(dens * (0.6 + r() * 0.8)); if (r() < dens - Math.floor(dens)) n++;
+      const dens = regs.reduce((a, g) => a + (S.regions[g] || 0), 0) / 4 * ABUNDANCE; let n = Math.floor(dens * (0.6 + r() * 0.8)); if (r() < dens - Math.floor(dens)) n++;
       C.cap[sp] = n; C.stored[sp] = n;
     }
     census.set(k, C); return C;
@@ -146,7 +146,6 @@ export function createFauna(game) {
   function takeStage(a) { if (!a) return rollStage(); for (let i = 0; i < 4; i++) if (a[i] > 0) { a[i]--; return i; } return 2; }
   function rollStage() { const r = rnd(); return r < 0.15 ? 0 : r < 0.4 ? 1 : r < 0.9 ? 2 : 3; }
   function create(sp, x, z, stage, opts = {}) {
-    if (sp === 'golem') stage = 2;                                   // golems do not breed like animals: no juveniles
     if (sp === 'mole' && stage === 0) stage = 1;                     // mole juveniles stay deep in the nest
     const sx = SPECIES[sp].special; if (!opts.S && !opts.noSpecial && sx && rnd() < sx.chance * (stage === 3 ? 4 : stage === 2 ? 1 : 0)) { opts.S = SPECIES[sx.id]; stage = 2; } // e.g. Grand Mole: an old giant (elders far more often)
     const S0 = opts.S || SPECIES[sp], G = STAGES[stage];
@@ -264,13 +263,21 @@ export function createFauna(game) {
   let propsDirty = false, nestT = 0;
   function placeEcoProps(tx, tz, C) {
     const x0 = -F.half + tx * TILE, z0 = -F.half + tz * TILE; const P = { nests: [], bones: [] };
-    for (const q of C.nests || []) { if (!(q.n > 0)) continue; const x = x0 + q.dx, z = z0 + q.dz; if (SPECIES[q.sp]?.habitat === 'lava') continue; P.nests.push({ sp: q.sp, n: Math.min(5, q.n), x, z, y: ground(x, z), told: false }); }
+    for (const q of C.nests || []) { if (!(q.n > 0)) continue; let x = x0 + q.dx, z = z0 + q.dz; if (SPECIES[q.sp]?.habitat === 'lava') { const s = lavaBank(x, z); if (!s) continue; [x, z] = s; } // lava snakes lay on the warm bank
+      P.nests.push({ sp: q.sp, n: Math.min(5, q.n), x, z, y: ground(x, z), told: false, id: q.id, kind: q.kind, tx, tz }); }
     for (const cc of C.cc || []) {
       const x = x0 + cc.dx, z = z0 + cc.dz; if (SPECIES[cc.sp]?.habitat === 'lava' || !okSpot(x, z, cc.sp)) continue;
       if (cc.s === 'remains') { for (let i = 0; i < 3; i++) P.bones.push({ x: x + (rnd() - 0.5) * 1.6, z: z + (rnd() - 0.5) * 1.6, y: ground(x, z) + 0.06, a: rnd() * TAU, s: (BODY_SIZE[cc.sp] || 1) * 0.5 }); continue; }
       const c = create(cc.sp, x, z, 2, { noSpecial: true }); deadPose(c, cc.s === 'rotten' ? 240 : 420); c.eaten = cc.s === 'eaten' && rnd() < 0.5; c.rot = cc.s === 'rotten' ? 0.7 : cc.s === 'eaten' ? 0.3 : 0; c.ecoCarcass = true;
     }
     props.set(tkey(tx, tz), P); propsDirty = true;
+  }
+  // nearest dry ground beside lava within 14 m (snake egg banks)
+  function lavaBank(x, z) { for (let r = 2; r < 14; r += 2) for (let i = 0; i < 8; i++) { const a = (i / 8) * TAU, px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; const sd = F.lava(px, pz, Ls).sd; if (sd > 1.5 && sd < 5 && W.canWalk(px, pz)) return [px, pz]; } return null; }
+  // eggs.js took one egg from a nest: one fewer drawn; the parents near it are alarmed (guarding species turn hostile)
+  function eggTaken(q) {
+    q.n = Math.max(0, q.n - 1); propsDirty = true;
+    for (const o of near(_pp.set(q.x, 0, q.z), 60)) if (!o.dead && o.sp === q.sp && o.stage >= 2) { o.mem.nest += 2; applyWary(o); o.aggroT = 12; if (o.group) o.group.hostile = game.player; else if ((ECO[o.sp]?.protect || 0) >= 0.3) o.guardT = 20; }
   }
   function removeEcoProps(k) { if (props.delete(k)) propsDirty = true; }
   const _pm = new THREE.Matrix4(), _pq = new THREE.Quaternion(), _pe = new THREE.Euler(), _ps = new THREE.Vector3(), _pp = new THREE.Vector3();
@@ -291,7 +298,7 @@ export function createFauna(game) {
     let n = 0, b = 0, dn = 0;
     for (const T of props.values()) {
       for (const q of T.nests) {
-        if (ECO[q.sp]?.mode === 'birth') { if (dn < 40) { _pm.compose(_pp.set(q.x, q.y, q.z), _pq.identity(), _ps.setScalar((BODY_SIZE[q.sp] || 2) * 0.7)); denMesh.setMatrixAt(dn++, _pm); } continue; } // a den / burrow mound
+        if (ECO[q.sp]?.den && dn < 40) { _pm.compose(_pp.set(q.x, q.y, q.z), _pq.identity(), _ps.setScalar((BODY_SIZE[q.sp] || 2) * 0.7)); denMesh.setMatrixAt(dn++, _pm); } // a den / burrow mound with the leathery eggs inside
         for (let i = 0; i < q.n && n < 160; i++) { const a = (i / q.n) * TAU; _pm.compose(_pp.set(q.x + Math.cos(a) * 0.35, q.y + 0.18, q.z + Math.sin(a) * 0.35), _pq.identity(), _ps.setScalar((BODY_SIZE[q.sp] || 1) * 0.35)); nestMesh.setMatrixAt(n++, _pm); }
       }
       for (const o of T.bones) if (b < 160) { _pq.setFromEuler(_pe.set(0, o.a, 0)); _pm.compose(_pp.set(o.x, o.y, o.z), _pq, _ps.setScalar(o.s)); boneMesh.setMatrixAt(b++, _pm); }
@@ -380,7 +387,14 @@ export function createFauna(game) {
     stats.died++; if (cause === 'predation') stats.predation++;
     game.events?.emit?.('fauna:died', { creature: c, species: c.sp, cause, by });
     // ecosystem: only kills by THIS hunter are reported (the model already accounts for predation, age, starvation)
-    if (eco && c.fromEco && cause === 'hunted' && c.hunter === game.player) eco.report({ type: 'kill', sp: c.sp, stage: c.stage, x: c.pos.x, z: c.pos.z, cause: 'hunter' });
+    // reported at its HOME (the tile it was spawned from), not where it wandered to — otherwise a neighbour tile loses one and
+    // its own tile keeps it (the dead would come back)
+    // Deaths seen here are real: a hunter's kill, or a predator's (bird, wolf, dragon…) / a fight. Only one client reports a
+    // creature (its own kills, or — for creature-on-creature deaths — the host / solo client), and only once.
+    if (eco && c.fromEco && !c.reported) {
+      if (cause === 'hunted' && c.hunter === game.player) { c.reported = true; eco.report({ type: 'kill', sp: c.sp, stage: c.stage, x: c.home.x, z: c.home.z, cause: 'hunter' }); }
+      else if (cause !== 'hunted' && (!game.net?.connected || game.net.isHost)) { c.reported = true; eco.report({ type: 'kill', sp: c.sp, stage: c.stage, x: c.home.x, z: c.home.z, cause: cause === 'predation' ? 'predation' : 'other' }); }
+    }
     kinAlarm(c, cause);
   }
   function deadPose(c, corpseT) {
@@ -650,11 +664,11 @@ export function createFauna(game) {
 
   // targets near a point (for the hunter's weapon sweep)
   const _near = [];
-  function near(p, r) { hash.query(p.x, p.z, r, _near); return _near.filter((c) => !c.dead && Math.hypot(c.pos.x - p.x, c.pos.z - p.z) < r); }
+  function near(p, r) { hash.query(p.x, p.z, r, _near); const out = _near.filter((c) => !c.dead && Math.hypot(c.pos.x - p.x, c.pos.z - p.z) < r); const b = game.broods?.near?.(p, r); return b?.length ? out.concat(b) : out; } // + big-monster juveniles (broods.js)
   // mid-tier fauna currently fighting the local hunter (the HUD can show them like bosses)
   function engaged() { return list.filter((c) => !c.dead && ((c.engaged && (c.sp === 'lizard' || c.sp === 'drake' || c.sp === 'snake' || c.sp === 'golem' || (c.sp === 'mole' && !c.under))) || (c.group && (c.role === 'leader' || c.role === 'tusk') && ((c.group.state === 'engage' && c.group.target === game.player) || (c.group.state === 'defend' && c.group.threat === game.player))))); }
   return {
-    update, near, list, census, stats, render, engaged, eco, props, groups: () => HERD.groups, spawnGroup,
+    update, near, list, census, stats, render, engaged, eco, props, groups: () => HERD.groups, spawnGroup, eggTaken,
     spawnOne: (sp, x, z, stage = 2, opts = {}) => create(sp, x, z, stage, opts), // tests / scripted scenes
     debug: () => { const by = { beetle: 0, slime: 0, bird: 0, lizard: 0, snake: 0, boar: 0, wolf: 0, mole: 0, golem: 0, drake: 0 }; const ai = {}; for (const c of list) if (!c.dead) { by[c.sp]++; ai[c.sp + ':' + c.ai] = (ai[c.sp + ':' + c.ai] || 0) + 1; } return { live: by, ai, groups: [...HERD.groups].map((g) => `${g.sp}#${g.id}:${g.state}(${HERD.alive(g).length})`), tiles: spawned.size, census: census.size, ...stats, shots: shots.length, eco: eco?.info(), wary: list.filter((c) => !c.dead && c.wary > 0).length }; },
   };

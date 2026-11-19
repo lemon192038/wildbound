@@ -257,7 +257,7 @@ const VERT = {
   if (aPart == 3.0) transformed.y += sin(ph * 3.0) * 0.05;`,
 };
 
-export function createFaunaRender(THREE, scene, { low = false, caps = { beetle: 220, slime: 180, bird: 60, lizard: 40, snakeSeg: 200, snakeHead: 10, wolf: 40, boar: 40, mole: 12, golem: 16, mound: 12, drake: 16 } } = {}) {
+export function createFaunaRender(THREE, scene, { low = false, caps = { beetle: 340, slime: 280, bird: 100, lizard: 64, snakeSeg: 320, snakeHead: 16, wolf: 64, boar: 64, mole: 20, golem: 30, mound: 20, drake: 26 } } = {}) {
   const geos = { beetle: beetleGeo(THREE), slime: slimeGeo(THREE), bird: birdGeo(THREE), lizard: lizardGeo(THREE), snakeSeg: snakeSegGeo(THREE), snakeHead: snakeHeadGeo(THREE), wolf: wolfGeo(THREE), boar: boarGeo(THREE), mole: moleGeo(THREE), golem: golemGeo(THREE), mound: moundGeo(THREE), drake: drakeGeo(THREE) };
   const glowCol = { beetle: [1.0, 0.36, 0.05], slime: [1.0, 0.42, 0.06], bird: [1.0, 0.4, 0.08], lizard: [1.0, 0.32, 0.05], snakeSeg: [1.0, 0.34, 0.04], snakeHead: [1.0, 0.36, 0.05], wolf: [1.0, 0.3, 0.05], boar: [0.35, 0.85, 1.0], mole: [1.0, 0.45, 0.15], golem: [1.0, 0.36, 0.05], mound: [0, 0, 0], drake: [1.0, 0.32, 0.06] };
   const meshes = {}; const anims = {}; const breaks = {};
