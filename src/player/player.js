@@ -97,7 +97,26 @@ export async function createPlayer(game) {
   Object.defineProperty(P, 'airborne', { get: () => airborne });
   const fwd = (out = tmp) => out.set(Math.sin(P.facing), 0, Math.cos(P.facing));
   const turnToward = (dir, rate, dt) => { if (dir.lengthSq() < 1e-4) return; const want = Math.atan2(dir.x, dir.z); P.facing = wrap(P.facing + clamp(wrap(want - P.facing), -rate * dt, rate * dt)); };
-  const targetDir = () => { const m = P.lockTarget; if (!m) return null; return new THREE.Vector3(m.position.x - P.position.x, 0, m.position.z - P.position.z).normalize(); };
+  // ---- lock-on by part: LOCK picks the nearest monster's first part, each further press moves to the next part, then off
+  P.lockPart = null;
+  const partsOf = (m) => { const out = []; for (const h of m?.getHitboxes?.() || []) if (!out.includes(h.part)) out.push(h.part); return out; };
+  P.lockPointOf = (out = new THREE.Vector3()) => {
+    const m = P.lockTarget; if (!m) return null; const hbs = m.getHitboxes?.() || [];
+    const hb = hbs.find((h) => h.part === P.lockPart) || hbs[0]; return hb ? out.copy(hb.sphere.center) : out.copy(m.position);
+  };
+  function cycleLock() {
+    if (P.lockTarget) {
+      const parts = partsOf(P.lockTarget); const i = parts.indexOf(P.lockPart) + 1;
+      if (i <= 0 || i >= parts.length) { P.lockTarget = null; P.lockPart = null; } else P.lockPart = parts[i];
+    } else {
+      let best = null, bd = 80; const cands = game.fauna ? game.monsters.concat(game.fauna.near(P.position, 40)) : game.monsters;
+      for (const m of cands) { if (!m || m.hp <= 0 || m.dead || m.state === 'dead') continue; const d = m.position.distanceTo(P.position); if (d < bd) { bd = d; best = m; } }
+      P.lockTarget = best; P.lockPart = best ? partsOf(best)[0] || null : null;
+    }
+    events.emit('player:lockPart', { target: P.lockTarget, part: P.lockPart });
+  }
+  const targetDir = () => { const m = P.lockTarget; if (!m) return null; const lp = P.lockPointOf(_lp); return new THREE.Vector3(lp.x - P.position.x, 0, lp.z - P.position.z).normalize(); };
+  const _lp = new THREE.Vector3();
   const aimDir = () => (wish.lengthSq() > 0.01 ? wish : targetDir() || new THREE.Vector3());
   // Equipment & buffs (set by the field quest runtime from the server-side loadout; defaults = free hunt).
   P.gear = { atk: 1, affinity: 12, element: null, sharp: 1, defense: 0, res: { fire: 0, water: 0, thunder: 0, ice: 0, dragon: 0 }, skills: {}, buffAtk: 1, buffDef: 1, stamMul: 1 };
@@ -205,9 +224,29 @@ export async function createPlayer(game) {
   // ---------------- arrows (bow) ----------------
   const arrows = []; const arrowMesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.012, 0.012, 0.75, 4).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xd8cbb0, roughness: 0.6 }), 48);
   arrowMesh.count = 0; arrowMesh.frustumCulled = false; arrowMesh.name = 'arrows'; scene.add(arrowMesh);
+  // where a shot goes: the crosshair while aiming (first monster part / creature / ground on the camera ray), else the locked part
+  const _ar = new THREE.Vector3(), _ad = new THREE.Vector3(), _ac = new THREE.Vector3();
+  function crosshairPoint() {
+    const o = game.camera.position; game.camera.getWorldDirection(_ad); let best = 90, out = null;
+    const cands = game.fauna ? game.monsters.concat(game.fauna.near(P.position, 60)) : game.monsters;
+    for (const m of cands) {
+      if (!m || m.hp <= 0 || m.dead || m.state === 'dead') continue;
+      for (const h of m.getHitboxes?.() || []) { _ac.subVectors(o, h.sphere.center); const b = _ac.dot(_ad), q = _ac.lengthSq() - h.sphere.radius * h.sphere.radius, disc = b * b - q; if (disc < 0) continue; const tt = -b - Math.sqrt(disc); if (tt > 0.5 && tt < best) { best = tt; out = 'hit'; } }
+    }
+    for (let tt = 2; tt < best; tt += 1) { _ar.copy(o).addScaledVector(_ad, tt); if (_ar.y < world.getHeight(_ar.x, _ar.z)) { best = tt; break; } }
+    return o.clone().addScaledVector(_ad, best);
+  }
+  P.crosshairPoint = crosshairPoint;
   function aimPoint() {
-    const m = P.lockTarget; if (m && m.hp > 0) { const hb = m.getHitboxes?.()[0]; return (hb ? hb.sphere.center : m.position).clone(); }
-    const d = new THREE.Vector3(); game.camera.getWorldDirection(d); return game.camera.position.clone().addScaledVector(d, 40);
+    if (P.aiming) return crosshairPoint();
+    const m = P.lockTarget; if (m && m.hp > 0) return P.lockPointOf(new THREE.Vector3());
+    return crosshairPoint();
+  }
+  let aimEl = null;
+  function aimHud(on) {
+    if (typeof document === 'undefined') return; if (!aimEl && !on) return;
+    if (!aimEl) { aimEl = document.createElement('div'); aimEl.style.cssText = 'position:fixed;left:50%;top:50%;width:30px;height:30px;margin:-15px 0 0 -15px;z-index:12;pointer-events:none;background:radial-gradient(circle,#ffe2a0 0 2px,transparent 3px),linear-gradient(#ffe2a0,#ffe2a0) center/2px 9px no-repeat,linear-gradient(90deg,#ffe2a0,#ffe2a0) center/9px 2px no-repeat;border:2px solid rgba(255,226,160,.85);border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,.7)'; (document.getElementById('ui-root') || document.body).appendChild(aimEl); }
+    aimEl.style.display = on ? 'block' : 'none';
   }
   function fireArrows(n, spread, mv) {
     const mz = view.rig.weapon.userData.muzzle; let o;
@@ -519,11 +558,12 @@ export async function createPlayer(game) {
     else if (inp.item) buffer = { a: P.sharpness < 0.6 && P.hp > P.maxHp * 0.7 ? 'whetstone' : 'potion', t: 0.3 }; else if (inp.interact) buffer = { a: 'whetstone', t: 0.3 };
     if (buffer && (buffer.t -= dt) <= 0) buffer = null;
     const take = (a) => { if (buffer && buffer.a === a) { buffer = null; return true; } return false; };
-    if (inp.lockOn && !P.dead) {
-      if (P.lockTarget) P.lockTarget = null;
-      else { let best = null, bd = 80; for (const m of game.monsters) { const d = m.position.distanceTo(P.position); if (d < bd && m.hp > 0) { bd = d; best = m; } } P.lockTarget = best; }
-    }
-    if (P.lockTarget && (P.lockTarget.hp <= 0 || P.lockTarget.state === 'dead') && !autoplay) P.lockTarget = null;
+    if (inp.lockOn && !P.dead) cycleLock();
+    if (P.lockTarget && (P.lockTarget.hp <= 0 || P.lockTarget.state === 'dead' || P.lockTarget.dead) && !autoplay) { P.lockTarget = null; P.lockPart = null; }
+    // ranged aiming: hold GUARD (Q / LT / touch AIM) with a bow or a gun drawn — over-the-shoulder camera, crosshair, shots go
+    // exactly where the crosshair points (src/player/camera.js reads P.aiming)
+    P.aiming = C.dmg === 'ranged' && P.weaponDrawn && !!inp.guard && !P.dead && !airborne && !['dodge', 'hit', 'knockdown', 'getup', 'sheathe', 'draw', 'ropeFire', 'ropePull'].includes(P.state);
+    aimHud(P.aiming);
 
     // ailments (src/core/status.js): sleep / stun take over the hunter, flinch staggers, debuffs scale everything
     const S = game.status; M = S?.mods?.() || M; B = S?.blocks?.() || {};
@@ -579,7 +619,7 @@ export async function createPlayer(game) {
       else if (inp.guard && guardOk() && P.weaponDrawn) setState('guard', 0.1);
       else if (inp.guard && guardOk() && !P.weaponDrawn) { queued = 'guard'; setState('draw'); }
       else {
-        maxSpeed = P.weaponDrawn ? C.walk * wishLen : (sprinting ? 7.2 : 4.7 * wishLen);
+        maxSpeed = P.weaponDrawn ? C.walk * wishLen * (P.aiming ? 0.55 : 1) : (sprinting ? 7.2 : 4.7 * wishLen);
         accel = P.weaponDrawn ? 9 : 14; turnRate = P.weaponDrawn ? 7 : 11;
         if (sprinting) { P.stamina = Math.max(0, P.stamina - 20 * dt * P.gear.stamMul); stamDelay = 0.6; if (P.stamina <= 0) P.exhausted = true; }
         const ns = speedNow < 0.15 ? 'idle' : sprinting ? 'sprint' : speedNow > 3.2 ? 'run' : 'walk';
@@ -598,7 +638,7 @@ export async function createPlayer(game) {
         if (q === 'light' || q === 'heavy') startAttack(q); else if (q === 'guard') setState('guard'); else if (q?.startsWith('item:')) { const o = queuedOpts; queuedOpts = null; startItem(q.slice(5), o); }
       }
     } else if (atk) {
-      if (t < atk.turn) { const d = C.dmg === 'ranged' ? (targetDir() || camF) : aimDir(); turnToward(d, C.dmg === 'ranged' ? 14 : 7, dt); }
+      if (t < atk.turn) { const d = C.dmg === 'ranged' ? (P.aiming ? camF : targetDir() || camF) : aimDir(); turnToward(d, C.dmg === 'ranged' ? 14 : 7, dt); }
       classEffects(atk, s);
       for (const [a, b, dist] of atk.move) if (t >= a && t < b) rootMove = dist / (b - a);
       if (atk.rehit) for (const r of atk.rehit) if (t >= r && t - dt < r) { hitSets = new Map(); swingFirstHit = false; } // multi-hit moves
@@ -725,6 +765,7 @@ export async function createPlayer(game) {
     } else P.redHp = P.hp;
     P.recoverableHp = P.redHp;
 
+    if (P.aiming) { turnRate = 0; turnToward(camF, 12, dt); } // strafe while aiming: always face the crosshair
     ropeTick(dt, P.state); updateArrows(dt);
     // movement integration
     maxSpeed *= M.speed; rootMove *= P.state === 'dodge' ? 1 : M.speed;

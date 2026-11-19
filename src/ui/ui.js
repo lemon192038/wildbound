@@ -127,6 +127,7 @@ export function createUI(game) {
     partsEl.innerHTML = rows.map(([n, st, pr]) => `<div class="wb-pt wb-pt-${st}"><span>${esc(partName(n))}</span><i style="--f:${pr}%"></i><b>${t('pt.' + (st === 'regen' ? 'regen' : st))}${st === 'regen' ? ` ${pr}%` : ''}</b></div>`).join('');
   }
   events.on('player:deflect', () => toast(t('f.deflect')));
+  events.on('player:lockPart', (e) => { if (e?.target && e.part) toast(t('f.lockPart', { p: partName(e.part) })); });
   events.on('player:parryReady', (e) => toast(t(e?.on ? 'f.parryReady' : 'f.parryOff')));
   events.on('player:parry', () => toast(t('f.parry')));
   events.on('player:silenced', () => toast(t('f.silenced')));
@@ -140,7 +141,7 @@ export function createUI(game) {
   events.on('player:melody', () => toast(t('f.melody')));
   events.on('player:vials', (e) => toast(t('f.vials', { n: e?.vials || 0 })));
   events.on('player:mode', (e) => { if (e?.mode) toast(t('f.mode', { m: t('res.mode.' + e.mode) })); });
-  events.on('player:weaponClass', (e) => { if (e?.cls) toast(t('f.weaponClass', { w: t('wc.' + e.cls) })); });
+  events.on('player:weaponClass', (e) => { if (e?.cls) toast(t('f.weaponClass', { w: t('wc.' + e.cls) })); game.input?.touch?.setGuardLabel?.(['bow', 'lightxbow', 'heavyxbow', 'pistol', 'machinegun'].includes(e?.cls) ? t('touch.aim') : t('touch.guard')); });
   events.on('monster:partRegen', (e) => { if (e?.monster && e.monster === M()) toast(t('f.regrew', { m: parseName(e.monster.name).name, p: partName(e.part) })); });
   const chipRage = chip('wb-chip-rage', SVG.rage, t('chip.rage')), chipTired = chip('wb-chip-tired', SVG.tired, t('chip.tired')), limp = chip('wb-chip-limp', SVG.limp, t('chip.limp'));
   let monState = '';
@@ -568,7 +569,8 @@ export function createUI(game) {
     const lt = p.lockTarget;
     let lp = null;
     if (lt) {
-      if (typeof lt.getLockPoint === 'function') lp = lt.getLockPoint(v3b);
+      if (typeof p.lockPointOf === 'function' && p.lockPointOf(v3b)) lp = v3b; // the locked part
+      else if (typeof lt.getLockPoint === 'function') lp = lt.getLockPoint(v3b);
       else if (lt.isVector3) lp = lt;
       else if (lt.center?.isVector3 && lt.center.lengthSq() > 0) lp = lt.center;
       else if (lt.lockPoint?.isVector3) lp = lt.lockPoint;

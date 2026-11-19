@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import { t } from '../shared/i18n.js';
 
 export const GRAPPLE = {
-  range: 40, cooldown: 30, fly: 0.22, maxPull: 3.2,
+  range: 40, cooldown: 5, fly: 0.22, maxPull: 3.2,
   targets: { ground: true, wall: true, tree: true, rock: true, ruin: true, monster: true, fauna: true, crystal: false, lava: false, water: false },
   // collider kind (src/world/island/props.js) → target kind
   kindOf: { pine: 'tree', deadtree: 'tree', fungus: 'tree', boulder: 'rock', pillar: 'rock', crystal: 'crystal', ruin: 'ruin' },

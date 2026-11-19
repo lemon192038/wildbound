@@ -116,6 +116,19 @@ try {
     // three-blade style: three blades cut — more hits per swing than dual blades
     check('three-blade style lands more hits per chain than the sword', table.tri.hits > table.sword.hits, { tri: table.tri.hits, sword: table.sword.hits });
 
+    // ---------------- aiming + part lock-on ----------------
+    reset('bow'); P.debug.setDrawn(true); step(0.1); front(14); m.hits.length = 0;
+    step(0.1, { guard: true }); const aimOn = P.aiming;
+    g.camera.position.set(P.position.x, 1.8, P.position.z); g.camera.lookAt(m.position); g.camera.updateMatrixWorld();
+    const cp = P.crosshairPoint(); const onTarget = cp.distanceTo(m.position) < 1.6;
+    window.__manualCam = true;
+    check('aiming: GUARD with a bow aims (crosshair point lands on the monster in the crosshair)', aimOn && onTarget, { d: +cp.distanceTo(m.position).toFixed(2) });
+    const hbSave = m.getHitboxes; const head = new g.THREE.Vector3();
+    m.getHitboxes = () => { head.set(m.position.x, m.position.y + 1.6, m.position.z); return [{ part: 'body', sphere: new g.THREE.Sphere(m.position, 1.4) }, { part: 'head', sphere: new g.THREE.Sphere(head, 0.6) }]; };
+    P.lockTarget = null; step(0.05, press('lockOn')); const p1 = P.lockPart; step(0.05, press('lockOn')); const p2 = P.lockPart, lp = P.lockPointOf().y; step(0.05, press('lockOn')); const p3 = P.lockTarget;
+    m.getHitboxes = hbSave;
+    check('lock-on by part: nearest monster → body → head → off', p1 === 'body' && p2 === 'head' && Math.abs(lp - head.y) < 0.01 && p3 === null, { p1, p2 });
+
     // ---------------- grappling hook ----------------
     reset('greatsword'); away();
     const tgt = new g.THREE.Vector3(P.position.x, 0, P.position.z - 16);
@@ -123,28 +136,28 @@ try {
     let path = []; step(2.5, () => { path.push(P.state); return {}; });
     const near = Math.hypot(P.position.x - tgt.x, P.position.z - tgt.z);
     check('rope: fire → pull → release; the hunter travels to the anchor (no teleport)', ok1 && st1 === 'ropeFire' && st2 === 'ropePull' && vis && near < 3 && path.includes('ropePull') && path.includes('jump'), { st1, st2, near: +near.toFixed(1) });
-    check('rope hidden after release, 30 s cooldown running', !g.scene.getObjectByName('grapple-rope').visible && P.ropeCooldown > 25 && P.grappleTo({ point: tgt, kind: 'ground' }) === false, { cd: P.ropeCooldown });
+    check('rope hidden after release, 5 s cooldown running', !g.scene.getObjectByName('grapple-rope').visible && P.ropeCooldown > 0 && P.grappleTo({ point: tgt, kind: 'ground' }) === false, { cd: P.ropeCooldown });
     // monster anchor follows the monster; a dead target releases safely
-    step(31); front(14); m.hp = m.maxHp; const hb = m.getHitboxes()[0];
+    step(6); front(14); m.hp = m.maxHp; const hb = m.getHitboxes()[0];
     P.grappleTo({ point: hb.sphere.center.clone(), kind: 'monster', target: m, part: 'body', offset: new g.THREE.Vector3(0, 0, 1.4) });
     step(0.3); for (let i = 0; i < 30; i++) { m.position.x += 0.15; step(1 / 60); }
     const dx = P.position.x; step(0.6);
     check('rope on a moving monster: the anchor follows and drags the hunter along', dx > 0.8 || P.position.x > 1.5, { x: +P.position.x.toFixed(2) });
-    step(31); P.position.set(0, 0, 6); front(14); m.hp = m.maxHp;
+    step(6); P.position.set(0, 0, 6); front(14); m.hp = m.maxHp;
     P.grappleTo({ point: hb.sphere.center.clone(), kind: 'monster', target: m, part: 'body', offset: new g.THREE.Vector3() }); step(0.3); m.hp = 0; step(0.1);
     check('target dies mid-pull → rope released safely', !P.rope && !['ropeFire', 'ropePull'].includes(P.state), { state: P.state });
     m.hp = m.maxHp;
     // death / respawn leave no rope
-    step(31); P.grappleTo({ point: tgt, kind: 'ground' }); step(0.3); P.receiveHit({ damage: 9999, from: { x: 0, y: 0, z: 0 } }); step(6);
+    step(6); P.grappleTo({ point: tgt, kind: 'ground' }); step(0.3); P.receiveHit({ damage: 9999, from: { x: 0, y: 0, z: 0 } }); step(6);
     check('death and respawn leave no rope or pull state', !P.rope && !g.scene.getObjectByName('grapple-rope').visible && !P.airborne, { state: P.state });
     // targeting ray: the crosshair finds the ground / a monster in front
     P.setState('idle'); P.position.set(0, 0, 6); away(); g.cameraRig.update(0.1, { look: { x: 0, y: 0.35 }, move: { x: 0, y: 0 } }); for (let i = 0; i < 30; i++) g.cameraRig.update(1 / 60, { look: { x: 0, y: 0 }, move: { x: 0, y: 0 } });
     const pk = P.ropePick('center');
     check('targeting: the crosshair ray finds a hook point', pk && (pk.point || pk.refused), { kind: pk?.kind, refused: pk?.refused });
     // keyboard: hold G + double-click = target; the clicks do not attack
-    g.input.keys.add('KeyG'); const cv = g.renderer.domElement; const md = () => cv.dispatchEvent(new MouseEvent('mousedown', { button: 0, clientX: 320, clientY: 200 }));
-    md(); md(); const sIn = g.input.poll(); g.input.keys.delete('KeyG'); window.dispatchEvent(new MouseEvent('mouseup', { button: 0 }));
-    check('G + double-click gives a hook target and no light attack', !!sIn.ropeTarget && !sIn.lightAttack && sIn.ropeHeld);
+    g.input.pressed.add('KeyG'); g.input.poll(); const cv = g.renderer.domElement; const md = () => cv.dispatchEvent(new MouseEvent('mousedown', { button: 0, clientX: 320, clientY: 200 }));
+    md(); md(); const sIn = g.input.poll(); const sAfter = g.input.poll(); window.dispatchEvent(new MouseEvent('mouseup', { button: 0 }));
+    check('G (one press) + double-click gives a hook target, no light attack, then the hook disarms', !!sIn.ropeTarget && !sIn.lightAttack && sIn.ropeHeld && !sAfter.ropeHeld);
     // touch: hold ROPE, double-tap the open screen
     const { TouchControls } = await import('/src/core/touch.js'); const tc = new TouchControls(); tc.show();
     const btn = [...tc.root.querySelectorAll('.tc-btn')].find((b) => b.dataset.act === 'rope');
@@ -154,7 +167,7 @@ try {
     const right = tc.root.querySelector('.tc-right');
     for (let k = 0; k < 2; k++) { const tt = T(right, 400, 150, 10 + k); fire('touchstart', right, tt); fire('touchend', right, tt); }
     const s2 = { move: { x: 0, y: 0 }, look: { x: 0, y: 0 } }; tc.apply(s2); fire('touchend', btn, bt);
-    check('touch: hold ROPE + double-tap → hook target at the tapped point', s2.ropeHeld && s2.ropeTarget && s2.ropeTarget.x === 400, { t: s2.ropeTarget });
+    check('touch: tap ROPE once + double-tap → hook target at the tapped point', s2.ropeHeld && s2.ropeTarget && s2.ropeTarget.x === 400, { t: s2.ropeTarget });
     const s3 = { move: { x: 0, y: 0 }, look: { x: 0, y: 0 } }; const tt3 = T(right, 300, 100, 20); fire('touchstart', right, tt3); fire('touchend', right, tt3); tc.apply(s3);
     check('touch: a tap without ROPE held never fires the hook', !s3.ropeTarget);
     tc.hide(); tc.root.remove();

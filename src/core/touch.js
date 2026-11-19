@@ -30,6 +30,7 @@ export class TouchControls {
         font:700 11px/1.1 Georgia,serif;letter-spacing:.08em;color:#f6e2aa;border:2px solid rgba(214,174,96,.8);
         background:radial-gradient(circle at 40% 30%,rgba(70,50,30,.75),rgba(15,10,6,.8));box-shadow:0 3px 10px rgba(0,0,0,.55)}
       .tc-btn.tc-down{transform:scale(.92);background:radial-gradient(circle at 40% 30%,rgba(160,110,50,.9),rgba(60,35,15,.9))}
+      .tc-btn.tc-armed{border-color:#ffd070;box-shadow:0 0 12px rgba(255,190,80,.8)}
       .tc-menu{left:50%;top:10px;width:64px;height:30px;margin-left:-32px;border-radius:15px}
     `;
     document.head.appendChild(css);
@@ -50,7 +51,7 @@ export class TouchControls {
       [t('touch.next'), 'next', 268, 160, 44, 'tap'],
       [t('touch.lock'), 'lockOn', 130, 250, 54, 'tap'],
       [t('touch.jump'), 'jump', 128, 56, 60, 'tap'],
-      [t('touch.rope'), 'rope', 300, 64, 60, 'hold'], // hold, then double-tap the target
+      [t('touch.rope'), 'rope', 300, 64, 60, 'tap'], // tap once to arm, then double-tap the target (tap again: cancel)
     ];
     for (const [label, act, r, b, size, mode] of B) {
       const el = document.createElement('div'); el.className = 'tc-btn'; el.textContent = label; el.dataset.act = act;
@@ -59,14 +60,13 @@ export class TouchControls {
       const down = (e) => {
         e.preventDefault(); e.stopPropagation(); el.classList.add('tc-down');
         if (act === 'next') { dispatchEvent(new WheelEvent('wheel', { deltaY: 120 })); return; }
-        if (act === 'rope') { this.state.ropeHeld = true; this.ropeBtn = el; }
+        if (act === 'rope') { this.state.ropeHeld = !this.state.ropeHeld; this.ropeBtn = el; el.classList.toggle('tc-armed', this.state.ropeHeld); if (!this.state.ropeHeld) this.ropeCancel = true; return; }
         if (mode === 'hold') { if (act === 'guard') this.state.guard = true; if (act === 'heavy') { this.state.heavyHeld = true; this.pressed.add('heavy'); } }
         else this.pressed.add(act);
         if (act === 'light') this.state.lightHeld = true; // long press = sheathe / sheathed release = parry
       };
       const up = (e) => {
         e.preventDefault(); e.stopPropagation(); el.classList.remove('tc-down');
-        if (act === 'rope') this.state.ropeHeld = false;
         if (act === 'guard') this.state.guard = false; if (act === 'heavy') this.state.heavyHeld = false; if (act === 'light') this.state.lightHeld = false;
       };
       el.addEventListener('touchstart', down, { passive: false });
@@ -141,6 +141,8 @@ export class TouchControls {
   // Town mode: hide combat buttons (keeps stick, look, MENU and the context action).
   // ROPE button shows the hook cooldown
   setRopeCooldown(sec) { if (!this.ropeBtnEl) this.ropeBtnEl = [...this.root.querySelectorAll('.tc-btn')].find((b) => b.dataset.act === 'rope'); const b = this.ropeBtnEl; if (!b) return; const txt = sec > 0 ? String(Math.ceil(sec)) : t('touch.rope'); if (b.textContent !== txt) { b.textContent = txt; b.style.opacity = sec > 0 ? '0.55' : '1'; } }
+  disarmRope() { this.state.ropeHeld = false; this.ropeBtn?.classList.remove('tc-armed'); }
+  setGuardLabel(label) { const b = [...this.root.querySelectorAll('.tc-btn')].find((x) => x.dataset.act === 'guard'); if (b && b.textContent !== label) b.textContent = label; }
   setPeaceful(on) { for (const b of this.root.querySelectorAll('.tc-btn:not(.tc-menu):not(.tc-act)')) b.style.display = on ? 'none' : 'flex'; }
   // Merge into the Input action state (called from Input.poll).
   apply(s) {

@@ -6,7 +6,7 @@ export class Input {
     addEventListener('keydown', (e) => { if (!this.keys.has(e.code)) this.pressed.add(e.code); this.keys.add(e.code); });
     addEventListener('keyup', (e) => this.keys.delete(e.code));
     dom.addEventListener('mousedown', (e) => {
-      if (e.button === 0 && this.keys.has('KeyG')) { // grappling hook: hold G and double-click the target (the crosshair while the mouse is captured)
+      if (e.button === 0 && this.ropeArmed) { // grappling hook: press G once, then double-click the target (the crosshair while the mouse is captured)
         const now = performance.now(); if (now - (this._lastClick || 0) < 350) { this.ropeTarget = this.locked ? 'center' : { x: e.clientX, y: e.clientY }; this._lastClick = 0; } else this._lastClick = now;
         return;
       }
@@ -29,16 +29,20 @@ export class Input {
     const s = {
       move: { x: mx, y: my }, look: { x: lx, y: ly },
       sprint: k('ShiftLeft'), dodge: p('Space'), lightAttack: this.mouse.leftPressed, heavyAttack: this.mouse.rightPressed,
-      heavyHeld: this.mouse.right, lightHeld: this.mouse.left, jump: p('KeyC'), guard: k('KeyQ'), interact: p('KeyE'), item: p('KeyR'), lockOn: p('KeyF') || p('Tab'), menu: p('Escape'), ropeHeld: k('KeyG'), ropeTarget: this.ropeTarget || null,
+      heavyHeld: this.mouse.right, lightHeld: this.mouse.left, jump: p('KeyC'), guard: k('KeyQ'), interact: p('KeyE'), item: p('KeyR'), lockOn: p('KeyF') || p('Tab'), menu: p('Escape'), ropeHeld: false, ropeTarget: this.ropeTarget || null,
     };
     if (pad) {
       s.move.x += dz(pad.axes[0]); s.move.y -= dz(pad.axes[1]); s.look.x += dz(pad.axes[2]) * 0.05; s.look.y += dz(pad.axes[3]) * 0.05;
       const b = (i) => pad.buttons[i]?.pressed;
       s.sprint ||= b(7); s.guard ||= b(6); s.dodge ||= b(1) && !this._pb1; s.lightAttack ||= b(3) && !this._pb3; s.heavyAttack ||= b(2) && !this._pb2; s.heavyHeld ||= b(2); s.lightHeld ||= b(3); s.jump ||= b(0) && !this._pb0; this._pb0 = b(0);
-      s.ropeHeld ||= b(4); if (b(4) && b(0) && !this._pb0r) { s.ropeTarget = 'center'; s.jump = false; } this._pb0r = b(0) && b(4); // LB + A: hook at the crosshair
+      if (b(4) && !this._pb4) this.ropeArmed = !this.ropeArmed; this._pb4 = b(4); if (this.ropeArmed && b(0) && !this._pb0r) { s.ropeTarget = 'center'; s.jump = false; } this._pb0r = b(0); // LB arms, A fires at the crosshair
       s.lockOn ||= b(11) && !this._pb11; this._pb1 = b(1); this._pb2 = b(2); this._pb3 = b(3); this._pb11 = b(11);
     }
+    if (p('KeyG')) this.ropeArmed = !this.ropeArmed; // one press arms the hook (again: cancel)
     this.touch?.apply(s);
+    if (this.touch?.ropeCancel) { this.ropeArmed = false; this.touch.ropeCancel = false; } else if (this.touch?.state?.ropeHeld) this.ropeArmed = true;
+    s.ropeHeld = !!this.ropeArmed;
+    if (s.ropeTarget) { this.ropeArmed = false; if (this.touch) this.touch.disarmRope(); } // fired: the hook disarms
     const len = Math.hypot(s.move.x, s.move.y); if (len > 1) { s.move.x /= len; s.move.y /= len; }
     if (s.ropeHeld) { s.lightAttack = false; s.lightHeld = false; } // while aiming the hook, clicks / taps aim, they do not attack
     this.pressed.clear(); this.ropeTarget = null; this.mouse.dx = this.mouse.dy = 0; this.mouse.leftPressed = this.mouse.rightPressed = false;

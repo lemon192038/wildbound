@@ -47,9 +47,10 @@ export function createCameraRig(game) {
       cam.position.set(fixed[0], fixed[1], fixed[2]); cam.lookAt(fixed[3], fixed[4], fixed[5]);
       applyShake(rawDt); return;
     }
-    const lock = P.lockTarget, lx = input.look?.x || 0, ly = input.look?.y || 0;
+    const lock = P.aiming ? null : P.lockTarget, lx = input.look?.x || 0, ly = input.look?.y || 0; const lockPos = lock ? (P.lockPointOf?.(new THREE.Vector3()) || lock.position) : null;
     if (Math.abs(lx) + Math.abs(ly) > 0) lastInput = rig.time;
-    rig.yaw -= lx * 1.0; rig.pitch = clamp(rig.pitch + ly * 0.8, -0.35, 1.2);
+    const aim = !!P.aiming; rig.aimK = (rig.aimK || 0) + ((aim ? 1 : 0) - (rig.aimK || 0)) * Math.min(1, rawDt * 10);
+    rig.yaw -= lx * (aim ? 0.6 : 1.0); rig.pitch = clamp(rig.pitch + ly * (aim ? 0.5 : 0.8), aim ? -0.75 : -0.35, aim ? 1.0 : 1.2);
     // follow target with spring lag
     const st = P.state, low = st === 'knockdown' || st === 'dead' || st === 'dodge';
     desired.set(P.position.x, P.position.y + (low ? 1.0 : 1.55), P.position.z);
@@ -58,7 +59,7 @@ export function createCameraRig(game) {
     lookOff.set(0, 0, 0); rig.melee = 0;
     if (lock && lock.position) {
       // Camera stays anchored behind the hunter (orbit around the hunter); only the look-at point leans toward the monster.
-      tmp.subVectors(lock.position, P.position); tmp.y = 0; const d = tmp.length();
+      tmp.subVectors(lockPos, P.position); tmp.y = 0; const d = tmp.length();
       const wantYaw = Math.atan2(-tmp.x, -tmp.z);
       if (rig.time - lastInput > 0.6) rig.yaw += wrap(wantYaw - rig.yaw) * Math.min(1, rawDt * 3.5);
       let top = 2; try { for (const h of lock.getHitboxes?.() || []) top = Math.max(top, h.sphere.center.y + h.sphere.radius - P.position.y); } catch (e) { /* ignore */ }
@@ -77,6 +78,7 @@ export function createCameraRig(game) {
     } else if (rig.time - lastInput > 2.5 && P.state === 'sprint') {
       rig.yaw += wrap(P.facing + Math.PI - rig.yaw) * Math.min(1, rawDt * 1.2); // gentle auto-recenter while sprinting
     }
+    if (rig.aimK > 0.01) wantDist += (2.3 - wantDist) * rig.aimK; // aiming: tight over-the-shoulder view
     if (first) { rig.target.copy(desired); first = false; }
     // critically damped spring on the hunter-anchored focus point
     const w = 9, x = tmp.subVectors(rig.target, desired);
@@ -114,7 +116,7 @@ export function createCameraRig(game) {
     const gh = world.getHeight(pos.x, pos.z) + 0.5; if (pos.y < gh) pos.y = gh;
     // shoulder offset (over right shoulder) for a more cinematic frame
     const right = tmp.set(Math.cos(yawF), 0, -Math.sin(yawF));
-    pos.addScaledVector(right, -0.35); look.copy(rig.target).addScaledVector(right, -0.35).add(rig.lookOff);
+    const sh = -0.35 - 0.5 * (rig.aimK || 0); pos.addScaledVector(right, sh); look.copy(rig.target).addScaledVector(right, sh).add(rig.lookOff);
     cam.position.copy(pos); cam.lookAt(look);
     // safety: hunter off-screen OR hidden behind a monster (ray camera->chest vs inflated hitboxes) for >0.5s -> re-solve
     cam.updateMatrixWorld(); ndc.set(P.position.x, P.position.y + 1.1, P.position.z).project(cam);
@@ -132,7 +134,7 @@ export function createCameraRig(game) {
       cam.position.copy(pos); cam.lookAt(desired);
     }
     // FOV kicks: sprint widens, heavy release punches
-    let fovT = baseFov + 7 * (rig.melee || 0) + (st === 'sprint' ? 6 : 0) + (st === 'charge' ? -3 * (P.chargeLevel || 0) * 0.5 : 0);
+    let fovT = baseFov - 14 * (rig.aimK || 0) + 7 * (rig.melee || 0) + (st === 'sprint' ? 6 : 0) + (st === 'charge' ? -3 * (P.chargeLevel || 0) * 0.5 : 0);
     rig.kick *= Math.max(0, 1 - rawDt * 4);
     const nf = cam.fov + (fovT + rig.kick - cam.fov) * Math.min(1, rawDt * 6);
     if (Math.abs(nf - cam.fov) > 0.01) { cam.fov = nf; cam.updateProjectionMatrix(); }
