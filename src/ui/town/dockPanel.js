@@ -4,6 +4,8 @@
 // Picking a destination opens the boss field guide; departing sends acct.act('depart', {mode, dest}).
 import { createWorldMap, fieldUrl } from './worldMap.js';
 import { t } from '../../shared/i18n.js';
+import { QUESTS } from '../../shared/gamedata.js';
+import { HABITAT_IDS } from '../../shared/habitats.js';
 
 export { fieldUrl };
 export function createDockPanel(ctx) {
@@ -22,7 +24,11 @@ export function createDockPanel(ctx) {
   if (eng && !eng.wmPaused) { const render = eng.render.bind(eng); eng.wmPaused = () => !!map?.el.isConnected && !!map.el.closest('.tw-win-ov.on'); eng.render = () => { if (!eng.wmPaused()) render(); }; }
   return {
     id: 'dock', get title() { return t('wm.winTitle'); }, icon: 'dock', get tabs() { return []; }, tab: 'map',
-    onOpen() { const s = ctx.state(); getMap().open({ focus: s?.quests?.expedition?.dest || null }); },
+    onOpen() { // focus the expedition under way, else an island quest's habitat (the ship sails to a habitat on the island)
+      const s = ctx.state(); const ex = s?.quests?.expedition; const qm = !ex && s?.quests?.active ? QUESTS[s.quests.active.qid]?.monster : null;
+      const habQ = qm && HABITAT_IDS.includes('hab_' + (qm === 'flameUpper' ? 'flameUpper' : qm)) ? 'hab:hab_' + qm : null;
+      getMap().open({ focus: ex ? (ex.landing ? 'hab:' + ex.landing : ex.dest) : habQ });
+    },
     render() {
       const m = getMap();
       queueMicrotask(() => { const all = document.querySelectorAll('.tw-win-ov:not(.out) .tw-win[data-panel="dock"] .wm-mount'); const host = all[all.length - 1]; if (host) m.mount(host); });

@@ -8,7 +8,7 @@ import { buildWaterfall } from '../waterfall.js';
 import { createChunkStreamer, TILE } from './chunks.js';
 import { createIslandProps } from './props.js';
 import { createIslandLandmarks } from './landmarks.js';
-import { territoryHomes } from '../../field/islandBosses.js';
+import { territoryHomes } from '../../shared/territories.js';
 import { createVolcanicTextures } from '../volcanicTextures.js';
 import { createTerrainMaterial } from '../volcanicTerrain.js';
 import { installVolcanicFog, createVolcanicSky, buildVolcanicEnvironment } from '../volcanicSky.js';

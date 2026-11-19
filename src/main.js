@@ -160,9 +160,12 @@ async function bootIsland({ quest = false } = {}) {
   if (quest) { // server-validated expedition: target, carried items, time limit; then the base camp near the quarry
     questCtx = await prepareQuest(game);
     const { campFor } = await import('./field/islandCamp.js'); const { createIslandField } = await import('./world/island/islandField.js');
-    const camp = campFor(createIslandField(parseInt(game.params.get('seed') || '1337', 10) || 1337), questCtx.q, questCtx.iid);
+    const camp = campFor(createIslandField(parseInt(game.params.get('seed') || '1337', 10) || 1337), questCtx.q, questCtx.iid, game.params.get('land') || questCtx.ex?.landing || null);
     if (camp) { game.campAt = camp; game.questTargetAt = camp.target; }
-    game.islandQuest = true; game.questTargetId = questCtx.q.monster; game.expeditionIid = questCtx.iid;
+    game.islandQuest = true; game.questTargetId = questCtx.q?.monster; game.expeditionIid = questCtx.iid;
+  } else if (game.params.get('land')) { // free island expedition to a habitat picked on the sea chart
+    const { campFor } = await import('./field/islandCamp.js'); const { createIslandField } = await import('./world/island/islandField.js');
+    const camp = campFor(createIslandField(1337), null, '', game.params.get('land')); if (camp) game.campAt = camp;
   }
   game.fieldId = 'island'; game.expeditionFree = !questCtx || questCtx.free; game.noQuestTimer = !questCtx || questCtx.free;
   const { createIslandWorld } = await import('./world/island/island.js');

@@ -164,3 +164,21 @@
 /* ---------------------------------------------------------------- narrow / touch */
 @media (max-width: 1000px) { .wm-detail { width: min(29em, 62vw); } .wm-hint { display: none; } }
 .wm-touch .wm-ledger-t, .wm-touch .wm-link { min-height: 44px; }
+
+/* island habitats (群生地): small tokens on the Volcanic Island, labelled; boss / dragon grounds in red */
+.wm-hab { z-index: 3; }
+.wm-hab .wm-hab-dot { position: absolute; left: -15px; top: -15px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle at 35% 30%, #f6e2aa, #b58a3e 70%, #6a4a1e); border: 2px solid #2a1a0c; color: #2a1a0c;
+  font: 800 14px/1 var(--serif, serif); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55); transition: transform 0.15s; }
+.wm-hab.boss .wm-hab-dot { background: radial-gradient(circle at 35% 30%, #ffb08a, #b8401c 70%, #5a140a); color: #fff2e0; }
+.wm-hab .wm-hab-label { position: absolute; left: 0; top: 17px; transform: translateX(-50%); white-space: nowrap; padding: 1px 6px; border-radius: 3px;
+  font: 700 11px/1.3 var(--serif, serif); color: #f6ecd2; background: rgba(28, 18, 10, 0.78); pointer-events: none; }
+.wm-hab:hover .wm-hab-dot, .wm-hab.sel .wm-hab-dot { transform: scale(1.25); }
+.wm-hab.sel .wm-hab-label, .wm-hab.quest .wm-hab-label { background: #8a2a10; }
+.wm-hab.quest .wm-hab-dot { box-shadow: 0 0 0 3px #ffd36a, 0 0 14px #ffb040; animation: wm-hab-pulse 1.4s ease-in-out infinite; }
+@keyframes wm-hab-pulse { 50% { box-shadow: 0 0 0 5px #ffd36a, 0 0 22px #ffb040; } }
+.wm-hab .wm-pin-badge { position: absolute; left: 10px; top: -24px; }
+.wm.wm-far .wm-hab .wm-hab-label { display: none; }
+.wm.wm-far .wm-hab.sel .wm-hab-label, .wm.wm-far .wm-hab.quest .wm-hab-label { display: block; }
+.wm.wm-hab-compact .wm-hab .wm-hab-label { display: none; }
+.wm.wm-hab-compact .wm-hab.sel .wm-hab-label, .wm.wm-hab-compact .wm-hab.quest .wm-hab-label, .wm.wm-hab-compact .wm-hab:hover .wm-hab-label { display: block; }

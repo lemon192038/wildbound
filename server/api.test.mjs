@@ -267,6 +267,17 @@ ok(r.state.ledger.length > 5 && r.state.ledger.every((l) => typeof l.d === 'numb
   await give(tid, { ...all2, juv_dragon: 1 }); await store.mutateSave(tid, (d) => { d.coins += R2.coins; });
   r = await act(tt, 'craftTame', { sp: 'flame' }); ok(r.ok && r.state.tames.flame && !r.state.box.juv_dragon, 'a dragon juvenile’s remains build the Flame Dragon construct');
 }
+// ---- sea chart habitats (src/shared/habitats.js): depart to any monster's habitat on the island
+{
+  const L = await call('/api/register', { name: 'Lander', password: 'lander-pass-1' }); const lt = L.token;
+  r = await act(lt, 'acceptQuest', { quest: 'qi_boar' }); ok(r.ok, 'island creature quest accepted');
+  ok((await act(lt, 'depart', { mode: 'quest', dest: 'volcanic_island', landing: 'hab_nowhere' })).error === 'bad_landing', 'an unknown landing site is refused');
+  r = await act(lt, 'depart', { mode: 'quest', dest: 'volcanic_island', landing: 'hab_tusk' });
+  ok(r.ok && r.result.dest === 'volcanic_island' && r.result.landing === 'hab_tusk' && r.state.quests.expedition.landing === 'hab_tusk', 'an island quest departs to the chosen habitat (Crystal Tusk ground)');
+  await act(lt, 'abandonQuest'); clock += 4000000;
+  const L2 = await call('/api/register', { name: 'Lander2', password: 'lander-pass-2' });
+  r = await act(L2.token, 'departIsland', { landing: 'hab_cindaryl' }); ok(r.ok && r.result.landing === 'hab_cindaryl', 'a free island expedition can land at any habitat');
+}
 // ---- eggs and juveniles (src/shared/lifecycle.js, economy islandEgg / islandCarve stage 0)
 {
   const E = await call('/api/register', { name: 'Eggseeker', password: 'eggseeker-pass-1' }); const et = E.token;

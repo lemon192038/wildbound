@@ -12,6 +12,13 @@ import { t, isJa, destName, destDesc, destRegion, monsterName, monsterShort, que
 import { esc, fmt, stars, coins, rarityTag, equipName, clock } from './common.js';
 import { itemIcon, glyph, ELEMENT, rarityColor } from './icons.js';
 import { paintWorldMap, MAP_W, MAP_H, GEO, routeFor, catmull, drawShip } from './worldMapArt.js';
+import { habitatSites, chartPos } from '../../shared/habitats.js';
+import { createIslandField } from '../../world/island/islandField.js';
+import { SPECIES } from '../../fauna/species.js';
+// every monster's habitat (群生地) on the Volcanic Island, placed on the chart (user request: pick one and sail there)
+let HAB = null;
+const habitats = () => (HAB ||= habitatSites(createIslandField(1337)).map((h) => ({ ...h, key: 'hab:' + h.id, map: chartPos(h.x, h.z) })));
+const habOf = (key) => (typeof key === 'string' && key.startsWith('hab:') ? habitats().find((h) => h.key === key) || null : null);
 
 const BASE = (import.meta.env && import.meta.env.BASE_URL) || './';
 export const portraitUrl = (m) => `${BASE}portraits/${m}.webp`;
@@ -78,13 +85,15 @@ export function createWorldMap(ctx) {
   const V = { s: 0.5, tx: 0, ty: 0, vx: 0, vy: 0, w: 1, h: 1, dirty: true, anim: null, fitted: false };
 
   // ---------------------------------------------------------------- markers
-  const destIds = Object.keys(DESTINATIONS);
+  const destIds = Object.keys(DESTINATIONS).filter((id) => DESTINATIONS[id].monster); // the island itself is shown as its habitats (below)
   pins.innerHTML = `<div class="wm-port" style="--x:${GEO.port.x};--y:${GEO.port.y}"><span class="wm-port-ico">${anchorSvg()}</span><b>${esc(t('wm.port'))}</b><small>${esc(t('wm.home'))}</small></div>`
     + GEO.regions.filter((r) => !r.home).map((r) => `<div class="wm-lock" style="--x:${r.x};--y:${r.y + 0.045}">${glyph('lock')}<span>${esc(t('wm.uncharted'))}</span></div>`).join('')
     + destIds.map((id) => { const D = DESTINATIONS[id]; return `<button class="wm-pin" data-dest="${id}" style="--x:${D.map.x};--y:${D.map.y}" aria-label="${esc(monsterName(D.monster) + ' — ' + destName(id))}">
         <span class="wm-pin-medal"><img src="${portraitUrl(D.monster)}" alt="" draggable="false" onerror="this.remove()"><i class="wm-pin-sigil">${esc(monsterShort(D.monster).slice(0, 1))}</i></span>
         <span class="wm-pin-plate"><b>${esc(monsterShort(D.monster))}</b><small>${esc(destName(id))}</small><em class="wm-pin-danger">${'◆'.repeat(Math.min(7, D.danger))}</em></span>
-        <span class="wm-pin-badge"></span></button>`; }).join('');
+        <span class="wm-pin-badge"></span></button>`; }).join('')
+    + habitats().map((h) => `<button class="wm-pin wm-hab ${h.kind}" data-dest="${h.key}" style="--x:${h.map.x};--y:${h.map.y}" aria-label="${esc(monsterName(h.monster))}">
+        <span class="wm-hab-dot">${esc(monsterShort(h.monster).slice(0, 1))}</span><span class="wm-hab-label">${esc(monsterShort(h.monster))}</span><span class="wm-pin-badge"></span></button>`).join('');
   const pinEls = [...pins.children];
 
   // ---------------------------------------------------------------- transform helpers
@@ -109,7 +118,7 @@ export function createWorldMap(ctx) {
     if (animate) animateTo(s, cx, cy); else { V.s = s; V.tx = V.w / 2 - cx * s; V.ty = V.h / 2 - cy * s; clampView(); V.dirty = true; }
   }
   function focusDest(id, zoom) {
-    const D = DESTINATIONS[id]; const s = zoom ? Math.max(V.s, minS() * 2) : V.s;
+    const D = DESTINATIONS[id] || habOf(id); const s = zoom ? Math.max(V.s, minS() * 2) : V.s;
     const free = V.w - detailW(); animateTo(s, D.map.x * MAP_W - 120, D.map.y * MAP_H, free / 2, V.h * 0.52);
   }
 
@@ -184,7 +193,7 @@ export function createWorldMap(ctx) {
       if (k >= 1) V.anim = null; V.dirty = true;
     } else if (!drag && !pinch && (Math.abs(V.vx) > 0.05 || Math.abs(V.vy) > 0.05)) { V.tx += V.vx; V.ty += V.vy; V.vx *= 0.92; V.vy *= 0.92; const ox = V.tx, oy = V.ty; clampView(); if (ox !== V.tx) V.vx = 0; if (oy !== V.ty) V.vy = 0; V.dirty = true; }
     if (V.dirty) {
-      V.dirty = false; stage.style.transform = `translate3d(${V.tx}px,${V.ty}px,0) scale(${V.s})`;
+      V.dirty = false; stage.style.transform = `translate3d(${V.tx}px,${V.ty}px,0) scale(${V.s})`; root.classList.toggle('wm-hab-compact', V.s < minS() * 1.9); // habitat names only when zoomed in
       for (const p of pinEls) { const x = +p.style.getPropertyValue('--x') * MAP_W * V.s + V.tx, y = +p.style.getPropertyValue('--y') * MAP_H * V.s + V.ty; p.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0)`; }
       root.classList.toggle('wm-far', V.s < minS() * 1.25);
     }
@@ -196,16 +205,17 @@ export function createWorldMap(ctx) {
   function drawFx(now) {
     const g = fxg; g.clearRect(0, 0, V.w, V.h); const tt = now / 1000; const s = st();
     const ex = s?.quests?.expedition;
-    const showRoute = selected || hover || (ex && ex.dest);
-    for (const id of [ex?.dest, selected].filter(Boolean)) { // selection / expedition glow around the destination
-      const D = DESTINATIONS[id]?.map; if (!D) continue; const [x, y] = toScreen(D.x, D.y); const R = Math.max(46, 0.05 * MAP_W * V.s);
+    const exKey = ex ? (ex.landing ? 'hab:' + ex.landing : DESTINATIONS[ex.dest]?.monster ? ex.dest : null) : null; // where the ship went
+    const showRoute = selected || hover || exKey;
+    for (const id of [exKey, selected].filter(Boolean)) { // selection / expedition glow around the destination
+      const D = DESTINATIONS[id]?.map || habOf(id)?.map; if (!D) continue; const [x, y] = toScreen(D.x, D.y); const R = habOf(id) ? 26 : Math.max(46, 0.05 * MAP_W * V.s);
       const hot = id === selected; const pulse = 0.85 + Math.sin(tt * 2.4) * 0.15;
       const gr = g.createRadialGradient(x, y, R * 0.2, x, y, R * 1.25 * pulse); gr.addColorStop(0, hot ? 'rgba(255,190,90,0.38)' : 'rgba(255,120,50,0.3)'); gr.addColorStop(1, 'rgba(255,120,40,0)');
       g.fillStyle = gr; g.beginPath(); g.arc(x, y, R * 1.3, 0, Math.PI * 2); g.fill();
       g.save(); g.translate(x, y); g.rotate(tt * 0.25); g.setLineDash([10, 8]); g.lineWidth = 2; g.strokeStyle = hot ? 'rgba(255,226,160,0.9)' : 'rgba(255,140,70,0.8)'; g.beginPath(); g.arc(0, 0, R, 0, Math.PI * 2); g.stroke(); g.restore();
     }
     if (!showRoute) return;
-    const id = selected || hover || ex.dest; const pts = catmull(routeFor(id), 18).map(([u, v]) => toScreen(u, v));
+    const id = selected || hover || exKey; const pts = catmull(routeFor(id, habOf(id)?.map), 18).map(([u, v]) => toScreen(u, v));
     g.save(); g.lineCap = 'round'; g.lineJoin = 'round';
     g.strokeStyle = 'rgba(20,12,6,0.55)'; g.lineWidth = 6; g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke();
     g.setLineDash([2, 11]); g.lineDashOffset = -tt * 26; g.strokeStyle = selected === id ? '#ffe6a8' : 'rgba(255,230,170,0.75)'; g.lineWidth = 4.2; g.stroke();
@@ -240,6 +250,11 @@ export function createWorldMap(ctx) {
     const s = st(); const ex = s?.quests?.expedition; const qd = questDest(s); const hr = s?.profile?.hr || 1;
     for (const p of pinEls) {
       const id = p.dataset?.dest; if (!id) continue; const badge = p.querySelector('.wm-pin-badge'); const D = DESTINATIONS[id];
+      const H = habOf(id); if (H) { // habitat: quest target highlighted; an expedition already on the island shows "resume"
+        const qm = !ex && QUESTS[s?.quests?.active?.qid]?.monster; const isQ = qm && (qm === H.monster || (H.monster === 'flame' && qm === 'flameUpper'));
+        const isEx = ex && (ex.landing === H.id); p.classList.toggle('sel', selected === id); p.classList.toggle('quest', !!isQ); p.classList.toggle('ex', !!isEx);
+        badge.innerHTML = isEx ? `<span class="wm-b-res">${glyph('sail')}</span>` : isQ ? `<span class="wm-b-q">!</span>` : ''; continue;
+      }
       const isEx = ex?.dest === id, isQ = !ex && qd === id;
       p.classList.toggle('sel', selected === id); p.classList.toggle('ex', isEx); p.classList.toggle('quest', isQ); p.classList.toggle('under', hr < D.recHR);
       badge.innerHTML = isEx ? `<span class="wm-b-res">${glyph('sail')}${esc(t('wm.resumeBadge'))}</span>` : isQ ? `<span class="wm-b-q">!</span><span class="wm-b-ql">${esc(t('wm.questBadge'))}</span>` : '';
@@ -262,7 +277,26 @@ export function createWorldMap(ctx) {
       <div class="wm-g-row"><span class="wm-g-k">${esc(t('wm.resist', { e: elementName(el) }))}</span><span><b class="${res > 0 ? 'tw-good' : 'tw-bad'}">${esc(t('wm.yourRes', { n: (res > 0 ? '+' : '') + res }))}</b>
         <span class="wm-dim"> · ${esc(ownFire.length ? t('wm.ownSets', { s: ownFire.map(armorSetName).join(' / ') }) : t('wm.tryArmor', { s: fireSets.map(armorSetName).join(' / ') }))} · ${esc(skillName('heatward'))} · ${esc(itemName('coolingSalve'))}</span></span></div></div>`;
   }
+  // a habitat on the island: what lives there, then sail (quest from any habitat, or a free expedition)
+  function habDetailHtml(H) {
+    const s = st(); const ex = s.quests.expedition; const act = s.quests.active; const q = act && QUESTS[act.qid]; const qd = questDest(s);
+    const canQuest = !ex && q && q.type !== 'deliver' && !!qd; const m = (mode[H.key] ||= canQuest ? 'quest' : 'free');
+    const S = SPECIES[H.monster]; const ja = isJa(); const epi = S?.epithet ? (ja ? S.epithet.ja : S.epithet.en) : '';
+    let foot;
+    if (ex) foot = ex.landing === H.id || ex.island || ex.onIsland ? `<button class="tw-btn tw-primary tw-big wm-go" data-wm="resume">${glyph('sail')} ${esc(t('d.resume'))}</button>` : `<div class="wm-dep-note warn">${glyph('sail')}<span>${esc(t('wm.exElsewhere', { d: destName(ex.dest) }))}</span></div>`;
+    else foot = `${canQuest ? `<div class="wm-modes" role="radiogroup">
+        <button class="wm-mode ${m === 'quest' ? 'on' : ''}" data-wm="mode" data-m="quest" role="radio" aria-checked="${m === 'quest'}"><i></i><span><b>${esc(t('wm.modeQuest'))}</b><small>${esc(t('wm.habQuest', { q: questName(act.qid) }))}</small></span></button>
+        <button class="wm-mode ${m === 'free' ? 'on' : ''}" data-wm="mode" data-m="free" role="radio" aria-checked="${m === 'free'}"><i></i><span><b>${esc(t('wm.modeFree'))}</b><small>${esc(t('wm.modeFreeSub'))}</small></span></button></div>` : ''}
+      <button class="tw-btn tw-primary tw-big wm-go" data-wm="depart" ${busy ? 'disabled' : ''}>${glyph('sail')} ${esc(busy ? t('d.casting') : t('wm.depart'))}</button>`;
+    return `<div class="wm-d-scroll tw-scroll">
+      <header class="wm-d-hero noimg"><button class="wm-d-x" data-wm="close" aria-label="${esc(t('hud.close'))}">${glyph('close')}</button>
+        <div class="wm-d-title"><small>${esc(t('wm.island'))} · ${esc(t('region.' + H.region))}</small><h2>${esc(monsterName(H.monster))}</h2>${epi ? `<p class="wm-dim">${esc(epi)}</p>` : ''}</div></header>
+      <p class="wm-d-desc">${esc(t(H.kind === 'boss' ? 'wm.habBoss' : 'wm.habFauna', { m: monsterShort(H.monster) }))}</p>
+      <p class="wm-dim">${esc(t('wm.habCamp'))}</p>
+    </div><footer class="wm-d-foot">${foot}</footer>`;
+  }
   function detailHtml(id) {
+    const Hb = habOf(id); if (Hb) return habDetailHtml(Hb);
     const s = st(); const D = DESTINATIONS[id]; const mon = D.monster; const info = MONSTER_INFO[mon] || {}; const M = MONSTERS[mon];
     const hr = s.profile.hr; const ex = s.quests.expedition; const act = s.quests.active; const q = act && QUESTS[act.qid]; const qd = questDest(s);
     const questHere = !ex && qd === id; const m = (mode[id] ||= questHere ? 'quest' : 'free'); const useQuest = questHere && m === 'quest';
@@ -312,7 +346,7 @@ export function createWorldMap(ctx) {
   }
   let pendingSelect = null;
   function select(id, focus) {
-    if (id && !DESTINATIONS[id]) return;
+    if (id && !DESTINATIONS[id] && !habOf(id)) return;
     if (id && !V.fitted) { pendingSelect = id; return; }
     const changed = id !== selected; selected = id; root.classList.toggle('has-sel', !!id);
     renderPins(); renderDetail(!changed); if (id && focus) requestAnimationFrame(() => focusDest(id, true));
@@ -329,7 +363,7 @@ export function createWorldMap(ctx) {
     if (a === 'focus') return select(b.dataset.d, true);
     if (a === 'mode') { mode[selected] = b.dataset.m; return renderDetail(); }
     if (a === 'island') { departIsland(); return; }
-    if (a === 'resume') { const ex = s?.quests?.expedition; if (ex) ctx.navigate(ex.island ? islandUrl(ex.iid) : fieldUrl('quest', ex.iid), t('d.resuming')); return; }
+    if (a === 'resume') { const ex = s?.quests?.expedition; if (ex) ctx.navigate((ex.island ? islandUrl(ex.iid) : fieldUrl('quest', ex.iid)) + (ex.landing ? '&land=' + encodeURIComponent(ex.landing) : ''), t('d.resuming')); return; }
     if (a === 'depart') return depart(selected);
   });
   // island expedition: registered on the server so field carving can be recorded (offline: plain exploration)
@@ -343,6 +377,7 @@ export function createWorldMap(ctx) {
   }
   async function depart(id) {
     const s = st(); if (busy || !id || !s || s.quests.expedition) return;
+    const H = habOf(id); if (H) return departHab(H, s);
     const D = DESTINATIONS[id]; const questHere = questDest(s) === id; const m = questHere ? mode[id] || 'quest' : 'free';
     const pouchN = Object.keys(s.pouch || {}).length;
     const body = `<div class="wm-cf"><img src="${portraitUrl(D.monster)}" alt="" onerror="this.remove()"><div><b>${esc(destName(id))}</b><small>${esc(destRegion(id))}</small>
@@ -358,6 +393,17 @@ export function createWorldMap(ctx) {
     if (!iid || dest !== id) { busy = false; renderDetail(); ctx.toast(t('wm.err.mismatch'), 'err'); return; }
     await cinematic(id, m);
     ctx.navigate(fieldUrl('quest', iid), t('wm.landing', { d: destName(id) }));
+  }
+  // sail to a habitat: an accepted (non-delivery) quest runs there, otherwise a free island expedition; the ship lands at
+  // the habitat and the base camp is set up there (server: depart / departIsland with `landing`)
+  async function departHab(H, s) {
+    const act = s.quests.active; const q = act && QUESTS[act.qid]; const qd = questDest(s); const m = q && q.type !== 'deliver' && qd ? mode[H.key] || 'quest' : 'free';
+    const ok = await ctx.confirm({ title: t('wm.habConfirm', { m: monsterShort(H.monster) }), body: `<p>${esc(m === 'quest' ? t('wm.cfQuest', { q: questName(act.qid) }) : t('wm.cfFree'))}</p><p class="wm-dim">${esc(t('wm.habCamp'))}</p>`, ok: t('wm.go'), cancel: t('wm.back') });
+    if (!ok) return;
+    busy = true; renderDetail();
+    const r = m === 'quest' ? await ctx.acct.act('depart', { mode: 'quest', dest: qd, landing: H.id }) : await ctx.acct.act('depart', { mode: 'free', dest: 'volcanic_island', landing: H.id });
+    busy = false; if (!r.ok) { renderDetail(); ctx.toast(errText(r), 'err'); return; }
+    ctx.navigate(fieldUrl('quest', r.result.iid) + '&land=' + encodeURIComponent(H.id), t('wm.landing', { d: monsterShort(H.monster) }));
   }
   function errText(r) {
     const map = { wrong_dest: 'wm.err.wrongDest', bad_dest: 'wm.err.badDest', bad_mode: 'wm.err.badDest', busy: 'srv.busyHunt', none: 'srv.acceptFirst', deliver: 'srv.deliverCounter' };

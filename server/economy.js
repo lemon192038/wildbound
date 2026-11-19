@@ -12,6 +12,8 @@ import { ISLAND_LOOT, ISLAND_LIMITS } from '../src/shared/islandLoot.js';
 import { pointByGid, rollGather, GATHER_KINDS, GATHER_LIMITS } from '../src/shared/islandGather.js';
 import { TAMES, tameRecipe } from '../src/shared/tame.js';
 import { LIFE, LINEAGE, BIG_NESTS, NEST_LIMITS, juvOf } from '../src/shared/lifecycle.js';
+import { HABITAT_IDS } from '../src/shared/habitats.js';
+const landingOf = (l) => (l == null ? null : HABITAT_IDS.includes(l) ? l : fail('bad_landing', 'Unknown landing site'));
 import { createIslandField } from '../src/world/island/islandField.js';
 let FIELD = null; const islandField = () => (FIELD ||= createIslandField(1337)); // gather points are re-derived from the island itself
 export class GameError extends Error { constructor(code, message) { super(message || code); this.code = code; } }
@@ -183,8 +185,9 @@ export const ACTIONS = {
   // depart {mode:'quest'|'free', dest}
   //  quest: travels to the accepted quest's destination (dest, if given, must match it).
   //  free : any destination, no quest needed; the accepted quest (if any) is untouched and cannot complete.
-  depart(d, { mode, dest } = {}, { now }) {
+  depart(d, { mode, dest, landing } = {}, { now }) {
     if (d.quests.expedition) fail('busy', 'Already on a hunt');
+    landing = landingOf(landing); // the sea chart's habitat (群生地) the ship sails to (habitats.js)
     const a = d.quests.active; const q = a && QUESTS[a.qid];
     if (!mode) mode = q ? 'quest' : 'free';
     let qid = null;
@@ -200,8 +203,8 @@ export const ACTIONS = {
     const carried = { ...d.pouch }; d.pouch = {};
     const iid = crypto.randomBytes(9).toString('base64url');
     // every expedition now lands on the open island (the ship drops you near the quarry); the old fields stay for ?hunt=
-    d.quests.expedition = { iid, qid, dest, free: mode === 'free', at: now, carried, onIsland: true, carved: {}, kills: {}, n: 0, gathered: {}, g: {}, gn: 0, gLast: 0 };
-    return { msg: qid ? `Departing for “${q.name}”` : `Setting sail for ${DESTINATIONS[dest].name}`, iid, quest: qid, dest, mode, carried, stats: loadoutStats(d.equip, d.loadout) };
+    d.quests.expedition = { iid, qid, dest, free: mode === 'free', at: now, carried, onIsland: true, landing, carved: {}, kills: {}, n: 0, gathered: {}, g: {}, gn: 0, gLast: 0 };
+    return { msg: qid ? `Departing for “${q.name}”` : `Setting sail for ${DESTINATIONS[dest].name}`, iid, quest: qid, dest, mode, carried, landing, stats: loadoutStats(d.equip, d.loadout) };
   },
   completeQuest(d, { iid, report }, { now, rand }) {
     const ex = d.quests.expedition; if (!ex || ex.iid !== iid) fail('no_expedition', 'That hunt is not active (already reported?)');
@@ -225,12 +228,12 @@ export const ACTIONS = {
   // checks the material tables, per-carcass carve counts, kill-rate limits and a per-expedition cap. Rights (who
   // damaged which part) are decided by the client that dealt the damage — the island is not server-simulated yet
   // (stage 8), so these limits are what keeps a modified client in check.
-  departIsland(d, p, { now }) {
-    if (d.quests.expedition) fail('busy', 'Already on a hunt');
+  departIsland(d, { landing } = {}, { now }) {
+    if (d.quests.expedition) fail('busy', 'Already on a hunt'); landing = landingOf(landing);
     const carried = { ...d.pouch }; d.pouch = {};
     const iid = crypto.randomBytes(9).toString('base64url');
-    d.quests.expedition = { iid, qid: null, dest: 'island', island: true, free: true, at: now, carried, carved: {}, kills: {}, n: 0 };
-    return { msg: 'Setting sail for the Volcanic Island', iid, dest: 'island', carried };
+    d.quests.expedition = { iid, qid: null, dest: 'island', island: true, free: true, at: now, carried, carved: {}, kills: {}, n: 0, landing };
+    return { msg: 'Setting sail for the Volcanic Island', iid, dest: 'island', carried, landing };
   },
   islandCarve(d, { iid, cid, src, part, stage } = {}, { now, rand }) {
     const ex = d.quests.expedition; if (!ex || !(ex.island || ex.onIsland) || ex.iid !== iid) fail('no_expedition', 'Not on an island expedition');
@@ -420,7 +423,7 @@ export function publicState(d, user, now) {
     equip: d.equip.map((e) => ({ ...e, value: equipValue(e) })), loadout: d.loadout, sets: d.sets, stats: loadoutStats(d.equip, d.loadout),
     crafted: d.crafted, craftLog: d.craftLog.slice(-30),
     recipes: Object.fromEntries(Object.keys(RECIPES).map((k) => [k, recipeUnlocked(RECIPES[k], d)])),
-    quests: { cleared: d.quests.cleared, active: d.quests.active, expedition: d.quests.expedition ? { iid: d.quests.expedition.iid, qid: d.quests.expedition.qid, dest: d.quests.expedition.dest || destForMonster(QUESTS[d.quests.expedition.qid]?.monster), free: !!d.quests.expedition.free, island: !!d.quests.expedition.island, carves: d.quests.expedition.n || 0, at: d.quests.expedition.at, carried: d.quests.expedition.carried } : null, history: d.quests.history.slice(-30),
+    quests: { cleared: d.quests.cleared, active: d.quests.active, expedition: d.quests.expedition ? { iid: d.quests.expedition.iid, qid: d.quests.expedition.qid, dest: d.quests.expedition.dest || destForMonster(QUESTS[d.quests.expedition.qid]?.monster), free: !!d.quests.expedition.free, island: !!d.quests.expedition.island, landing: d.quests.expedition.landing || null, carves: d.quests.expedition.n || 0, at: d.quests.expedition.at, carried: d.quests.expedition.carried } : null, history: d.quests.history.slice(-30),
       available: Object.fromEntries(Object.keys(QUESTS).map((k) => [k, questAvailable(k, d)])) },
     hunts: d.hunts, areas: d.areas, tames: d.tames || {}, tameEquip: d.tameEquip || null,
     shop: Object.fromEntries(Object.entries(d.shop).map(([k, s]) => [k, { left: s.left, restockAt: s.at + SHOP.restockMinutes * 60000 }])),

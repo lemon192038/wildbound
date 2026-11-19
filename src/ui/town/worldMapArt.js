@@ -56,9 +56,9 @@ export const GEO = {
   ships: [[0.46, 0.55, 0.2], [0.12, 0.82, -0.3], [0.7, 0.3, 0.5], [0.33, 0.27, 0], [0.78, 0.6, -0.2], [0.95, 0.15, 0.3]],
 };
 // Sea route (Port Halvane → destination), normalised points for a Catmull-Rom curve.
-export function routeFor(destId) {
-  const p = GEO.port, d = D(destId);
-  const via = { ember_foothills: [[0.45, 0.62], [0.52, 0.66]], ashfang_wastes: [[0.46, 0.57], [0.53, 0.5], [0.6, 0.41], [0.67, 0.43]], cinderdeep_hollow: [[0.45, 0.56], [0.5, 0.49]] }[destId] || [[0.46, 0.58]];
+export function routeFor(destId, at = null) { // at: map point for a destination that is not in DESTINATIONS (an island habitat)
+  const p = GEO.port, d = at || D(destId);
+  const via = { ember_foothills: [[0.45, 0.62], [0.52, 0.66]], ashfang_wastes: [[0.46, 0.57], [0.53, 0.5], [0.6, 0.41], [0.67, 0.43]], cinderdeep_hollow: [[0.45, 0.56], [0.5, 0.49]] }[destId] || (at ? [[0.46, 0.58], [0.52, 0.6]] : [[0.46, 0.58]]);
   return [[p.x, p.y], ...via, [d.x, d.y]];
 }
 export function catmull(pts, n = 16) {

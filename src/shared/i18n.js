@@ -61,7 +61,7 @@ const monEntry = (id) => P().monsters?.[id] || EN.monsters[id];
 /** Full name ("Varkhul, the Emberhide" / 「燼皮のヴァルクル」). Accepts an id or the English full/short name. */
 export function monsterName(x) { const id = monsterIdOf(x); return id ? monEntry(id).full : islandName(x) ?? String(x || ''); }
 /** Short name ("Varkhul" / 「ヴァルクル」). */
-const ISLAND_NAME = { tusk: 'fauna.tusk', leader: 'fauna.leader', grandmole: 'fauna.grandmole', flame: 'dragon.flame', flameUpper: 'dragon.flameUpper', venom: 'dragon.venom', cindaryl: 'dragon.cindaryl' };
+const ISLAND_NAME = { tusk: 'fauna.tusk', leader: 'fauna.leader', grandmole: 'fauna.grandmole', flame: 'dragon.flame', flameUpper: 'dragon.flameUpper', venom: 'dragon.venom', cindaryl: 'dragon.cindaryl', venom2: 'dragon.venom', flameRoam: 'dragon.flame' };
 const islandName = (x) => { if (SPECIES[x]) return SPECIES[x].name[isJa() ? 'ja' : 'en']; const k = ISLAND_NAME[x]; if (!k) return null; const v = t(k); return v !== k ? v : null; };
 export function monsterShort(x) { const id = monsterIdOf(x); return id ? monEntry(id).short : islandName(x) ?? String(x || '').split(',')[0]; }
 /** Epithet ("The Emberhide" / 「燼皮」). */

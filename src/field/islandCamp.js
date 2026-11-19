@@ -3,15 +3,19 @@
 //   creatures: in the best habitat for the species (one of the top tiles, chosen by the expedition id)
 //   gathering quests: somewhere in the asked region
 // Pure (island field only), so it can run before the world is built and the first tiles are preloaded around the camp.
-import { territoryHomes } from './islandBosses.js';
+import { territoryHomes } from '../shared/territories.js';
 import { SPECIES } from '../fauna/species.js';
+import { habitatById } from '../shared/habitats.js';
 
 const hash = (s) => { let h = 2166136261; for (const c of String(s)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
-export function campFor(F, q, iid = '') {
+export function campFor(F, q, iid = '', landing = null) {
   const C = F.crater; const H = hash(iid || q?.name || 'x');
   let home = null;
-  const boss = territoryHomes(F).find((T) => T.id === q?.monster || (T.kind === q?.monster && T.id === T.kind));
-  if (boss) home = { x: boss.home[0], z: boss.home[1] };
+  // the habitat picked on the sea chart (群生地) wins: the ship sails there (habitats.js)
+  const hab = landing ? habitatById(F, landing) : null;
+  const boss = hab ? (hab.kind === 'boss' ? hab : null) : territoryHomes(F).find((T) => T.id === q?.monster || (T.kind === q?.monster && T.id === T.kind));
+  if (hab) home = { x: hab.x, z: hab.z };
+  else if (boss) home = { x: boss.home[0], z: boss.home[1] };
   else {
     const sp = q?.monster && SPECIES[q.monster] ? q.monster : null; const cands = [];
     const N = Math.ceil((F.half * 2) / 64);
