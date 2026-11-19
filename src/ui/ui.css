@@ -401,3 +401,12 @@
 .wb-bar.wb-hp.wb-burning .wb-fill { box-shadow: inset 0 0 0.5em rgba(255, 120, 40, 0.9); }
 .wb-ail-blast { border-color: rgba(255, 210, 80, 0.9); box-shadow: 0 0 0.7em rgba(255, 170, 40, 0.5); }
 .wb-ail-blast i { background: radial-gradient(circle at 50% 50%, #fffbe0, #ffc22e 40%, #d2561a 75%, #4a1205 100%); }
+/* part status of the focused monster (stage 4) */
+.wb-parts { display: flex; flex-direction: column; gap: 0.18em; min-width: 11em; padding: 0.35em 0.6em; font-size: 0.7em; letter-spacing: 0.06em; }
+.wb-pt { display: grid; grid-template-columns: 1fr 3.4em auto; align-items: center; gap: 0.5em; color: var(--ink, #e9dcc0); }
+.wb-pt i { position: relative; height: 4px; background: rgba(217, 182, 115, 0.18); border-radius: 2px; overflow: hidden; }
+.wb-pt i::after { content: ''; position: absolute; inset: 0; width: var(--f); background: #d9b673; }
+.wb-pt b { font-weight: 600; font-size: 0.92em; opacity: 0.85; white-space: nowrap; }
+.wb-pt-hurt i::after { background: #e9a248; } .wb-pt-heavy i::after { background: #e05a2a; }
+.wb-pt-broken { color: #ff8a6a; } .wb-pt-broken i::after { width: 0; } .wb-pt-broken span { text-decoration: line-through; }
+.wb-pt-regen { color: #9fd6a8; } .wb-pt-regen i::after { background: #7cc48a; }

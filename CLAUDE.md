@@ -19,6 +19,7 @@ Read this first, then `PROGRESS.md` (what exists / what is next) and `IMPLEMENTA
   - `STORE=pgmem node server/api.test.mjs`
   - `node src/core/__perception.test.mjs`
   - `node src/fauna/__fauna.test.mjs`
+  - `node src/core/__parts.test.mjs`
   - `node src/player/__test.mjs`
   - Build with `npx vite build`, then run the headless checks with `npx vite preview --port 4173`:
     - `node tools/island-test.mjs`
@@ -31,6 +32,7 @@ Read this first, then `PROGRESS.md` (what exists / what is next) and `IMPLEMENTA
 - **`src/world/island/`:** the open volcanic island (streamed chunks, regions, props).
 - **`src/core/perception.js` + `src/shared/senses.js`:** monster senses.
 - **`src/fauna/`:** small island fauna (species data, AI, census, instanced render).
+- **`src/core/parts.js`:** shared part rules: part HP vs body HP, one-time break damage, hardness/deflect/wear, regrowth, lost abilities, part targeting.
 - **`src/ui/debugOverlay.js`:** the developer overlay, `?debug=1` (`?debug=2` adds gizmos; F3 toggles).
 - **`src/core/log.js`:** throttled diagnostics.
 - **URLs:**

@@ -7,16 +7,18 @@ import { ACTIONS, COMBOS } from './attacks.js';
 import { createFx } from './fx.js';
 import { createPerception } from '../core/perception.js';
 import { senseProfile } from '../shared/senses.js';
+import { makePart, resolvePartHit, tickRegen, disabled } from '../core/parts.js';
 
 const TAU = Math.PI * 2;
 const wrapA = (a) => { a = (a + Math.PI) % TAU; if (a < 0) a += TAU; return a - Math.PI; };
 const clamp = THREE.MathUtils.clamp;
 const PART_DEFS = [
-  { name: 'head', hp: 2900, hitzone: 1.4, breakable: true, flinch: 760 },
-  { name: 'forelegs', hp: 2350, hitzone: 1.0, breakable: true, flinch: 950 },
-  { name: 'back', hp: 2500, hitzone: 0.9, breakable: true, flinch: 1100 },
-  { name: 'tail', hp: 3150, hitzone: 1.15, breakable: true, flinch: 1000 },
-  { name: 'body', hp: 21000, hitzone: 0.75, breakable: false, flinch: 1250 },
+  // stage-4 part rules (src/core/parts.js): hardness, regrowth (null = permanent injury), abilities lost while broken
+  { name: 'head', hp: 2900, hitzone: 1.4, breakable: true, flinch: 760, hardness: 0.7, regen: null, disables: ['charge'] },  // horns snapped: no horn charge
+  { name: 'forelegs', hp: 2350, hitzone: 1.0, breakable: true, flinch: 950, hardness: 0.45, regen: 200, disables: ['leap'] }, // torn membranes regrow
+  { name: 'back', hp: 2500, hitzone: 0.9, breakable: true, flinch: 1100, hardness: 0.85, regen: null, disables: [] },         // cracked plates: back is softer afterwards
+  { name: 'tail', hp: 3150, hitzone: 1.15, breakable: true, flinch: 1000, hardness: 0.6, regen: null, disables: ['tail'] },   // severed club never regrows
+  { name: 'body', hp: 21000, hitzone: 0.75, breakable: false, flinch: 1250, hardness: 0.55 },
 ];
 const STATE_CODES = ['idle', 'roam', 'chase', 'attack', 'flinch', 'topple', 'dead', 'exhausted', 'recover'];
 const REACT_STATE = { flinch: 'flinch', flinchHead: 'flinch', legBuckle: 'flinch', topple: 'topple', death: 'dead', recover: 'recover' };
@@ -55,7 +57,7 @@ export async function createMonster(game) {
   const m = {
     name: 'Varkhul, the Emberhide', title: 'Emberhide', object3d: obj, position: obj.position, center: new THREE.Vector3(),
     hp: 21000, maxHp: 21000, state: 'idle', enraged: false, remoteControlled: false, rig, anim, fx, events,
-    parts: PART_DEFS.map((d) => ({ name: d.name, hp: d.hp, maxHp: d.hp, broken: false, hitzone: d.hitzone, breakable: d.breakable, _flinch: d.flinch, acc: 0 })),
+    parts: PART_DEFS.map((d) => makePart(d)),
     yaw: Math.atan2(-spawn.x, -spawn.z) || Math.PI, speed: 0, target: null, tailSevered: false,
     action: null, actionName: '', actionTime: 0, actionSeq: 0, queue: [], cooldown: 2.0, lift: 0,
     flinchSide: 1, hitDone: false, aggro: false, roamTarget: null, roamWait: 0,
@@ -145,16 +147,17 @@ export async function createMonster(game) {
     const W = [];
     if (m.exhausted) { // tired: slow melee, fizzling breath, no charge/leap
       if (dist < 8.5 && ang < 0.6) W.push(['bite', 3]);
-      if (dist < 9) W.push(['tailSweep', ang > 0.9 ? 3 : 0.8]);
+      if (dist < 9 && !m.tailSevered) W.push(['tailSweep', ang > 0.9 ? 3 : 0.8]);
       if (dist > 5 && dist < 18 && ang < 0.6) W.push(['fizzle', 1.5]);
       const tot0 = W.reduce((a, b) => a + b[1], 0); if (!tot0) return null; let r0 = Math.random() * tot0; for (const [n, w] of W) { r0 -= w; if (r0 <= 0) return n; } return W[0][0];
     }
     if (dist < 8.5 && ang < 0.6) W.push(['bite', 4]);
     if (dist < 8.5 && ang < 0.6) W.push(['biteSweep', 2.2], ['doubleBite', 1.8]);
     if (dist < 9 && ang > 0.9) W.push(['sweepBite', 1.5]);
-    if (dist < 9 && ang > 0.9) W.push(['tailSweep', 5]); else if (dist < 8) W.push(['tailSweep', 1.5]);
-    if (dist > 11 && dist < 34 && ang < 0.5) W.push(['charge', 2.2]);
-    if (dist > 9 && dist < 24 && leapCd <= 0) W.push(['leapSlam', 0.6]);
+    if (!m.tailSevered) { if (dist < 9 && ang > 0.9) W.push(['tailSweep', 5]); else if (dist < 8) W.push(['tailSweep', 1.5]); } else if (dist < 9 && ang > 0.9) W.push(['sweepBite', 3]); // no tail: turns and bites
+    if (dist > 11 && dist < 34 && ang < 0.5 && !disabled(m.parts, 'charge')) W.push(['charge', 2.2]);
+    if (dist > 9 && dist < 24 && leapCd <= 0 && !disabled(m.parts, 'leap')) W.push(['leapSlam', 0.6]);
+    if (dist > 11 && dist < 34 && ang < 0.5 && disabled(m.parts, 'charge')) W.push(['biteSweep', 1.2]); // hornless: closes in with bites instead
     if (dist > 5 && dist < 18 && ang < 0.6) W.push(['fireBreath', 2]);
     if (roarCd <= 0 && dist < 25) W.push(['roar', 0.6]);
     if (m.enraged) {
@@ -182,7 +185,7 @@ export async function createMonster(game) {
     flash = 1;
     if (point) fx.sparks(point, 6, 1.2, 2.5);
     if (m.remoteControlled) return { damage: dmg, part: p.name, hitzone: p.hitzone, weak: p.hitzone >= 1.2 };
-    m.hp = Math.max(0, m.hp - dmg); p.hp = Math.max(0, p.hp - dmg); p.acc += dmg;
+    const R = resolvePartHit(p, dmg); m.hp = Math.max(0, m.hp - R.bodyDmg); p.acc += dmg; // part HP absorbs; a break hits the body once
     const aid = String(attackerId ?? game.player?.id ?? 'local'); m.lastAttacker = attackerId ?? m.lastAttacker;
     m.threat.set(aid, (m.threat.get(aid) || 0) + dmg);
     let lp = null; if (point) { lp = obj.worldToLocal(point.clone()); m.flinchSide = lp.x >= 0 ? 1 : -1; }
@@ -192,7 +195,7 @@ export async function createMonster(game) {
     if (!m.aggro) { m.aggro = true; pickTarget(); }
     if (m.target) m.perception?.engage(m.target);
     let broke = false;
-    if (p.breakable && !p.broken && p.hp <= 0) { applyBreak(p.name, true); broke = true; }
+    if (R.broke) { applyBreak(p.name, true); broke = true; }
     if (m.hp <= 0) { die(); return { damage: dmg, part: p.name, hitzone: p.hitzone, killed: true }; }
     if (!m.enraged && m.hp < m.maxHp * 0.5) { m.enraged = true; m.queue = []; if (m.action?.tags?.includes('react') !== true) { startAction('roar'); roarCd = 25; } }
     if (broke || p.acc >= p._flinch) {
@@ -213,7 +216,8 @@ export async function createMonster(game) {
     fx.addDebris(d, impulse, new THREE.Vector3(Math.random() * 6 - 3, Math.random() * 6 - 3, Math.random() * 6 - 3));
   }
   function applyBreak(name, emit) {
-    const p = partByName(name); if (p.broken && !emit) return; p.broken = true; p.hp = 0;
+    const p = partByName(name); if (p.broken && !emit && p._applied) return; p.broken = true; p.hp = 0; p._applied = true;
+    if (name === 'back') { const b = partByName('body'); b.hitzone = Math.min(1, b.hitzone + 0.15); } // cracked back plates: body takes more damage
     const up = new THREE.Vector3(0, 6, 0);
     if (name === 'head') {
       spawnDebrisFrom(rig.hornMeshes.L, up.clone().add(new THREE.Vector3(Math.sin(m.yaw + 1.2) * 4, 0, Math.cos(m.yaw + 1.2) * 4)));
@@ -290,7 +294,16 @@ export async function createMonster(game) {
     return blocked;
   }
 
+  // broken parts regrow on their own timers (well-fed/healthy → faster); visuals revert with them
+  function regrowParts(dt) {
+    for (const name of tickRegen(m.parts, dt, m.hp > m.maxHp * 0.5 ? 1 : 0.6)) {
+      partByName(name)._applied = false;
+      if (name === 'forelegs') { const mm = rig.materials.memMat; mm.alphaMap = null; mm.needsUpdate = true; }
+      events.emit('monster:partRegen', { monster: m, part: name });
+    }
+  }
   function aiUpdate(dt) {
+    regrowParts(dt);
     targetTimer -= dt; roarCd -= dt; leapCd -= dt;
     for (const [k, v] of m.threat) m.threat.set(k, v * Math.exp(-dt * 0.06));
     if (m.aggro && !m.exhausted && m.state !== 'dead') m.stamina = Math.max(0, m.stamina - dt * 0.06);

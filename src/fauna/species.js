@@ -140,3 +140,26 @@ export const SPECIES = {
 };
 // growth stages (mature slimes can split; juveniles stay near home)
 export const STAGES = [{ id: 'juvenile', scale: 0.55, hp: 0.35 }, { id: 'young', scale: 0.78, hp: 0.65 }, { id: 'adult', scale: 1, hp: 1 }, { id: 'large', scale: 1.28, hp: 1.5 }];
+
+// Stage-4 parts per species (hitbox part names in fauna.js). hp = fraction of the creature's max HP.
+// disables: abilities lost while broken (regen = seconds until it regrows; null = permanent).
+// Not every species has the same parts — they follow each body plan (slimes have none).
+// real body length in metres (adult) — used to compare creature sizes across species (part targeting etc.)
+export const BODY_SIZE = { beetle: 1.2, slime: 1.0, bird: 1.1, lizard: 2.3, drake: 5.0, snake: 10, boar: 2.6, tusk: 3.8, wolf: 1.9, leader: 2.4, mole: 3.3, grandmole: 5.5, golem: 4.0 };
+
+export const PARTS = {
+  beetle: [{ name: 'shell', hp: 0.45, hitzone: 1, hardness: 0.9, regen: 240, disables: ['curl'] }],                               // cracked shell: curling no longer protects
+  slime: [],
+  bird: [{ name: 'wings', hp: 0.3, hitzone: 1.1, hardness: 0.1, regen: 300, disables: ['fly'] }, { name: 'body', hitzone: 1, hardness: 0.25 }], // torn wings: grounded
+  lizard: [{ name: 'head', hp: 0.25, hitzone: 1.2, hardness: 0.5, regen: 200, disables: ['bite', 'fire'] }, { name: 'tail', hp: 0.25, hitzone: 0.9, hardness: 0.4, regen: 400, disables: ['tail'] }, { name: 'body', hitzone: 1, hardness: 0.55 }],
+  drake: [{ name: 'head', hp: 0.22, hitzone: 1.2, hardness: 0.55, regen: 260, disables: ['bite', 'fire'] }, { name: 'tail', hp: 0.22, hitzone: 0.9, hardness: 0.45, regen: 480, disables: ['tail'] }, { name: 'body', hitzone: 1, hardness: 0.6 }],
+  snake: [{ name: 'head', hp: 0.15, hitzone: 1.25, hardness: 0.8, regen: 300, disables: ['ball', 'swallow'] }, { name: 'body', hitzone: 0.8, hardness: 0.92 }],
+  boar: [{ name: 'head', hp: 0.2, hitzone: 1.1, hardness: 0.7, regen: 300, disables: ['gore'] }, { name: 'crystal', hp: 0.25, hitzone: 0.6, hardness: 0.92, regen: 360, disables: [] },
+    { name: 'legs', hp: 0.2, hitzone: 1, hardness: 0.4, regen: 240, disables: ['charge', 'run'] }, { name: 'body', hitzone: 0.9, hardness: 0.6 }],
+  wolf: [{ name: 'head', hp: 0.2, hitzone: 1.2, hardness: 0.45, regen: 200, disables: ['lunge'] }, { name: 'legs', hp: 0.22, hitzone: 1, hardness: 0.35, regen: 200, disables: ['run'] }, { name: 'body', hitzone: 1, hardness: 0.4 }],
+  mole: [{ name: 'head', hp: 0.2, hitzone: 1.2, hardness: 0.6, regen: 300, disables: [] }, { name: 'claw', hp: 0.22, hitzone: 0.7, hardness: 0.85, regen: 300, disables: ['dig', 'claw'] },
+    { name: 'body', hitzone: 0.85, hardness: 0.88 }, { name: 'mound', hitzone: 0.3, hardness: 0.3 }],
+  golem: [{ name: 'core', hp: 0.2, hitzone: 1.5, hardness: 0.5, regen: 600, disables: ['throw'] }, { name: 'arm', hp: 0.25, hitzone: 0.8, hardness: 0.95, regen: 480, disables: ['fist'] }, { name: 'body', hitzone: 0.7, hardness: 0.97 }],
+};
+// bit per breakable part for the instanced shader's break states (fauna.js → faunaRender.js aBreak)
+export const BREAK_BIT = { crystal: 1, tail: 2, wings: 4, arm: 8, claw: 16, shell: 32, head: 64, legs: 128 };

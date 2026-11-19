@@ -12,6 +12,8 @@
 //   slam (staggers), rock throw at range, short heavy charge. Defends its territory only: pursues to the edge, a bit
 //   further when attacked, then walks home and settles back into a rock. Ash Birds perch on dormant golems and burst
 //   away when one wakes.
+import { disabled } from '../core/parts.js';
+
 export function createEarthAI(ctx) {
   const { game, rnd, setAi, steer, nearestOf, nearestHunter, noiseOf, ground, wrapA, pickSpot, shoot, W } = ctx;
   const face = (c, x, z, dt, rate = 2) => { c.yaw += Math.max(-rate * dt, Math.min(rate * dt, wrapA(Math.atan2(x - c.pos.x, z - c.pos.z) - c.yaw))); };
@@ -70,9 +72,11 @@ export function createEarthAI(ctx) {
     if (c.ai === 'dig') { c.rise = Math.max(0, 1 - c.t / 1.2); c.move = 0; c.mode = 1; if (c.t > 1.2) { W.spawnDust?.(c.pos.clone(), 1.5 * c.scale); setAi(c, c.hp < c.maxHp * 0.4 ? 'flee' : 'roam'); c.fleeFrom = h ? h.pos.clone() : c.pos.clone(); c.cd = 8; } return; }
     // fight on the surface
     c.mode = 0;
-    if (c.surfT <= 0 || c.hp < c.maxHp * 0.4 || !h || dH > S.chase) { setAi(c, 'dig'); return; }
+    if ((c.surfT <= 0 || c.hp < c.maxHp * 0.4 || !h || dH > S.chase) && !disabled(c.parts, 'dig')) { setAi(c, 'dig'); return; }
+    if (disabled(c.parts, 'dig') && (c.hp < c.maxHp * 0.4 || !h || dH > S.chase)) { const a = h ? Math.atan2(c.pos.x - h.pos.x, c.pos.z - h.pos.z) : c.yaw; steer(c, c.pos.x + Math.sin(a) * 5, c.pos.z + Math.cos(a) * 5, S.speed, dt, 1.5); return; } // broken claws: cannot dig — flees on foot
     if (h) {
-      if (c.cd <= 0 && dH < 3.2 * c.scale) { setAi(c, 'claw'); return; }
+      if (c.cd <= 0 && dH < 3.2 * c.scale && !disabled(c.parts, 'claw')) { setAi(c, 'claw'); return; }
+      if (c.cd <= 0 && dH < 4 && disabled(c.parts, 'claw')) { setAi(c, 'digcharge'); c.chargeAt = h.pos.clone(); return; } // no claws: rams with its armoured head
       if (c.cd <= 0 && dH > 5 && dH < 14) { setAi(c, 'digcharge'); c.chargeAt = h.pos.clone(); return; }
       if (dH > 2.8 * c.scale) steer(c, h.pos.x, h.pos.z, S.speed, dt, 1.6); else { face(c, h.pos.x, h.pos.z, dt); c.move = 0; }
     }
@@ -121,8 +125,9 @@ export function createEarthAI(ctx) {
     if (!inTerr || homeD > S.territory + 18) { c.calmT += dt; if (c.calmT > 4) { setAi(c, 'return'); c.engaged = false; } else c.move = 0; return; }
     c.calmT = 0;
     if (c.cd <= 0) {
-      if (dH < 4 * c.scale) { setAi(c, c.slamCd <= 0 && rnd() < 0.4 ? 'slam' : 'fist'); return; }
-      if (dH > A.throw.range[0] && dH < A.throw.range[1] && c.throwCd <= 0) { setAi(c, 'throw'); return; }
+      const fist = !disabled(c.parts, 'fist');
+      if (dH < 4 * c.scale && (fist || c.slamCd <= 0)) { setAi(c, c.slamCd <= 0 && (!fist || rnd() < 0.4) ? 'slam' : 'fist'); return; } // arm shattered: slams the ground instead
+      if (dH > A.throw.range[0] && dH < A.throw.range[1] && c.throwCd <= 0 && fist && !disabled(c.parts, 'throw')) { setAi(c, 'throw'); return; }
       if (dH > 6 && dH < 12 && c.chargeCd <= 0) { setAi(c, 'charge'); c.chargeAt = h.pos.clone(); return; }
     }
     if (dH > 3.6 * c.scale) steer(c, h.pos.x, h.pos.z, S.speed, dt, 0.9); else { face(c, h.pos.x, h.pos.z, dt, 1.2); c.move = 0; }

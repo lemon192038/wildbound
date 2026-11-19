@@ -110,6 +110,20 @@ export function createUI(game) {
   if (game.noQuestTimer) timer.style.display = 'none'; // open-world exploration: no time limit
   const status = el('div', 'wb-status', null, nav);
   const chip = (cls, icon, label) => el('div', `wb-frame wb-chip ${cls} wb-hidden`, `${icon}<span>${label}</span>`, status);
+  // part status of the focused monster (stage 4): intact / damaged / badly damaged / broken (+ regrowth progress)
+  const partsEl = el('div', 'wb-frame wb-parts wb-hidden', '', status); let partsKey = '', partsT = 0;
+  function renderParts(mon, dt) {
+    partsT -= dt; if (partsT > 0) return; partsT = 0.25;
+    const list = (mon?.parts || []).filter((p) => p.breakable && p.name !== 'mound');
+    if (!mon || mon.state === 'dead' || !list.length) { if (partsKey) { partsKey = ''; partsEl.classList.add('wb-hidden'); } return; }
+    const rows = list.map((p) => { const f = p.maxHp ? p.hp / p.maxHp : 1; const st = p.broken ? (p.regen ? 'regen' : 'broken') : f > 0.66 ? 'ok' : f > 0.33 ? 'hurt' : 'heavy';
+      const pr = p.broken && p.regen ? Math.round((p.regenT / p.regen) * 100) : Math.round(f * 100); return [p.name, st, pr]; });
+    const key = rows.map((r) => r.join(':')).join('|'); if (key === partsKey) return; partsKey = key;
+    partsEl.classList.remove('wb-hidden');
+    partsEl.innerHTML = rows.map(([n, st, pr]) => `<div class="wb-pt wb-pt-${st}"><span>${esc(partName(n))}</span><i style="--f:${pr}%"></i><b>${t('pt.' + (st === 'regen' ? 'regen' : st))}${st === 'regen' ? ` ${pr}%` : ''}</b></div>`).join('');
+  }
+  events.on('player:deflect', () => toast(t('f.deflect')));
+  events.on('monster:partRegen', (e) => { if (e?.monster && e.monster === M()) toast(t('f.regrew', { m: parseName(e.monster.name).name, p: partName(e.part) })); });
   const chipRage = chip('wb-chip-rage', SVG.rage, t('chip.rage')), chipTired = chip('wb-chip-tired', SVG.tired, t('chip.tired')), limp = chip('wb-chip-limp', SVG.limp, t('chip.limp'));
   let monState = '';
   events.on('monster:state', (e) => { if (e?.state) monState = String(e.state); });
@@ -414,14 +428,14 @@ export function createUI(game) {
   events.on('monster:partBreak', (e) => {
     const part = e?.part; const nm = typeof part === 'string' ? part : part?.name || 'Part';
     brokenParts.push(nm);
-    breakQueue.push(partName(nm)); if (!breakBusy) nextBreak();
+    breakQueue.push({ nm: partName(nm), mon: e?.monster || M() }); if (!breakBusy) nextBreak(); // the banner names the creature that actually broke
   });
   const breakEl = el('div', 'wb-break', `<div class="wb-break-burst"></div>${SVG.shard}<div class="wb-break-kicker">${t('f.partBroken')}</div><div class="wb-break-name"></div><div class="wb-break-sub">${t('f.bonus')}</div>`, hud);
   const breakQueue = []; let breakBusy = false;
   function nextBreak() {
-    const nm = breakQueue.shift(); if (!nm) { breakBusy = false; return; }
-    breakBusy = true;
-    const mon = M(); const who = parseName(mon?.name).name;
+    const q = breakQueue.shift(); if (!q) { breakBusy = false; return; }
+    breakBusy = true; const nm = q.nm;
+    const mon = q.mon; const who = parseName(mon?.name).name;
     breakEl.querySelector('.wb-break-name').textContent = nm.toUpperCase();
     breakEl.querySelector('.wb-break-sub').textContent = t('f.shattered', { m: who, p: nm });
     breakEl.classList.remove('wb-show'); void breakEl.offsetWidth; breakEl.classList.add('wb-show');
@@ -525,6 +539,7 @@ export function createUI(game) {
       const dx = mon.position.x - p.position.x, dz = mon.position.z - p.position.z;
       if (dx * dx + dz * dz < 1600) showCard();
     }
+    renderParts(mon, rawDt ?? dt);
     const mf = mon ? num(mon.hp, 1) / Math.max(1, num(mon.maxHp, 1)) : 1;
     const alive = !!mon && mf > 0 && mon.state !== 'dead';
     const mst = String(mon?.state || monState || '');

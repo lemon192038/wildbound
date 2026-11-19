@@ -12,7 +12,8 @@
 // (survivors return to the census of the tile they ended up in). Killed individuals do not instantly respawn;
 // a stored tile below capacity gains one adult every 3 minutes (PROVISIONAL until the stage-6 breeding model).
 // NOT networked yet: each client simulates its own fauna (stage 8).
-import { SPECIES, STAGES } from './species.js';
+import { SPECIES, STAGES, PARTS, BREAK_BIT, BODY_SIZE } from './species.js';
+import { makePart, resolvePartHit, tickRegen, disabled, pickTargetPart } from '../core/parts.js';
 import { createFaunaRender } from './faunaRender.js';
 import { createPredatorAI } from './predators.js';
 import { createHerdAI } from './herds.js';
@@ -151,7 +152,10 @@ export function createFauna(game) {
   // ------------------------------------------------------------------ combat interface (same shape as bosses)
   const _sph = new THREE.Sphere();
   function attach(c) {
-    c.parts = c.sp === 'mole' ? [{ name: 'head', hitzone: 1.2 }, { name: 'claw', hitzone: 0.7 }, { name: 'body', hitzone: 0.85 }, { name: 'mound', hitzone: 0.3 }] : c.sp === 'golem' ? [{ name: 'body', hitzone: 0.7 }, { name: 'core', hitzone: 1.5 }, { name: 'arm', hitzone: 0.8 }] : c.sp === 'boar' ? [{ name: 'head', hitzone: 1.1 }, { name: 'body', hitzone: 0.9 }, { name: 'crystal', hitzone: 0.6 }] : c.sp === 'wolf' ? [{ name: 'head', hitzone: 1.2 }, { name: 'body', hitzone: 1 }] : c.sp === 'lizard' || c.sp === 'drake' ? [{ name: 'head', hitzone: 1.2 }, { name: 'body', hitzone: 1 }, { name: 'tail', hitzone: 0.9 }] : c.sp === 'snake' ? [{ name: 'head', hitzone: 1.25 }, { name: 'body', hitzone: 0.8 }] : [{ name: 'body', hitzone: 1 }];
+    // stage-4 parts: breakable parts absorb hits (src/core/parts.js); 'body' is the creature itself
+    c.parts = (PARTS[c.sp] || []).map((d) => makePart({ ...d, hp: d.hp ? Math.max(20, Math.round(d.hp * c.maxHp)) : 99999, breakable: !!d.hp }));
+    if (!c.parts.some((p) => p.name === 'body')) c.parts.push(makePart({ name: 'body', hp: 99999, hitzone: 1, hardness: 0.3 + (c.S.defense || 0.5) * 0.5 }));
+    c.breakMask = 0; c.bodySize = (BODY_SIZE[Object.keys(SPECIES).find((k) => SPECIES[k] === c.S)] || BODY_SIZE[c.sp] || 1) * STAGES[c.stage].scale;
     const N = c.S.name, E = c.S.epithet; c.name = isJa() ? N.ja : N.en; if (E) c.epithet = isJa() ? E.ja : E.en; c.isFauna = true;
     Object.defineProperty(c, 'position', { get() { return c.pos; } });
     Object.defineProperty(c, 'state', { get() { return c.dead ? 'dead' : c.ai; } });
@@ -168,24 +172,29 @@ export function createFauna(game) {
         return out; }
       if (c.sp === 'wolf' || c.sp === 'boar') { const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw), s = c.scale, big = c.sp === 'boar' ? 1.25 : 0.85, y = c.pos.y + (c.sp === 'boar' ? 0.85 : 0.7) * s;
         const out = [{ part: 'head', sphere: new THREE.Sphere(new THREE.Vector3(c.pos.x + fx * 1.1 * big * s, y, c.pos.z + fz * 1.1 * big * s), 0.42 * big * s) }, { part: 'body', sphere: new THREE.Sphere(new THREE.Vector3(c.pos.x, y, c.pos.z), 0.62 * big * s) }];
-        if (c.sp === 'boar') out.push({ part: 'crystal', sphere: new THREE.Sphere(new THREE.Vector3(c.pos.x - fx * 0.3 * s, y + 0.6 * s, c.pos.z - fz * 0.3 * s), 0.45 * s) }); return out; }
+        if (c.sp === 'boar') out.push({ part: 'crystal', sphere: new THREE.Sphere(new THREE.Vector3(c.pos.x - fx * 0.3 * s, y + 0.6 * s, c.pos.z - fz * 0.3 * s), 0.45 * s) });
+        out.push({ part: 'legs', sphere: new THREE.Sphere(new THREE.Vector3(c.pos.x + fx * 0.4 * big * s, c.pos.y + 0.3 * s, c.pos.z + fz * 0.4 * big * s), 0.38 * big * s) }); return out; }
       if (c.sp === 'snake') { if (c.ai === 'dive' || c.ai === 'hideDeep') return []; const s = c.scale; const out = [{ part: 'head', sphere: new THREE.Sphere(c.pos.clone(), 0.75 * s) }];
         for (let i = 2; i <= 8; i += 3) { const p = c.trail[i * 2]; if (p) out.push({ part: 'body', sphere: new THREE.Sphere(p.clone(), 0.6 * s) }); } return out; }
       if (c.sp === 'bird' && c.alt > 3.5) return []; // out of a great sword's reach while airborne
       const r = (c.sp === 'bird' ? 0.65 : c.sp === 'slime' ? 0.62 : 0.72) * c.scale;
       _sph.center.set(c.pos.x, c.pos.y + (c.sp === 'bird' ? 0.3 : 0.38 * c.scale), c.pos.z); _sph.radius = r;
-      return [{ part: 'body', sphere: _sph.clone() }];
+      if (c.sp === 'bird') return [{ part: 'body', sphere: _sph.clone() }, { part: 'wings', sphere: new THREE.Sphere(new THREE.Vector3(c.pos.x, c.pos.y + 0.35, c.pos.z), 1.2 * c.scale) }];
+      return [{ part: c.sp === 'beetle' ? 'shell' : 'body', sphere: _sph.clone() }];
     };
     c.receiveHit = (h) => hit(c, h);
   }
   function hit(c, { damage = 0, point, attackerId, part = 'body', by = null } = {}) {
     if (c.dead) return { damage: 0, part };
     let mult = c.sp === 'beetle' ? 0.55 : c.sp === 'slime' ? 0.85 : c.sp === 'lizard' ? 0.7 : c.sp === 'drake' ? 0.62 : c.sp === 'snake' ? 0.45 : c.sp === 'boar' ? (1 - c.S.defense * 0.45) : c.sp === 'wolf' ? 0.8 : c.sp === 'mole' ? 0.5 : c.sp === 'golem' ? 0.42 : 0.95;
-    mult *= c.parts.find((p) => p.name === part)?.hitzone ?? 1;
-    if (c.ai === 'curl') mult *= SPECIES.beetle.curlDefense;
+    const P = c.parts.find((p) => p.name === part) || c.parts.find((p) => p.name === 'body');
+    mult *= P?.hitzone ?? 1;
+    if (c.ai === 'curl' && !disabled(c.parts, 'curl')) mult *= SPECIES.beetle.curlDefense;
     if (c.ai === 'flatten') mult *= SPECIES.slime.flatDefense;
+    if (c.parts.some((p) => p.broken && p.name === 'crystal')) mult *= 1.2; // armour crystals shattered
     const dealt = Math.max(1, Math.round(damage * mult));
-    c.hp -= dealt; c.flash = 1; c.hits++; c.lastHitAt = clock; c.aggroT = 10;
+    const R = resolvePartHit(P, dealt); c.hp -= R.bodyDmg; c.flash = 1;
+    if (R.broke) onPartBreak(c, P, by); c.hits++; c.lastHitAt = clock; c.aggroT = 10;
     const atk = by ? null : attackerId === 'local' || attackerId == null ? game.player : game.remotePlayers?.get?.(String(attackerId));
     c.hunter = atk || (by ? c.hunter : game.player);
     if (c.hp <= 0) { die(c, by ? (by.sp === 'wolf' ? 'predation' : 'fight') : 'hunted', by || c.hunter); if (c.group) HERD.onHit(c, dealt, by || atk); return { damage: dealt, part, killed: true }; }
@@ -202,6 +211,14 @@ export function createFauna(game) {
     } else if (c.sp === 'mole' || c.sp === 'golem') EARTH.onHit(c, dealt, by);
     else PRED.onHit(c, dealt);
     return { damage: dealt, part };
+  }
+  // a part broke: lose its ability (AI checks disabled()), show it, tell the HUD (only for the hunter's own breaks)
+  function onPartBreak(c, p, by) {
+    c.breakMask |= BREAK_BIT[p.name] || 0; stats.breaks = (stats.breaks || 0) + 1;
+    if (p.name === 'wings' && c.sp === 'bird') { c.alt = Math.min(c.alt, 2); if (c.ai !== 'flee') setAi(c, 'grounded'); }
+    if (p.name === 'claw' && c.sp === 'mole' && c.under) { c.under = false; setAi(c, 'fight'); c.surfT = 30; }
+    game.events?.emit?.('fauna:partBreak', { creature: c, part: p.name, by });
+    if (!by) game.events?.emit?.('monster:partBreak', { monster: c, part: p.name });
   }
   function die(c, cause, by) {
     if (c.dead) return; c.dead = true; c.hp = 0; c.corpseT = cause === 'predation' ? 30 : 90; c.ai = 'dead'; c.move = 0;
@@ -257,12 +274,13 @@ export function createFauna(game) {
   // ------------------------------------------------------------------ AI
   function setAi(c, ai) { c.ai = ai; c.t = 0; c.dur = 0; c.target = null; }
   // creature → creature damage (pack bites, boar charges); bosses are left alone
-  function hitCreature(target, damage, byCreature) { if (target?.isFauna) return hit(target, { damage, by: byCreature, part: 'body' }); return null; }
+  function hitCreature(target, damage, byCreature, style = 'bite') { if (target?.isFauna) return hit(target, { damage, by: byCreature, part: pickTargetPart(byCreature, target, rnd, style) }); return null; }
   const HERD = createHerdAI({ game, rnd, setAi, steer: (...a) => steer(...a), nearestOf: (...a) => nearestOf(...a), nearestHunter, die, ground, wrapA, pickSpot, hitCreature, okSpot: (...a) => okSpot(...a) });
   const EARTH = createEarthAI({ game, W, rnd, setAi, steer: (...a) => steer(...a), nearestOf: (...a) => nearestOf(...a), nearestHunter, noiseOf, die, shoot: (...a) => shoot(...a), ground, wrapA, pickSpot, okSpot: (...a) => okSpot(...a) });
   const countNear = (c, r, f) => { hash.query(c.pos.x, c.pos.z, r, _q); let n = 0; for (const o of _q) if (o !== c && f(o) && o.pos.distanceTo(c.pos) < r) n++; return n; };
   const PRED = createPredatorAI({ countNear, game, W, F, rnd, setAi, steer: (...a) => steer(...a), nearestOf: (...a) => nearestOf(...a), nearestHunter, noiseOf, die, shoot, ground, wrapA, pickSpot });
   function steer(c, tx, tz, speed, dt, turn = 3) {
+    if (c.breakMask & BREAK_BIT.legs) speed *= 0.45; // crippled leg
     const dx = tx - c.pos.x, dz = tz - c.pos.z, d = Math.hypot(dx, dz); if (d < 0.2) { c.move = 0; return d; }
     const want = Math.atan2(dx, dz); c.yaw += Math.max(-turn * dt, Math.min(turn * dt, wrapA(want - c.yaw)));
     const k = Math.max(0, Math.cos(wrapA(want - c.yaw))); const step = Math.min(d, speed * k * dt);
@@ -277,6 +295,7 @@ export function createFauna(game) {
 
   function thinkBeetle(c, dt) {
     const S = c.S; const [h, dH] = nearestHunter(c.pos.x, c.pos.z);
+    if (c.ai === 'curl' && disabled(c.parts, 'curl')) { setAi(c, 'burrow'); return; } // cracked shell: curling is useless → dig away instead
     if (c.ai === 'burrow') { c.move = 0; c.squash = Math.max(0.05, 1 - c.t / 1.0); if (c.t > 1) { setAi(c, 'burrowed'); c.dur = (eruptT > 0 ? 20 : 12) + rnd() * 10; } return; }
     if (c.ai === 'burrowed') { if (c.t > c.dur) { const s = pickSpot(c.pos.x, c.pos.z, 8, 18, 'beetle'); if (s) { c.pos.set(s[0], ground(s[0], s[1]), s[1]); } setAi(c, 'emerge'); } return; }
     if (c.ai === 'emerge') { c.squash = Math.min(1, c.t / 0.8); if (c.t > 0.8) { c.squash = 1; setAi(c, 'roam'); } return; }
@@ -320,6 +339,13 @@ export function createFauna(game) {
 
   function thinkBird(c, dt) {
     const S = c.S; const [h, dH] = nearestHunter(c.pos.x, c.pos.z);
+    if (disabled(c.parts, 'fly')) { // torn wings: drops to the ground and escapes on foot until they regrow
+      c.perchOn = null; c.prey = null; c.alt = Math.max(0, c.alt - dt * 9); c.mode = 2; c.pitch = 0; c.roll = 0;
+      if (h && dH < 18) { const a = Math.atan2(c.pos.x - h.pos.x, c.pos.z - h.pos.z); steer(c, c.pos.x + Math.sin(a) * 4, c.pos.z + Math.cos(a) * 4, S.groundSpeed * 1.6, dt, 3); }
+      else c.move = 0;
+      c.ai = 'grounded'; return;
+    }
+    if (c.ai === 'grounded') { c.alt = 0.5; setAi(c, 'takeoff'); return; } // wings regrown
     c.hunger = Math.min(1, c.hunger + dt / 120);
     const gy = ground(c.pos.x, c.pos.z);
     const fly = (tx, tz, speed, alt) => { c.altT = alt; c.alt += (c.altT - c.alt) * Math.min(1, dt * 0.8); const d = steer(c, tx, tz, speed, dt, 1.6); c.mode = c.alt > c.altT + 2 || speed > 10 ? 1 : 0; c.pitch = (c.altT - c.alt) * -0.03; c.roll = Math.max(-0.6, Math.min(0.6, c.roll * 0.9)); return d; };
@@ -426,7 +452,8 @@ export function createFauna(game) {
       const c = list[i];
       if (c.dead) { c.corpseT -= dt; if (c.eaten) c.corpseT = Math.min(c.corpseT, 5); if (c.corpseT <= 0) list.splice(i, 1); continue; }
       const [, d] = nearestHunter(c.pos.x, c.pos.z);
-      c.acc += dt; if (d > LOD_NEAR && (frame + c.id) % 4) continue; const sdt = Math.min(c.acc, 0.25); c.acc = 0;
+      c.acc += dt; if (d > LOD_NEAR && (frame + c.id) % 4) continue; const fullDt = c.acc, sdt = Math.min(c.acc, 0.25); c.acc = 0;
+      if (c.breakMask) for (const n of tickRegen(c.parts, fullDt, (c.hunger < 0.5 ? 1.2 : 0.7) * (c.hp > c.maxHp * 0.5 ? 1 : 0.6))) { c.breakMask &= ~(BREAK_BIT[n] || 0); game.events?.emit?.('fauna:partRegen', { creature: c, part: n }); }
       c.t += sdt; c.flash = Math.max(0, c.flash - sdt * 4); c.heat = Math.max(0, c.heat - sdt); c.burstCd -= sdt;
       if (c.sp === 'beetle') thinkBeetle(c, sdt); else if (c.sp === 'slime') thinkSlime(c, sdt); else if (c.sp === 'bird') thinkBird(c, sdt);
       else if (c.sp === 'boar') HERD.thinkBoar(c, sdt); else if (c.sp === 'wolf') HERD.thinkWolf(c, sdt);
@@ -448,7 +475,7 @@ export function createFauna(game) {
       if (c.sp === 'snake') pushSnake(c);
       else if (c.sp === 'mole' && c.under) { if (c.ai === 'track' || c.ai === 'lurk' || c.move > 0.1) { _sm.compose(_sv.set(c.pos.x, ground(c.pos.x, c.pos.z) - 0.1, c.pos.z), _sq.setFromAxisAngle(_yAxis, c.yaw), _sd.set(c.scale * 1.3, c.scale * (c.ai === 'lurk' ? 0.25 : 0.45), c.scale * 1.8)); render.pushRaw('mound', _sm, [c.phase, c.move, 0, 0], 1); } }
       else if (c.sp === 'golem') render.push(c, [c.phase, c.rise || 0, c.arm || 0, c.heat]);
-      else render.push(c, [c.phase, c.move, c.mode, c.heat + (c.sp === 'slime' ? 0.4 : 0)]);
+      else render.push(c, [c.phase, c.move, c.mode, c.heat + (c.sp === 'slime' ? 0.4 : 0)]); // aBreak from c.breakMask
     }
     render.end();
   }

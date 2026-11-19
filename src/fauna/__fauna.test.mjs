@@ -1,6 +1,7 @@
 // node src/fauna/__fauna.test.mjs — fauna AI / ecology tests on a mocked flat world (no browser).
 import * as THREE from 'three';
 import { createFauna } from './fauna.js';
+import { disabled } from '../core/parts.js';
 
 let fails = 0;
 const ok = (c, msg) => { if (!c) { fails++; console.log('FAIL', msg); } else console.log('ok  ', msg); };
@@ -151,7 +152,8 @@ const alive = (f, sp) => f.list.filter((c) => !c.dead && (!sp || c.sp === sp));
   const herd = fauna.spawnGroup('boar', 0, 30, [{ role: 'member', stage: 2 }, { role: 'member', stage: 2 }, { role: 'member', stage: 0 }]);
   const pack = fauna.spawnGroup('wolf', 0, 0); pack.hunger = 1; step(40, 1 / 15);
   const juv = herd.members.find((m) => m.stage === 0);
-  ok(fauna.stats.predation > 0 || juv.hp < juv.maxHp, `wolves hunt the juvenile boar (pred ${fauna.stats.predation}, juv hp ${Math.round(juv.hp)})`);
+  const juvHurt = juv.hp < juv.maxHp || juv.parts.some((p) => p.hp < p.maxHp);
+  ok(fauna.stats.predation > 0 || juvHurt, `wolves hunt the juvenile boar (pred ${fauna.stats.predation}, juv parts ${juv.parts.filter((p) => p.breakable).map((p) => p.name + ':' + Math.round(p.hp)).join(' ')})`);
   ok(pack.members.some((w) => w.hp < w.maxHp) || herd.state === 'defend', `the herd defends against the pack (herd ${herd.state})`);
 }
 { // Stone Mole: lives underground, tracks footsteps, bursts up under a hunter who keeps moving above it, digs back down
@@ -198,6 +200,33 @@ const alive = (f, sp) => f.list.filter((c) => !c.dead && (!sp || c.sp === sp));
   for (const w of pack.members) { w.dead = true; w.corpseT = 0.01; } step(6);
   player.position.set(D.home.x + 10, 5, D.home.z); D.hunger = 0; step(12);
   ok(damage.taken > 0, `drake fights an intruder in its territory (${damage.taken} dmg)`);
+}
+{ // stage 4: fauna parts — part HP absorbs, break deals body damage once, ability lost, visible, regrows
+  const { fauna, player, step } = setup('ashplain');
+  player.position.set(0, 5, -120); step(0.2); for (const o of [...fauna.list]) { o.dead = true; o.corpseT = 0.01; } step(0.1);
+  const b = fauna.spawnOne('bird', 0, 0); b.alt = 1; const wings = b.parts.find((p) => p.name === 'wings');
+  const hp0 = b.hp; b.receiveHit({ damage: 100, part: 'wings', attackerId: 'local' });
+  ok(b.hp === hp0 && wings.hp < wings.maxHp, 'hit on the wings lowers only the wing HP');
+  b.receiveHit({ damage: 2000, part: 'wings', attackerId: 'local' });
+  ok(wings.broken && b.hp === hp0 - wings.maxHp, `wing break deals body damage once (${hp0} → ${b.hp})`);
+  player.position.set(0, 5, -10); step(2);
+  ok(b.ai === 'grounded' && b.alt < 0.6 && b.getHitboxes().length > 0, `torn wings ground the bird (${b.ai}, alt ${b.alt.toFixed(1)})`);
+  ok((b.breakMask & 4) === 4, 'break shows on the model (wing break bit set)');
+  player.position.set(0, 5, -150); b.hunger = 0; for (let i = 0; i < 260; i++) { for (const o of fauna.list) if (o !== b && !o.dead) { o.dead = true; o.corpseT = 0.01; } step(1, 1 / 10); } // isolated (predators would eat a grounded bird)
+  ok(!wings.broken && (b.breakMask & 4) === 0, `wings regrow and the bird flies again (${b.ai})`);
+  const w = fauna.spawnOne('beetle', 20, 0); const sh = w.parts.find((p) => p.name === 'shell'); w.receiveHit({ damage: 5000, part: 'shell', attackerId: 'local' });
+  ok(sh.broken, 'beetle shell breaks');
+}
+{ // stage 4: wolves bite a boar's legs → crippled (slow, no charge) and the herd withdraws (completion-image scene)
+  const { fauna, player, step } = setup('fungal');
+  player.position.set(0, 5, -150); step(0.2); for (const o of [...fauna.list]) { o.dead = true; o.corpseT = 0.01; } step(0.1);
+  const herd = fauna.spawnGroup('boar', 0, 0, [{ role: 'member', stage: 2 }, { role: 'member', stage: 2 }, { role: 'member', stage: 0 }]);
+  const victim = herd.members[0]; const legs = victim.parts.find((p) => p.name === 'legs'); legs.hp = Math.round(legs.maxHp * 0.25); // already limping from an earlier fight
+  const pack = fauna.spawnGroup('wolf', 30, 0); pack.hunger = 1; pack.state = 'hunt'; pack.target = victim; pack.t = 0;
+  for (let i = 0; i < 1500 && !legs.broken; i++) { if (pack.state !== 'hunt') { pack.state = 'hunt'; pack.target = victim; pack.t = 0; } step(0.1); }
+  ok(legs.broken, `wolves broke the boar's legs (legs ${Math.round(legs.hp)}/${legs.maxHp})`);
+  step(1); ok(herd.state === 'flee' || herd.state === 'defend', `the herd withdraws / defends around the injured (${herd.state})`);
+  ok(disabled(victim.parts, 'charge'), 'crippled boar can no longer charge (injury persists after the fight)');
 }
 console.log(fails ? `${fails} FAILED` : 'all fauna tests passed');
 process.exit(fails ? 1 : 0);

@@ -16,6 +16,7 @@ import { buildBrute, growthTexture } from './bruteModel.js';
 import { createWyvernFx } from './wyvernFx.js';
 import { createPerception } from '../core/perception.js';
 import { senseProfile } from '../shared/senses.js';
+import { makePart, resolvePartHit, tickRegen, disabled } from '../core/parts.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -25,12 +26,13 @@ const rng = (seed) => () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(
 
 const GROWTH_PARTS = ['head', 'fistL', 'fistR', 'tail'];
 const PART_DEFS = [
-  { name: 'head', hp: 3000, hitzone: 1.35, breakable: true, flinch: 900 },
-  { name: 'fistL', hp: 2600, hitzone: 1.2, breakable: true, flinch: 1000 },
-  { name: 'fistR', hp: 2600, hitzone: 1.2, breakable: true, flinch: 1000 },
-  { name: 'tail', hp: 2800, hitzone: 1.1, breakable: true, flinch: 1000 },
-  { name: 'legs', hp: 99999, hitzone: 0.9, breakable: false, flinch: 1300 },
-  { name: 'body', hp: 99999, hitzone: 0.75, breakable: false, flinch: 1500 },
+  // stage-4 part rules: a shattered fist cannot punch (the other fist takes over); no tail club → no tail swipe
+  { name: 'head', hp: 3000, hitzone: 1.35, breakable: true, flinch: 900, hardness: 0.8, regen: 260, disables: ['headSlam'] },
+  { name: 'fistL', hp: 2600, hitzone: 1.2, breakable: true, flinch: 1000, hardness: 0.9, regen: 200, disables: ['fistL'] },
+  { name: 'fistR', hp: 2600, hitzone: 1.2, breakable: true, flinch: 1000, hardness: 0.9, regen: 200, disables: ['fistR'] },
+  { name: 'tail', hp: 2800, hitzone: 1.1, breakable: true, flinch: 1000, hardness: 0.75, regen: null, disables: ['tail'] },
+  { name: 'legs', hp: 99999, hitzone: 0.9, breakable: false, flinch: 1300, hardness: 0.7 },
+  { name: 'body', hp: 99999, hitzone: 0.75, breakable: false, flinch: 1500, hardness: 0.7 },
 ];
 const STATE_CODES = ['idle', 'roam', 'chase', 'attack', 'flinch', 'topple', 'dead', 'exhausted', 'recover'];
 const RING = 30, FINAL_AT = 0.35;
@@ -61,7 +63,7 @@ export async function createBrute(game) {
   const m = {
     kind: 'brute', name: 'Gorvath, the Cinderfist', title: 'Cinderfist', object3d: obj, position: obj.position, center: new THREE.Vector3(),
     hp: 26000, maxHp: 26000, state: 'idle', enraged: false, remoteControlled: false, limping: false,
-    parts: PART_DEFS.map((d) => ({ name: d.name, hp: d.hp, maxHp: d.hp, broken: false, hitzone: d.hitzone, breakable: d.breakable, _flinch: d.flinch, acc: 0 })),
+    parts: PART_DEFS.map((d) => makePart(d)),
     yaw: Math.atan2(-spawn.x, -spawn.z) || Math.PI, target: null, aggro: false, queue: [],
     action: null, actionName: '', actionTime: 0, actionSeq: 0, cooldown: 2.5, hitDone: false,
     stamina: 100, maxStamina: 100, exhausted: false, threat: new Map(),
@@ -175,7 +177,7 @@ export async function createBrute(game) {
         if (t < 0.75) { a.sh = -2.3 * smooth(t / 0.75); a.el = 0.6 * smooth(t / 0.75); P.crouch = -0.2; } else if (t < 0.95) { a.sh = lerp(-2.3, -0.3, smooth((t - 0.75) / 0.2)); a.el = 0; P.crouch = 0.45; } else { a.sh = lerp(-0.3, 0, smooth((t - 1.2) / 0.8)); P.crouch = lerp(0.45, 0, smooth((t - 1.2) / 0.8)); }
         if (t > 0.92 && !this._i) { this._i = true; slamImpact(s, m.enraged ? 3 : 2); } },
       active: [{ t0: 0.8, t1: 1.0, spheres: () => fistSphere(ACTIONS.punch._s, 2.4)(), damage: 42, knockback: 13 }],
-      reset() { this._i = this._aimed = false; this._s = R() < 0.5 ? 'L' : 'R'; },
+      reset() { this._i = this._aimed = false; this._s = R() < 0.5 ? 'L' : 'R'; if (disabled(m.parts, 'fist' + this._s)) this._s = this._s === 'L' ? 'R' : 'L'; },
     },
     doublePunch: {
       dur: 2.8, recover: 0.7,
@@ -192,7 +194,7 @@ export async function createBrute(game) {
       update(t, dt) { const s = this._s, k = s === 'L' ? 1 : -1, a = P.arm[s]; faceTarget(dt, t < 0.6 ? 2 : 0);
         aimLunge(dt, t, 0.35, 0.75, null, this); if (t < 0.6) { a.side = 0.9 * k * smooth(t / 0.6); a.sh = -0.3 * smooth(t / 0.6); P.crouch = 0.3 * smooth(t / 0.6); } else if (t < 1.0) { a.side = lerp(0.9 * k, -1.1 * k, smooth((t - 0.6) / 0.4)); a.sh = -0.3; P.crouch = 0.3; if (!this._w) { this._w = true; sfx('swingHeavy', 1); } } else { a.side = lerp(-1.0 * k, 0, smooth((t - 1.2) / 0.6)); a.sh = lerp(-0.3, 0, smooth((t - 1.2) / 0.6)); P.crouch = lerp(0.3, 0, smooth((t - 1.2) / 0.6)); } },
       active: [{ t0: 0.65, t1: 0.98, spheres: () => fistSphere(ACTIONS.sweepPunch._s, 2.6)(), damage: 36, knockback: 14 }],
-      reset() { this._w = this._aimed = false; this._s = R() < 0.5 ? 'L' : 'R'; },
+      reset() { this._w = this._aimed = false; this._s = R() < 0.5 ? 'L' : 'R'; if (disabled(m.parts, 'fist' + this._s)) this._s = this._s === 'L' ? 'R' : 'L'; },
     },
     headSlam: { // brow smashes the ground, shedding cinder
       dur: 2.2, recover: 0.8,
@@ -272,7 +274,14 @@ export async function createBrute(game) {
   function chooseAttack() {
     const d = nearDist(); const W = [];
     if (roarCd <= 0 && d < 26) W.push(['roar', 0.4]);
-    if (d < 9) W.push(['punch', 1.2], ['doublePunch', 1.0], ['sweepPunch', 0.9], ['headSlam', 0.8], ['tailSwipe', 0.7]);
+    const fists = ['L', 'R'].filter((s) => !disabled(m.parts, 'fist' + s));
+    if (d < 9) {
+      if (fists.length) W.push(['punch', 1.2], ['sweepPunch', 0.9]);
+      if (fists.length === 2) W.push(['doublePunch', 1.0]);
+      if (!disabled(m.parts, 'headSlam')) W.push(['headSlam', fists.length ? 0.8 : 2.0]);   // no fists left: leads with its brow
+      if (!disabled(m.parts, 'tail')) W.push(['tailSwipe', fists.length ? 0.7 : 1.8]);
+      if (!W.length) W.push(['charge', 1]);
+    }
     W.push(['leapSlam', d > 8 && d < 26 ? 1.3 : 0.2], ['charge', d > 10 ? 1.0 : 0.15]);
     if (m.final && fx.listPatches().filter((f) => f.kind === 'slime').length >= 8 && (m._cataCd || 0) <= 0) W.push(['cataclysm', 2.0]);
     const sum = W.reduce((s, w) => s + w[1], 0); let r = Math.random() * sum; for (const [n, w] of W) { if ((r -= w) <= 0) return n; } return W[0][0];
@@ -285,7 +294,7 @@ export async function createBrute(game) {
     const p = partByName(part); const dmg = Math.max(1, Math.round(damage * p.hitzone)); flash = 1;
     if (point) fx.burst(point, 8, 6, 0.4);
     if (m.remoteControlled) return { damage: dmg, part: p.name, hitzone: p.hitzone, weak: p.hitzone >= 1.2 };
-    m.hp = Math.max(0, m.hp - dmg); p.hp = Math.max(0, p.hp - dmg); p.acc += dmg;
+    const R = resolvePartHit(p, dmg); m.hp = Math.max(0, m.hp - R.bodyDmg); p.acc += dmg; // part HP absorbs; a break hits the body once
     const aid = String(attackerId ?? game.player?.id ?? 'local'); m.threat.set(aid, (m.threat.get(aid) || 0) + dmg);
     if (!m.aggro) { m.aggro = true; pickTarget(); }
     if (m.target) m.perception?.engage(m.target);
@@ -295,7 +304,7 @@ export async function createBrute(game) {
       if (m.heat[p.name] >= 0.5) { m.detachAcc[p.name] += dmg; if (m.detachAcc[p.name] >= 380) detach(p.name); }
     }
     if (m.actionName === 'cataclysm' && m.actionTime < 2.6) windupDmg += dmg;
-    let broke = false; if (p.breakable && !p.broken && p.hp <= 0) { p.broken = true; broke = true; events.emit('monster:partBreak', { monster: m, part: p.name }); sfx('break', 1); }
+    let broke = false; if (R.broke) { broke = true; events.emit('monster:partBreak', { monster: m, part: p.name }); sfx('break', 1); }
     if (m.hp <= 0) { die(); return { damage: dmg, part: p.name, hitzone: p.hitzone, killed: true }; }
     if (!m.enraged && m.hp < m.maxHp * 0.6) { m.enraged = true; toast(t('brute.enraged')); }
     if (!m.final && m.hp < m.maxHp * FINAL_AT && m.actionName !== 'sealRing') { m.queue = []; startAction('sealRing'); return { damage: dmg, part: p.name, hitzone: p.hitzone, weak: p.hitzone >= 1.2 }; }
@@ -374,6 +383,7 @@ export async function createBrute(game) {
       if (m.size[part] < 1) { m.size[part] = Math.min(1, m.size[part] + dt / 25); continue; }
       m.heat[part] = Math.min(1, m.heat[part] + dt * (m.final ? 0.05 : m.enraged ? 0.03 : 0.015));
     }
+    if (!m.remoteControlled && m.state !== 'dead' && dt > 0) for (const n of tickRegen(m.parts, dt, m.hp > m.maxHp * 0.5 ? 1 : 0.6)) events.emit('monster:partRegen', { monster: m, part: n });
     if (m.remoteControlled) remoteUpdate(dt);
     else if (m.state !== 'dead' || m.action) {
       const perc = m.perception, hs = hunters();

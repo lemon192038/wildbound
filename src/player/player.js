@@ -1,6 +1,7 @@
 // Local hunter: state machine, camera-relative movement, stamina, greatsword combat (startup/active/recovery,
 // charge levels, hitstop), damage intake, death/respawn, lock-on, autoplay debug. Also remote hunters for co-op.
 import * as THREE from 'three';
+import { deflects, wearFactor } from '../core/parts.js';
 import { HunterView } from './hunterView.js';
 import { CLIPS } from './anim.js';
 import { WeaponTrail, Sparks } from './vfx.js';
@@ -135,13 +136,17 @@ export async function createPlayer(game) {
         _n.subVectors(hitP, sc).normalize(); const point = sc.clone().addScaledVector(_n, hb.sphere.radius);
         const G = P.gear, roll = Math.random();
         const isCrit = G.affinity > 0 && roll < G.affinity / 100, weakHit = G.affinity < 0 && roll < -G.affinity / 100;
-        let damage = mv * ATTACK_POWER * G.atk * G.buffAtk * sharpMult(P.sharpness) * G.sharp * (isCrit ? 1.25 : weakHit ? 0.75 : 1);
+        // part hardness (src/core/parts.js): a blunt edge glances off very hard parts; hard parts wear the edge faster
+        const hitPart = m.parts?.find((q) => q.name === hb.part); const hard = hitPart && !hitPart.broken ? hitPart.hardness ?? 0.5 : 0.4;
+        const glance = deflects(hard, P.sharpness, P.state);
+        let damage = mv * ATTACK_POWER * G.atk * G.buffAtk * sharpMult(P.sharpness) * G.sharp * (isCrit ? 1.25 : weakHit ? 0.75 : 1) * (glance ? 0.35 : 1);
         const el = G.element; if (el && el.type !== 'blast') damage += el.value * 0.05 * (m.weakness?.[el.type] ?? 1) * Math.min(1.5, mv / 0.4 + 0.3);
         const res = m.receiveHit({ damage, part: hb.part, point, normal: _n.clone(), attackerId: 'local', isCrit, element: el?.type, elementValue: el?.value || 0, mv });
         const hz = m.parts?.find((p) => p.name === hb.part)?.hitzone ?? 1;
         const dealt = res && typeof res === 'object' && res.damage != null ? res.damage : typeof res === 'number' ? res : Math.round(damage * hz);
-        events.emit('hit', { attacker: 'local', target: m, damage: dealt, part: hb.part, point, normal: _n.clone(), isCrit, weak: hz >= 1.2, motion: P.state, level: lvl });
-        P.sharpness = Math.max(0, P.sharpness - 0.011 * (1 - 0.25 * (P.gear.skills.sharpEdge || 0)));
+        events.emit('hit', { attacker: 'local', target: m, damage: dealt, part: hb.part, point, normal: _n.clone(), isCrit, weak: hz >= 1.2, motion: P.state, level: lvl, deflected: glance });
+        P.sharpness = Math.max(0, P.sharpness - 0.011 * wearFactor(hard) * (glance ? 2 : 1) * (1 - 0.25 * (P.gear.skills.sharpEdge || 0)));
+        if (glance) { events.emit('sfx', { name: 'clang', position: point, volume: 0.9 }); events.emit('player:deflect', { part: hb.part, target: m }); }
         const pw = Array.isArray(atk.stop) ? atk.stop[lvl] : atk.stop, sh = Array.isArray(atk.shake) ? atk.shake[lvl] : atk.shake;
         sparks.burst(point, _n, 18 + Math.round(pw * 160), 0.6 + pw * 4);
         const big = lvl === 3 && (P.state === 'heavy' || P.state === 'trueslash') && (hz >= 1.2 || res?.weak);

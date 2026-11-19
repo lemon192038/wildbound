@@ -14,6 +14,7 @@ import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { createWyvernFx } from './wyvernFx.js';
 import { createPerception } from '../core/perception.js';
 import { senseProfile } from '../shared/senses.js';
+import { makePart, resolvePartHit, tickRegen, disabled } from '../core/parts.js';
 
 const S0 = 16; // source mesh units → metres (wingspan ≈ 16 m at scale 1)
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -23,11 +24,12 @@ const smooth = (t) => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
 const rng = (seed) => () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 
 const PART_DEFS = [
-  { name: 'head', hp: 2600, hitzone: 1.45, breakable: true, flinch: 700 },
-  { name: 'wings', hp: 3400, hitzone: 1.1, breakable: true, flinch: 900 },
-  { name: 'tail', hp: 2800, hitzone: 1.2, breakable: true, flinch: 900 },
-  { name: 'legs', hp: 99999, hitzone: 1.0, breakable: false, flinch: 1000 },
-  { name: 'body', hp: 99999, hitzone: 0.8, breakable: false, flinch: 1300 },
+  // stage-4 part rules: broken wings ground the dragon until they regrow; a cracked head cannot spit fireballs
+  { name: 'head', hp: 2600, hitzone: 1.45, breakable: true, flinch: 700, hardness: 0.65, regen: 240, disables: ['fireball'] },
+  { name: 'wings', hp: 3400, hitzone: 1.1, breakable: true, flinch: 900, hardness: 0.25, regen: 150, disables: ['fly'] },
+  { name: 'tail', hp: 2800, hitzone: 1.2, breakable: true, flinch: 900, hardness: 0.5, regen: null, disables: ['tail'] },
+  { name: 'legs', hp: 99999, hitzone: 1.0, breakable: false, flinch: 1000, hardness: 0.6 },
+  { name: 'body', hp: 99999, hitzone: 0.8, breakable: false, flinch: 1300, hardness: 0.55 },
 ];
 const STATE_CODES = ['idle', 'roam', 'chase', 'attack', 'flinch', 'topple', 'dead', 'exhausted', 'recover'];
 const HOVER0 = 6.2, LANDED0 = 3.55, HIGH0 = 13;
@@ -85,7 +87,7 @@ export async function createWyvern(game, opts = {}) {
   const m = {
     kind: 'wyvern', variant: VK, name: opts.name || 'Cindral, the Ashwing', title: opts.title || 'Ashwing', epithet: opts.epithet, object3d: obj, position: obj.position, center: new THREE.Vector3(),
     hp: opts.hp || 19000, maxHp: opts.hp || 19000, state: 'idle', enraged: false, remoteControlled: false, limping: false,
-    parts: PART_DEFS.map((d) => { const hp = d.hp >= 99999 ? d.hp : Math.round(d.hp * (opts.hp || 19000) / 19000); return { name: d.name, hp, maxHp: hp, broken: false, hitzone: d.hitzone, breakable: d.breakable, _flinch: d.flinch * K, acc: 0 }; }),
+    parts: PART_DEFS.map((d) => { const p = makePart(d, (opts.hp || 19000) / 19000); p._flinch = d.flinch * K; return p; }),
     yaw: Math.atan2(-spawn.x, -spawn.z) || Math.PI, alt: HOVER, target: null, aggro: false,
     action: null, actionName: '', actionTime: 0, actionSeq: 0, cooldown: 2.5, hitDone: false, queue: [], diveIdx: 0, divesLeft: 0,
     stamina: 100, maxStamina: 100, exhausted: false, threat: new Map(), tailSevered: false,
@@ -333,7 +335,11 @@ export async function createWyvern(game, opts = {}) {
   }
   const nearDist = () => toTarget().length();
   function beginDive() { m.diveIdx = 0; m.divesLeft = m.enraged ? 2 : Math.random() < 0.55 ? 1 : 0; startAction('talonDive'); }
-  function chooseAttack() {
+  function chooseAttack() { const pick = chooseAttackRaw(); return allowed(pick) ? pick : groundFallback(); }
+  const AIR = new Set(['talonDive', 'rockBomb', 'wingGust', 'detonateShot']);
+  const allowed = (a) => !(m.grounded && AIR.has(a)) && !(a === 'fireball' && disabled(m.parts, 'fireball')) && !(a === 'tailSpin' && disabled(m.parts, 'tail'));
+  function groundFallback() { const d = nearDist(); return d < 7 ? 'bite' : !disabled(m.parts, 'tail') && d < 9 ? 'tailSpin' : VK === 'flame' || VK === 'cindral' || VK === 'cindaryl' ? 'sweepBreath' : 'bite'; }
+  function chooseAttackRaw() {
     const d = nearDist(); const W = [];
     if (VK === 'flame') { // air combat with fire: no rock bombs (that is Cindral's own craft)
       if (roarCd <= 0 && d < 24) W.push(['roar', 0.35]);
@@ -357,6 +363,7 @@ export async function createWyvern(game, opts = {}) {
     const sum = W.reduce((s, w) => s + w[1], 0); let r = Math.random() * sum; for (const [n, w] of W) { if ((r -= w) <= 0) return n; } return W[0][0];
   }
   function launch(name) {
+    if (!allowed(name)) name = groundFallback(); // queued follow-ups respect lost abilities too
     if (name === 'talonDive') return beginDive();
     if (name === 'roar') { roarCd = m.enraged ? 40 : 60; m.queue = [VK !== 'cindral' ? (Math.random() < 0.5 ? 'bite' : 'talonDive') : Math.random() < 0.5 ? 'backjumpRock' : 'talonDive']; }
     startAction(name);
@@ -368,11 +375,11 @@ export async function createWyvern(game, opts = {}) {
     const p = partByName(part); const dmg = Math.max(1, Math.round(damage * p.hitzone)); flash = 1;
     if (point) fx.burst(point, 8, 6, 0.4);
     if (m.remoteControlled) return { damage: dmg, part: p.name, hitzone: p.hitzone, weak: p.hitzone >= 1.2 };
-    m.hp = Math.max(0, m.hp - dmg); p.hp = Math.max(0, p.hp - dmg); p.acc += dmg;
+    const R = resolvePartHit(p, dmg); m.hp = Math.max(0, m.hp - R.bodyDmg); p.acc += dmg; // part HP absorbs; a break hits the body once
     const aid = String(attackerId ?? game.player?.id ?? 'local'); m.threat.set(aid, (m.threat.get(aid) || 0) + dmg);
     if (!m.aggro) { m.aggro = true; pickTarget(); }
     if (m.target) m.perception?.engage(m.target);
-    let broke = false; if (p.breakable && !p.broken && p.hp <= 0) { applyBreak(p.name, true); broke = true; }
+    let broke = false; if (R.broke) { applyBreak(p.name, true); broke = true; }
     if (m.hp <= 0) { die(); return { damage: dmg, part: p.name, hitzone: p.hitzone, killed: true }; }
     if (!m.enraged && m.hp < m.maxHp * 0.5) { m.enraged = true; if (!['topple', 'death'].includes(m.actionName)) { m.queue = []; launch('roar'); } }
     m.limping = m.hp < m.maxHp * 0.2;
@@ -384,6 +391,7 @@ export async function createWyvern(game, opts = {}) {
   };
   function applyBreak(name, emit) {
     const p = partByName(name); p.broken = true; p.hp = 0;
+    if (name === 'wings') { m.grounded = true; m.divesLeft = 0; } // can no longer fly: fights on the ground until the membranes regrow
     if (name === 'tail') m.tailSevered = true;
     if (emit) { events.emit('monster:partBreak', { monster: m, part: name }); sfx('break', 1); shake(0.5, 0.4); fx.burst(m.center.clone(), 40, 10, 1); }
   }
@@ -442,6 +450,7 @@ export async function createWyvern(game, opts = {}) {
   // ---------------------------------------------------------------- update
   m.update = (dt, rawDt = dt) => {
     dt = Math.max(0, dt); rawDt = Math.max(0, rawDt); tAlive += dt; roarCd -= dt;
+    if (!m.remoteControlled && m.state !== 'dead' && dt > 0) for (const n of tickRegen(m.parts, dt, m.hp > m.maxHp * 0.5 ? 1 : 0.6)) { if (n === 'wings') m.grounded = false; events.emit('monster:partRegen', { monster: m, part: n }); }
     if (m.remoteControlled) remoteUpdate(dt);
     else if (m.state !== 'dead' || m.action) {
       const perc = m.perception, hs = hunters();
@@ -466,7 +475,7 @@ export async function createWyvern(game, opts = {}) {
         const want = VD.ground ? (d > 6 * K ? 1 : d < 3 * K ? -1 : 0) : d > 13 ? 1 : d < 8 ? -1 : 0; const side = new THREE.Vector3(Math.cos(m.yaw), 0, -Math.sin(m.yaw));
         const sp = m.enraged ? 7 : 5.2; const desired = v.normalize().multiplyScalar(want * sp).addScaledVector(side, Math.sin(tAlive * 0.4) * 2.5);
         vel.lerp(desired, Math.min(1, dt * 1.5)); m.position.addScaledVector(vel, dt);
-        m.alt = lerp(m.alt, VD.ground && d < 14 ? LANDED : HOVER, dt * 1.2); flapAmp = lerp(flapAmp, VD.ground && d < 14 ? 0.08 : 0.55, dt * 2); flapRate = lerp(flapRate, 1.25, dt * 2); // venom dragons land to fight, fly to close distance
+        const low = m.grounded || (VD.ground && d < 14); m.alt = lerp(m.alt, low ? LANDED : HOVER, dt * (m.grounded ? 3 : 1.2)); flapAmp = lerp(flapAmp, low ? 0.08 : 0.55, dt * 2); flapRate = lerp(flapRate, 1.25, dt * 2); // venom dragons land to fight, fly to close distance
         pitch = lerp(pitch, clamp(vel.length() * 0.03, -0.2, 0.25), dt * 2); roll = lerp(roll, clamp(-vel.dot(side) * 0.05, -0.35, 0.35), dt * 2);
         neckPitch = lerp(neckPitch, 0, dt * 2); jaw = lerp(jaw, 0.1, dt * 3); m.state = 'chase';
         m.stamina = Math.max(0, m.stamina - dt * 0.12); m.cooldown -= dt;

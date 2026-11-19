@@ -104,7 +104,7 @@ function boarGeo(THREE) {
     legCol: (x, y, z, o) => { o[0] = 0.05; o[1] = 0.04; o[2] = 0.035; o[3] = 0; },
     tail: () => { const t = new THREE.CylinderGeometry(0.02, 0.04, 0.3, 4); t.rotateX(0.6); t.translate(0, 0.75, -0.9); return t; },
     extras: [
-      { g: mergeGeometries(crystals), col: (x, y, z, o) => { o[0] = 0.3; o[1] = 0.7; o[2] = 0.9; o[3] = 0.4; } },
+      { part: 8, g: mergeGeometries(crystals), col: (x, y, z, o) => { o[0] = 0.3; o[1] = 0.7; o[2] = 0.9; o[3] = 0.4; } },
       ...[-1, 1].map((s) => ({ part: 6, g: (() => { const t = new THREE.ConeGeometry(0.05, 0.42, 5); t.rotateX(-0.7); t.rotateZ(s * 0.5); t.translate(s * 0.2, 0.62, 1.55); return t; })(), col: (x, y, z, o) => { o[0] = 0.8; o[1] = 0.78; o[2] = 0.7; o[3] = 0; } })),
     ],
   });
@@ -168,6 +168,20 @@ function snakeHeadGeo(THREE) {
   for (let i = 0; i < 6; i++) { const f = new THREE.ConeGeometry(0.035, 0.16, 4); f.rotateX(Math.PI); f.translate((i % 2 ? 1 : -1) * 0.3 * (1 - i * 0.08), -0.02, 0.4 + i * 0.16); parts.push(part(THREE, f, 0, (x, y, z, o) => { o[0] = 0.02; o[1] = 0.02; o[2] = 0.025; o[3] = 0; })); }
   return mergeGeometries(parts);
 }
+
+// stage-4 break states, driven by the per-instance bitmask aBreak (species.js BREAK_BIT):
+// 1 crystals shattered · 2 tail lost · 4 wings torn · 8 arm shattered · 16 claws chipped · 32 shell cracked · 64 head · 128 legs crippled
+const BREAK_VERT = {
+  boar: `if (wbBit(aBreak, 1.0) > 0.5 && aPart == 8.0) transformed = vec3(transformed.x * 0.4, 1.1 + (transformed.y - 1.1) * 0.12, transformed.z * 0.6);
+  if (wbBit(aBreak, 128.0) > 0.5 && aPart == 1.0) transformed.y = max(transformed.y * 0.6, 0.0);`,
+  lizard: `if (wbBit(aBreak, 2.0) > 0.5 && aPart == 5.0) transformed.z = max(transformed.z, -0.85);`,
+  drake: `if (wbBit(aBreak, 2.0) > 0.5 && aPart == 5.0) transformed.z = max(transformed.z, -0.85);`,
+  bird: `if (wbBit(aBreak, 4.0) > 0.5 && (aPart == 1.0 || aPart == 2.0)) { transformed.y -= abs(transformed.x) * 0.45; transformed.x *= 0.7; }`,
+  golem: `if (wbBit(aBreak, 8.0) > 0.5 && aPart == 1.0) transformed *= 0.0;`,
+  mole: `if (wbBit(aBreak, 16.0) > 0.5 && (aPart == 1.0 || aPart == 2.0)) transformed.z = min(transformed.z, 1.05);`,
+  beetle: `if (wbBit(aBreak, 32.0) > 0.5 && aPart == 0.0) transformed.y *= 0.9 + 0.1 * sin(transformed.x * 23.0);`,
+  wolf: `if (wbBit(aBreak, 128.0) > 0.5 && aPart == 3.0) transformed.y = max(transformed.y * 0.55, 0.0);`,
+};
 
 const VERT = {
   lizard: `
@@ -246,19 +260,20 @@ const VERT = {
 export function createFaunaRender(THREE, scene, { low = false, caps = { beetle: 220, slime: 180, bird: 60, lizard: 40, snakeSeg: 200, snakeHead: 10, wolf: 40, boar: 40, mole: 12, golem: 16, mound: 12, drake: 16 } } = {}) {
   const geos = { beetle: beetleGeo(THREE), slime: slimeGeo(THREE), bird: birdGeo(THREE), lizard: lizardGeo(THREE), snakeSeg: snakeSegGeo(THREE), snakeHead: snakeHeadGeo(THREE), wolf: wolfGeo(THREE), boar: boarGeo(THREE), mole: moleGeo(THREE), golem: golemGeo(THREE), mound: moundGeo(THREE), drake: drakeGeo(THREE) };
   const glowCol = { beetle: [1.0, 0.36, 0.05], slime: [1.0, 0.42, 0.06], bird: [1.0, 0.4, 0.08], lizard: [1.0, 0.32, 0.05], snakeSeg: [1.0, 0.34, 0.04], snakeHead: [1.0, 0.36, 0.05], wolf: [1.0, 0.3, 0.05], boar: [0.35, 0.85, 1.0], mole: [1.0, 0.45, 0.15], golem: [1.0, 0.36, 0.05], mound: [0, 0, 0], drake: [1.0, 0.32, 0.06] };
-  const meshes = {}; const anims = {};
+  const meshes = {}; const anims = {}; const breaks = {};
   for (const sp of Object.keys(geos)) {
     const cap = Math.round(caps[sp] * (low ? 0.7 : 1));
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: sp === 'slime' ? 0.35 : 0.75, metalness: 0, side: sp === 'bird' ? THREE.DoubleSide : THREE.FrontSide });
     mat.onBeforeCompile = (sh) => {
-      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aPart; attribute float aGlow; attribute vec4 aAnim; varying float vGlow;')
-        .replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT[sp]}\nvGlow = aGlow * (0.35 + aAnim.w);`);
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aPart; attribute float aGlow; attribute vec4 aAnim; attribute float aBreak; varying float vGlow;\nfloat wbBit(float m, float b) { return mod(floor(m / b + 0.001), 2.0); }')
+        .replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT[sp]}\n${BREAK_VERT[sp] || ''}\nvGlow = aGlow * (0.35 + aAnim.w) + (wbBit(aBreak, 32.0) > 0.5 && aPart == 0.0 ? 0.25 : 0.0);`);
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vGlow;')
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += vec3(${glowCol[sp].join(',')}) * vGlow * ${sp === 'slime' ? '1.3' : sp.startsWith('snake') ? '0.9' : '1.9'};`);
     };
     mat.customProgramCacheKey = () => 'wb-fauna-' + sp;
     const anim = new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4); anim.setUsage(THREE.DynamicDrawUsage);
     geos[sp].setAttribute('aAnim', anim);
+    const brk = new THREE.InstancedBufferAttribute(new Float32Array(cap), 1); brk.setUsage(THREE.DynamicDrawUsage); geos[sp].setAttribute('aBreak', brk); breaks[sp] = brk;
     const m = new THREE.InstancedMesh(geos[sp], mat, cap); m.count = 0; m.frustumCulled = false; m.castShadow = !low; m.receiveShadow = false; m.name = 'fauna-' + sp;
     m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     m.setColorAt(0, new THREE.Color(1, 1, 1)); m.instanceColor.setUsage(THREE.DynamicDrawUsage);
@@ -275,6 +290,7 @@ export function createFaunaRender(THREE, scene, { low = false, caps = { beetle: 
       E.set(c.pitch || 0, c.yaw, c.roll || 0); Q.setFromEuler(E); const s = c.scale * (c.squash || 1); S.set(s, s, s);
       M.compose(c.pos, Q, S); m.setMatrixAt(i, M);
       const a = anims[sp].array; a[i * 4] = anim[0]; a[i * 4 + 1] = anim[1]; a[i * 4 + 2] = anim[2]; a[i * 4 + 3] = anim[3];
+      breaks[sp].array[i] = c.breakMask || 0;
       const k = c.dead ? 0.35 : 1 + c.flash * 2; C.setRGB(k, c.dead ? 0.3 : k, c.dead ? 0.3 : k); m.setColorAt(i, C);
       counts[sp] = i + 1;
     },
@@ -285,7 +301,7 @@ export function createFaunaRender(THREE, scene, { low = false, caps = { beetle: 
       C.setRGB(bright, bright, bright); m.setColorAt(i, C); counts[key] = i + 1;
     },
     end() {
-      for (const sp of Object.keys(meshes)) { const m = meshes[sp]; m.count = counts[sp]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; anims[sp].needsUpdate = true; }
+      for (const sp of Object.keys(meshes)) { const m = meshes[sp]; m.count = counts[sp]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; anims[sp].needsUpdate = true; breaks[sp].needsUpdate = true; }
     },
     stats: () => ({ ...counts }),
   };

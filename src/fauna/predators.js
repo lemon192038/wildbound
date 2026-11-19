@@ -10,6 +10,8 @@
 //   balls sparingly (birds flying low, hunters by the lava). On land it is slow and quickly returns. Struck hard it
 //   dives (溶岩潜航: no hitboxes) and resurfaces elsewhere. It ignores hunters far from the lava.
 // All hunter damage is applied by the client that owns that hunter (local player only), like the bosses.
+import { disabled } from '../core/parts.js';
+
 export function createPredatorAI(ctx) {
   const { game, W, F, rnd, setAi, steer, nearestOf, nearestHunter, noiseOf, die, shoot, ground, wrapA } = ctx;
   const Ls = {};
@@ -64,9 +66,12 @@ export function createPredatorAI(ctx) {
       if (!h || dH > S.giveUp || homeD > S.territory * 1.5 || c.hp < c.maxHp * S.fleeHp) { setAi(c, c.hp < c.maxHp * S.fleeHp ? 'flee' : 'return'); return; }
       const ang = Math.abs(wrapA(Math.atan2(h.pos.x - c.pos.x, h.pos.z - c.pos.z) - c.yaw));
       if (c.cd <= 0) {
-        if (dH < 3.4 && ang > 2.0) { setAi(c, 'tail'); return; }
-        if (dH < 2.6) { setAi(c, 'bite'); return; }
-        if (dH > A.fire.range[0] && dH < A.fire.range[1] && c.fireCd <= 0) { setAi(c, 'fire'); return; }
+        const canTail = !disabled(c.parts, 'tail'), canBite = !disabled(c.parts, 'bite');
+        if (dH < 3.4 && ang > 2.0 && canTail) { setAi(c, 'tail'); return; }
+        if (dH < 2.6 && canBite) { setAi(c, 'bite'); return; }
+        if (dH < 2.6 && !canBite && canTail) { setAi(c, 'tail'); return; }                  // jaw broken: lashes with the tail instead
+        if (dH > A.fire.range[0] && dH < A.fire.range[1] && c.fireCd <= 0 && !disabled(c.parts, 'fire')) { setAi(c, 'fire'); return; }
+        if (dH < 2.6 && !canBite && !canTail) { const a = Math.atan2(c.pos.x - h.pos.x, c.pos.z - h.pos.z); steer(c, c.pos.x + Math.sin(a) * 5, c.pos.z + Math.cos(a) * 5, S.speed * 1.5, dt, 3); c.chargeCd = Math.min(c.chargeCd, 0); return; } // no jaw, no tail: back off and ram
         if (dH > 4 && dH < 13 && c.chargeCd <= 0) { setAi(c, 'charge'); c.huntH = true; c.chargeAt = h.pos.clone(); return; }
       }
       if (dH > 2.4) { steer(c, h.pos.x, h.pos.z, S.speed * 1.6, dt, 3); c.mode = 0; } else { face(c, h.pos.x, h.pos.z, dt); c.move = 0; }
@@ -139,16 +144,16 @@ export function createPredatorAI(ctx) {
     // hunters by the lava: lunge if close, lava ball if mid range (sparingly)
     if (h && hunterByLava) {
       if (dH < S.landReach - 1 && c.cd <= 0) { c.lungeFrom = c.pos.clone(); c.lungeAt = h.pos.clone(); c.huntH = true; c.cd = 3.5; setAi(c, 'lunge'); return; }
-      if (dH > A.lavaBall.range[0] && dH < A.lavaBall.range[1] && c.ballCd <= 0 && dH < S.senses.sight + 8) { c.ballAt = { pos: h.pos }; c.ballCd = A.lavaBall.cooldown; c.huntH = true; setAi(c, 'ball'); return; }
+      if (dH > A.lavaBall.range[0] && dH < A.lavaBall.range[1] && c.ballCd <= 0 && dH < S.senses.sight + 8 && !disabled(c.parts, 'ball')) { c.ballAt = { pos: h.pos }; c.ballCd = A.lavaBall.cooldown; c.huntH = true; setAi(c, 'ball'); return; }
       if (dH < 30) { swim(c, h.pos.x, h.pos.z, S.lavaSpeed * 0.6, dt); return; } // shadow the hunter along the river
     }
     c.huntH = false;
     // prey near the shore
-    if (c.hunger > 0.25 && c.cd <= 0) {
+    if (c.hunger > 0.25 && c.cd <= 0 && !disabled(c.parts, 'swallow')) { // broken fangs: cannot seize prey
       const prey = nearestOf(c, S.landReach, (o) => !o.dead && o.ai !== 'burrowed' && (o.sp === 'beetle' || o.sp === 'slime' || o.sp === 'lizard' || (o.sp === 'bird' && o.alt < 1.5) || (o.sp === 'boar' && o.stage === 0)) && lavaInfo(o.pos.x, o.pos.z).sd < S.landReach);
       if (prey) { c.lungeFrom = c.pos.clone(); c.lungeAt = prey.pos.clone(); c.prey = prey; c.cd = 6; setAi(c, 'lunge'); return; }
       const bird = nearestOf(c, 26, (o) => o.sp === 'bird' && !o.dead && o.alt > 2 && o.alt < 14);
-      if (bird && c.ballCd <= 0) { c.ballAt = bird; c.ballCd = A.lavaBall.cooldown * 1.5; setAi(c, 'ball'); return; }
+      if (bird && c.ballCd <= 0 && !disabled(c.parts, 'ball')) { c.ballAt = bird; c.ballCd = A.lavaBall.cooldown * 1.5; setAi(c, 'ball'); return; }
     }
     if (!c.target || c.t > 18) { c.target = pickLavaSpot(c, 6, 30) || [c.pos.x, c.pos.z]; c.t = 0; }
     const d = swim(c, c.target[0], c.target[1], c.hunger > 0.6 ? S.lavaSpeed * 0.5 : S.lavaSpeed * 0.25, dt);

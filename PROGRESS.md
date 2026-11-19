@@ -88,6 +88,46 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
 | New ailment tier: lethal venom (`poison:lethal`, 8 HP/s for 24 s; a draught only trims it) | ✅ | dedicated cure = stage 5 potions |
 | Dragons hunting fauna, dragon-vs-dragon territory disputes, mating season contact | ⬜ | stage 6 |
 
+## Stage 4: Part system v2 (2026-11-19)
+
+| Item | Status | Notes |
+|---|---|---|
+| Shared part engine `src/core/parts.js` (bosses + all fauna, hunter and creature hits) | ✅ | 12 unit tests |
+| Part HP separate from body HP. A hit on an intact breakable part lowers only that part. The break deals a set body damage once (= the part's max HP, so hunt length is preserved). Non-part regions and broken parts damage the body directly | ✅ | verified on all 3 bosses in the browser |
+| Hardness per part: glancing blows (blunt edge vs very hard part: ×0.35 damage, "DEFLECTED!", clang); harder parts wear sharpness faster; heavy swings bite harder | ✅ | weapon *types* do not exist yet (great sword only) |
+| Function loss + substitute behaviour, bosses: Varkhul (horns → no charge, bites instead; forelegs → no leap; tail → no tail sweep, turns and bites; back → softer body). Dragons (wings → grounded, no dives/rock bombs/gust until regrown; head → no fireballs; tail → no tail spin). Gorvath (one fist → the other fist punches, no double punch; both fists → brow and tail; brow → no head slam; tail → no tail swipe) | ✅ | |
+| Function loss, fauna: | ✅ | unit-tested |
+| — Beetle: shell → curling useless, burrows instead | ✅ | |
+| — Bird: wings → grounded, flees on foot | ✅ | |
+| — Lizard / drake: jaw → no bite/fire, uses its tail; tail → no tail swipe | ✅ | |
+| — Snake: fangs → no lava balls, cannot seize prey | ✅ | |
+| — Boar: legs → no charge, slow, herd withdraws; tusks → no gore; crystals → softer | ✅ | |
+| — Wolf: jaw → no lunges; legs → slow | ✅ | |
+| — Mole: claws → cannot dig or claw, rams instead | ✅ | |
+| — Golem: arm → no fist/throw, slams; core → no throw | ✅ | |
+| Regrowth per part (timer × nutrition × health); some parts never regrow (Varkhul's horns/tail/back, dragons' tails, Gorvath's tail = permanent injuries). A regrown part comes back at 60 % HP | ✅ | |
+| Creature-vs-creature hits aim at parts (size in metres, posture, attack style; broken parts are not chosen again), e.g. wolves bite a boar's legs → crippled → the herd withdraws; the injury persists after the fight | ✅ | unit-tested |
+| Visible break states: bosses (existing models); fauna via an instanced bitmask (shattered crystals, tail stumps, drooping wings, missing golem arm, chipped claws, cracked shell, limping leg) | ✅ | screenshot-checked |
+| HUD: part list of the focused monster (intact / damaged / badly damaged / broken / regrowing %), regrowth toast; break banner names the creature that broke | ✅ | |
+| Part state sync in co-op: breaks are sent; regrowth on the host is not yet sent to other clients | 🟡 | stage 8 |
+| Damage numbers balance pass for the new rules | 🟡 | break damage = part max HP keeps totals close; needs real play-testing |
+
+### Stage 4 tests (2026-11-19)
+- `node src/core/__parts.test.mjs`: 12 passed.
+- `node src/fauna/__fauna.test.mjs`: 64 passed.
+  - Wing hits lower only wing HP; the break costs the body once; the bird is grounded, shows the break and regrows its wings.
+  - Beetle shell breaks.
+  - Wolves break a limping boar's legs; the herd withdraws; the boar can no longer charge.
+- Browser, all 3 boss fields, no errors:
+  - A part hit does not touch body HP; the break costs exactly the part's max HP (3,150 / 3,400 / 2,600); later hits reach the body.
+  - Cindral is grounded by a wing break.
+  - The HUD shows the part list.
+- Bugs found and fixed:
+  - Far creatures lost regrowth time to the AI step cap.
+  - Size comparisons used model scale instead of real size.
+  - The break banner named the wrong monster when several were around.
+- Observed in simulation: an adult boar herd broke the wolves' jaws, and the jawless pack retreated.
+
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
   - island content

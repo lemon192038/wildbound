@@ -10,6 +10,8 @@
 //   birds, and feeds on carcasses. The leader's short howl orders a retreat: when half the pack is down, the leader is
 //   badly hurt, or a boss comes near.
 // Creature-vs-creature damage goes through the same hit() as hunter damage (ctx.hitCreature).
+import { disabled } from '../core/parts.js';
+
 export function createHerdAI(ctx) {
   const { game, rnd, setAi, steer, nearestOf, nearestHunter, die, ground, wrapA, pickSpot, hitCreature } = ctx;
   const TAU = Math.PI * 2;
@@ -44,7 +46,8 @@ export function createHerdAI(ctx) {
     if (!threat && wolf) { threat = wolf; td = wolf.pos.distanceTo(C); }
     if (!threat && h && dH < D.observe) { threat = h.ref || game.player; td = dH; }
     const totalHp = live.reduce((a, m) => a + m.hp / m.maxHp, 0) / g.members.length;
-    if (threat && totalHp < 0.35 && !live.some((m) => m.role === 'tusk')) { g.state = 'flee'; g.threat = threat; return; }
+    const crippled = live.some((m) => m.stage > 0 && disabled(m.parts || [], 'run'));
+    if (threat && ((totalHp < 0.35 && !live.some((m) => m.role === 'tusk')) || (crippled && threat.sp === 'wolf'))) { g.state = 'flee'; g.threat = threat; return; } // an injured member: the herd withdraws around its young
     if (!threat) { if (g.state !== 'graze' && (g.calmT = (g.calmT || 0) + dt) > 6) { g.state = 'graze'; g.hostile = null; } if (g.state === 'graze') grazeMove(g, dt, C); return; }
     g.calmT = 0; g.threat = threat;
     const tp = posOf(threat); const nearJuv = juvs.some((j) => j.pos.distanceTo(tp) < D.charge + 3); // someone right next to a juvenile
@@ -104,7 +107,7 @@ export function createHerdAI(ctx) {
     const [h, dH] = nearestHunter(c.pos.x, c.pos.z);
     if (h && dH < R && !c.hitH) { c.hitH = true; hurtLocal(h, A, c.pos); }
     const o = nearestOf(c, R + 1, (q) => !q.dead && q.group !== c.group && q.sp !== 'bird' && q.sp !== 'snake' && !(c.hitSet ||= new Set()).has(q));
-    if (o && o.pos.distanceTo(c.pos) < R + 0.5 * o.scale) { c.hitSet.add(o); hitCreature(o, A.creature, c); }
+    if (o && o.pos.distanceTo(c.pos) < R + 0.5 * o.scale) { c.hitSet.add(o); hitCreature(o, A.creature, c, 'ram'); }
   }
   function thinkBoar(c, dt) {
     const g = c.group; const S = c.S, A = S.attacks; c.attackCd -= dt;
@@ -112,7 +115,7 @@ export function createHerdAI(ctx) {
     if (c.ai === 'charge') { chargeStep(c, dt, c.crystal ? A.crystalCharge : A.charge); if (c.t > 1.4) { setAi(c, 'recover'); c.dur = c.crystal ? A.crystalCharge.rest : 1.0; c.hitH = false; c.hitSet = null; c.crystal = false; } return; }
     if (c.ai === 'recover') { c.move = 0; c.mode = c.dur > 2 ? 2 : 0; c.heat = Math.max(0, c.heat - dt); if (c.t > c.dur) setAi(c, 'herd'); return; }
     if (c.ai === 'paw') { c.move = 0; c.mode = 1; c.heat = 0.6; const t = posOf(c.chargeAt); if (t) face(c, t.x, t.z, dt, 2.5); if (c.t > (c.role === 'tusk' ? 1.1 : 0.9)) { setAi(c, 'charge'); c.chargeAt = c.chargeAt; c.crystal = c.role === 'tusk' && rnd() < 0.5; } return; }
-    if (c.ai === 'gore') { c.move = 0; c.mode = 1; const t = posOf(c.target); if (t) face(c, t.x, t.z, dt, 4); if (c.t > 0.45 && !c.hitDone && t && t.distanceTo(c.pos) < 2.6 * c.scale) { c.hitDone = true; if (c.target === game.player) hurtLocal({ local: true }, A.gore, c.pos); else if (c.target.receiveHit) hitCreature(c.target, A.gore.creature, c); } if (c.t > 0.8) { c.hitDone = false; setAi(c, 'herd'); c.attackCd = 1.5; } return; }
+    if (c.ai === 'gore') { c.move = 0; c.mode = 1; const t = posOf(c.target); if (t) face(c, t.x, t.z, dt, 4); if (c.t > 0.45 && !c.hitDone && t && t.distanceTo(c.pos) < 2.6 * c.scale) { c.hitDone = true; if (c.target === game.player) hurtLocal({ local: true }, A.gore, c.pos); else if (c.target.receiveHit) hitCreature(c.target, A.gore.creature, c, 'bite'); } if (c.t > 0.8) { c.hitDone = false; setAi(c, 'herd'); c.attackCd = 1.5; } return; }
     const C = g.center, th = g.threat, tp = posOf(th);
     c.ai = 'herd';
     if (g.state === 'flee' && tp) { const a = Math.atan2(c.pos.x - tp.x, c.pos.z - tp.z); steer(c, c.pos.x + Math.sin(a) * 8, c.pos.z + Math.cos(a) * 8, S.runSpeed, dt, 2); c.mode = 3; if (tp.distanceTo(c.pos) > 50) g.state = 'graze'; return; }
@@ -136,8 +139,9 @@ export function createHerdAI(ctx) {
       if (g.state === 'defend') {
         const d = tp.distanceTo(c.pos);
         if (isLead || c.role === 'tusk' || (th === g.hostile && c.attackCd <= 0 && rnd() < dt * 0.6)) {
-          if (d < 2.4 * c.scale && c.attackCd <= 0) { setAi(c, 'gore'); c.target = th; return; }
-          if (d > 6 && d < 22 && c.attackCd <= 0) { setAi(c, 'paw'); c.chargeAt = th; c.attackCd = 4; return; }
+          if (d < 2.4 * c.scale && c.attackCd <= 0 && !disabled(c.parts, 'gore')) { setAi(c, 'gore'); c.target = th; return; }
+          if (d > 6 && d < 22 && c.attackCd <= 0 && !disabled(c.parts, 'charge')) { setAi(c, 'paw'); c.chargeAt = th; c.attackCd = 4; return; }
+          if (disabled(c.parts, 'charge') && disabled(c.parts, 'gore')) { const a = Math.atan2(c.pos.x - tp.x, c.pos.z - tp.z); steer(c, c.pos.x + Math.sin(a) * 6, c.pos.z + Math.cos(a) * 6, S.runSpeed, dt, 2); c.mode = 3; return; } // can neither ram nor gore: falls back
           if (d >= 22) { steer(c, tp.x, tp.z, S.runSpeed * 0.7, dt, 2); c.mode = 3; return; }
           // too close for a charge run-up: back off a few steps
           const a = Math.atan2(c.pos.x - tp.x, c.pos.z - tp.z); steer(c, c.pos.x + Math.sin(a) * 4, c.pos.z + Math.cos(a) * 4, S.speed * 1.5, dt, 2); c.mode = 0; return;
@@ -146,7 +150,7 @@ export function createHerdAI(ctx) {
         const juv = alive(g).filter((m) => m.stage === 0); const mid = juv.length ? juv[0].pos : C;
         const idx = alive(g).filter((m) => m.stage > 0 && m !== lead(g)).indexOf(c); const a = Math.atan2(tp.x - mid.x, tp.z - mid.z) + (idx - 1) * 0.9;
         steer(c, mid.x + Math.sin(a) * 3.5, mid.z + Math.cos(a) * 3.5, S.runSpeed * 0.6, dt, 3); c.mode = 0; c.heat = 0.5;
-        if (d < 2.4 * c.scale && c.attackCd <= 0) { setAi(c, 'gore'); c.target = th; }
+        if (d < 2.4 * c.scale && c.attackCd <= 0 && !disabled(c.parts, 'gore')) { setAi(c, 'gore'); c.target = th; }
       }
     }
   }
@@ -185,7 +189,7 @@ export function createHerdAI(ctx) {
       // attack turn: only a couple of wolves at once
       const attacking = ring.filter((m) => m.ai === 'lunge').length;
       const tYaw = t === game.player ? game.player.facing : t.yaw || 0; const behind = Math.abs(wrapA(Math.atan2(c.pos.x - tp.x, c.pos.z - tp.z) - tYaw)) > 1.4;
-      if (c.attackCd <= 0 && attacking < 2 && d < 4 && (behind || c === L || g.state === 'hunt')) { setAi(c, 'lunge'); c.target = t; }
+      if (c.attackCd <= 0 && attacking < 2 && d < 4 && (behind || c === L || g.state === 'hunt') && !disabled(c.parts, 'lunge')) { setAi(c, 'lunge'); c.target = t; } // broken jaw: stays on the ring, harrying
     }
   }
 
