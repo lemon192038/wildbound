@@ -115,6 +115,14 @@ try {
     check('ancient anchor: the chain throw hits a target 8 m away', m.hits.length >= 1 && m.hits[0].motion === 'an_throw', { hits: m.hits.length });
     // three-blade style: three blades cut — more hits per swing than dual blades
     check('three-blade style lands more hits per chain than the sword', table.tri.hits > table.sword.hits, { tri: table.tri.hits, sword: table.sword.hits });
+    // balance (user request): same weapon attack → every class deals about the same sustained damage
+    { const R = new Set(['bow', 'lightxbow', 'heavyxbow', 'pistol', 'machinegun']); const mel = CLS.filter((c) => !R.has(c)).map((c) => table[c].dps), rng = CLS.filter((c) => R.has(c)).map((c) => table[c].dps);
+      const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length, mM = avg(mel), mR = avg(rng);
+      check('balance: every melee class within ±10 % of the melee mean, every ranged class within ±10 % of the ranged mean', mel.every((v) => Math.abs(v / mM - 1) <= 0.1) && rng.every((v) => Math.abs(v / mR - 1) <= 0.1), { melee: [Math.min(...mel), Math.max(...mel), Math.round(mM)], ranged: [Math.min(...rng), Math.max(...rng), Math.round(mR)] });
+      check('balance: ranged deal a little less than melee (0.85–1.0×) — they fight from range', mR / mM >= 0.85 && mR / mM <= 1.0, { ratio: +(mR / mM).toFixed(2) }); }
+    { const { WEAPONS } = await import('/src/shared/gamedata.js'); const by = {}; for (const d of Object.values(WEAPONS)) (by[d.rarity] ||= []).push(d.levels[0].attack);
+      const spread = Object.fromEntries(Object.entries(by).map(([r, a]) => [r, +(Math.max(...a) / Math.min(...a)).toFixed(3)]));
+      check('balance: weapons of the same rarity differ by at most 8 % in attack', Object.values(spread).every((v) => v <= 1.08), spread); }
 
     // ---------------- aiming + part lock-on ----------------
     reset('bow'); P.debug.setDrawn(true); step(0.1); front(14); m.hits.length = 0;

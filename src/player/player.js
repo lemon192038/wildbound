@@ -282,7 +282,7 @@ export async function createPlayer(game) {
             const c = hb.sphere.center; _seg.subVectors(a.p, _prev); const L2 = _seg.lengthSq(); const u = L2 > 0 ? Math.max(0, Math.min(1, _cl.subVectors(c, _prev).dot(_seg) / L2)) : 0;
             _cl.copy(_prev).addScaledVector(_seg, u); if (_cl.distanceTo(c) > hb.sphere.radius + 0.12) continue;
             const G = P.gear, aff = G.affinity + M.affinity, isCrit = aff > 0 && Math.random() < aff / 100;
-            let damage = a.mv * ATTACK_POWER * G.atk * G.buffAtk * hornAtk() * G.sharp * (isCrit ? 1 + 0.25 * M.critDmg : 1) * M.atk * arrowFalloff(a.o.distanceTo(_cl), C.range);
+            let damage = (C.dmgScale ?? 1) * a.mv * ATTACK_POWER * G.atk * G.buffAtk * hornAtk() * G.sharp * (isCrit ? 1 + 0.25 * M.critDmg : 1) * M.atk * arrowFalloff(a.o.distanceTo(_cl), C.range);
             const el = G.element; if (el && el.type !== 'blast') damage += el.value * 0.05 * M.elem * (atk.elemBoost || 1) * (m.weakness?.[el.type] ?? 1) * 0.6;
             noteDamage(m, 'local', hb.part); const nrm = _cl.clone().sub(c).normalize();
             const res = m.receiveHit({ damage, part: hb.part, point: _cl.clone(), normal: nrm, attackerId: 'local', isCrit, element: el?.type, elementValue: el?.value || 0, mv: a.mv, motion: 'arrow', breakMul: C.breakMul });
@@ -306,7 +306,7 @@ export async function createPlayer(game) {
       if (!m || m.hp <= 0 || m.state === 'dead' || m.dead) continue;
       let best = null, bd = 1e9; for (const hb of m.getHitboxes()) { const d = hb.sphere.center.distanceTo(center) - hb.sphere.radius; if (d < bd) { bd = d; best = hb; } }
       if (!best || bd > r) continue;
-      const damage = base * G.atk * hornAtk() * M.atk; noteDamage(m, 'local', best.part); const pt = best.sphere.center.clone();
+      const damage = (C.dmgScale ?? 1) * base * G.atk * hornAtk() * M.atk; noteDamage(m, 'local', best.part); const pt = best.sphere.center.clone();
       const res = m.receiveHit({ damage, part: best.part, point: pt, normal: new THREE.Vector3(0, 1, 0), attackerId: 'local', mv: 0.3, motion, breakMul: C.breakMul, element: 'blast' });
       events.emit('hit', { attacker: 'local', target: m, damage: res?.damage ?? Math.round(damage), part: best.part, point: pt, normal: new THREE.Vector3(0, 1, 0), motion, level: 0 }); n++;
     }
@@ -422,7 +422,7 @@ export async function createPlayer(game) {
         // part hardness (src/core/parts.js): a blunt edge glances off very hard parts; hard parts wear the edge faster
         const hitPart = m.parts?.find((q) => q.name === hb.part); const hard = hitPart && !hitPart.broken ? hitPart.hardness ?? 0.5 : 0.4;
         const glance = !blunt && deflects(pierce ? hard - 0.2 : hard, P.sharpness, P.state); // blunt never glances; a point slips in more easily
-        let damage = mv * ATTACK_POWER * G.atk * G.buffAtk * sharpMult(P.sharpness) * G.sharp * (isCrit ? 1 + 0.25 * M.critDmg : weakHit ? 0.75 : 1) * (glance ? 0.35 : 1) * M.atk * (1 + 0.06 * focusLv) * hornAtk();
+        let damage = (C.dmgScale ?? 1) * mv * ATTACK_POWER * G.atk * G.buffAtk * sharpMult(P.sharpness) * G.sharp * (isCrit ? 1 + 0.25 * M.critDmg : weakHit ? 0.75 : 1) * (glance ? 0.35 : 1) * M.atk * (1 + 0.06 * focusLv) * hornAtk();
         const el = G.element; if (el && el.type !== 'blast') damage += el.value * 0.05 * M.elem * (m.weakness?.[el.type] ?? 1) * Math.min(1.5, mv / 0.4 + 0.3);
         noteDamage(m, 'local', hb.part); // material rights: this hunter damaged this part (and so the body)
         const breakMul = (atk.shield ? 1.3 : C.breakMul) * (atk.breakBonus || 1) * (blunt && hard > 0.6 ? 1.15 : 1); // part-break aptitude of the weapon class

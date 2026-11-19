@@ -111,6 +111,12 @@ export const WEAPONS = {
 for (const [k, v] of Object.entries(ISLAND_WEAPONS)) { const { ja, jaEffect, ...def } = v; WEAPONS[k] = def; } // island gear (stage 5b)
 for (const [k, v] of Object.entries(CLASS_WEAPONS)) { const { ja, jaEffect, ...def } = v; WEAPONS[k] = def; } // other weapon classes
 for (const [k, v] of Object.entries(LINE_WEAPONS)) { const { ja, jaEffect, ...def } = v; WEAPONS[k] = def; } // material lines: ~10 per class (src/shared/lineGear.js)
+// Balance (user request): weapons of the same rarity should hit about equally hard. Each weapon's offset from its rarity's
+// mean base attack is cut to 30 % (its upgrade growth is kept), so rarity, element and affinity decide most of the
+// difference. (Damage differences between CLASSES are evened out in weaponClasses.js DMG_SCALE.)
+{ const byR = {}; for (const d of Object.values(WEAPONS)) (byR[d.rarity] ||= []).push(d);
+  for (const list of Object.values(byR)) { const mean = list.reduce((a, d) => a + d.levels[0].attack, 0) / list.length;
+    for (const d of list) { const off = Math.round((d.levels[0].attack - mean) * 0.7); if (off) d.levels = d.levels.map((L) => ({ ...L, attack: L.attack - off })); } } }
 for (const d of Object.values(WEAPONS)) d.cls ||= 'greatsword'; // every weapon belongs to a class (src/shared/weaponClasses.js)
 export const STARTER_WEAPON = 'marrowcleaver';
 

@@ -549,6 +549,23 @@ Design and reasoning: `ECOLOGY.md` (Japanese).
 - Player, combat, weapons: passed. `tools/island-test.mjs`: 0 failed. `tools/volcano-test.mjs`: 6 of 7 runs passed; the one failure (the first run) was not captured, so which check failed is unknown (possibly flaky).
 - Built game: 9 bosses load (incl. the 2 new dragons); the Venom-fang nest shows its clutch and 2 dragon hatchlings.
 
+## Stage 8c: Scope aiming, weapon balance, sea-chart habitats (2026-11-19)
+
+| Item | Status | Notes |
+|---|---|---|
+| Island quests could not depart: the chart's "Volcanic Island" destination had no monster and its detail panel threw | ✅ fixed | the island is now shown as its habitats |
+| Sea chart shows EVERY monster's habitat (群生地) on the Volcanic Island: 13 creatures incl. Crystal Tusk / pack leader / Grand Mole, 9 bosses and dragons (22 pins); pick one → quest (any accepted quest) or free expedition → the ship lands there and the base camp is set up there | ✅ | `src/shared/habitats.js` (deterministic, shared with the server), `worldMap.js`, server `depart` / `departIsland` take `landing`; an island quest opens the chart zoomed to its target's habitat |
+| Scope aiming for bow, light / heavy crossbow, pistol, machine gun: AIM (Q / LT / touch 照準) draws the weapon if sheathed and aims; the camera goes into the eye and zooms (bow ×2.2, light crossbow ×3.5, heavy crossbow ×6, pistol ×1.8, machine gun ×2.8) with slower turning; a scope overlay (dark tube ring, heavy posts → fine cross, mil dots, ranging grid, stadia bar with red dot; bow sight pins; pistol red dot); the hunter's model is hidden while looking through it | ✅ | `src/player/scope.js`, `camera.js` (`scopeK`), `weaponClasses.js` `scope` |
+| Balance: class damage evened out — at the same weapon attack every melee class deals ≈145–163 / s, ranged ≈136–154 / s (were 85–211) | ✅ | `DMG_SCALE` in `weaponClasses.js`, applied to every damage path (melee, projectiles, blasts) |
+| Balance: weapons of the same rarity differ ≤ 6.5 % in attack (were up to 24 %); upgrade growth kept | ✅ | post-pass in `gamedata.js` (server and client share it) |
+
+### Stage 8c tests (2026-11-19)
+- `server/api.test.mjs`: 156/156 on SQLite and pg-mem (landing: unknown site refused, island quest departs to a habitat, free island expedition to any habitat; weapon stats read from the balanced table).
+- `src/player/__weapons.test.mjs`: all passed — the 5 ranged classes draw + aim from sheathed, scope up, model hidden, centre on the target, the shot hits; zoom differs by weapon; releasing AIM leaves the scope; class balance ±10 %; ranged/melee 0.92; same-rarity attack spread ≤ 8 %.
+- Built game: the chart shows 22 habitat pins; departing from the Crystal Boar habitat registered `landing: hab_boar` and the island booted with the base camp 44 m from the habitat and the quest target set.
+- Scope screenshots (test bench): light crossbow, heavy crossbow, bow.
+- All other suites passed. Island test: 0 failed.
+
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
   - island content

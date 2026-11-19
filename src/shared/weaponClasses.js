@@ -37,6 +37,12 @@ export const WEAPON_CLASSES = {
   bow: { ja: '弓', en: 'Bow', hands: 'bow', dmg: 'ranged', drawT: 0.4, sheatheT: 0.45, parry: 0.2, walk: 3.6, breakMul: 0.7, wear: 0, guard: null, roll: 3.4, items: false,
     light: 'bw_quick', heavy: 'bcharge', range: [5, 24], scope: { zoom: 2.2, reticle: 'pins' } },
 };
+// Damage balance across classes (user request: weapons of the same rank should not differ much in damage). Measured
+// sustained damage (light-attack chains, same weapon attack — src/player/__weapons.test.mjs) is brought to ≈155/s for
+// melee classes and ≈145/s for ranged ones (they fight from safety). Class identity stays in HOW the damage comes
+// (hits, reach, breaks, buffs), not in how much.
+export const DMG_SCALE = { greatsword: 0.93, sword: 1.06, dual: 1.11, longsword: 0.93, hammer: 0.735, lance: 1.03, bow: 1.38, tri: 1.17, machete: 1.63, mace: 1.0,
+  horn: 0.76, cannonlance: 1.12, shiftaxe: 0.91, bulwarkaxe: 1.21, staff: 0.77, lightxbow: 1.54, heavyxbow: 1.38, pistol: 1.71, machinegun: 1.48, anchor: 0.93 };
 export const CLASS_IDS = Object.keys(WEAPON_CLASSES);
 
 // charged moves: hold HEAVY; levels at lv[i] seconds; released into release[level]
@@ -118,6 +124,7 @@ Object.assign(WEAPON_CLASSES, {
   anchor: { ja: '古の碇', en: 'Ancient Anchor', hands: 2, dmg: 'blunt', drawT: 0.9, sheatheT: 0.95, parry: 0.2, walk: 2.4, breakMul: 1.6, wear: 0.3, guard: null, roll: 2.8, items: false, light: 'an_1', heavy: 'an_throw' },
 });
 CLASS_IDS.splice(0, CLASS_IDS.length, ...Object.keys(WEAPON_CLASSES));
+for (const [k, v] of Object.entries(DMG_SCALE)) if (WEAPON_CLASSES[k]) WEAPON_CLASSES[k].dmgScale = v; // after every class is registered
 Object.assign(CHARGES, {
   xcharge: { lv: [0.6, 1.3, 9], max: 2.2, release: ['hx_cannon', 'hx_cannon', 'hx_cannon2', 'hx_cannon2'], move: 0.6, clip: 'gun_aim', stamina: 5 },
   clcharge: { lv: [0.7, 9, 9], max: 1.6, release: ['cl_shell', 'cl_bigshell', 'cl_bigshell', 'cl_bigshell'], move: 0.5, clip: 'cl_aim', stamina: 3 },
