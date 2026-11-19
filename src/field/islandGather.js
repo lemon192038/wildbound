@@ -67,7 +67,7 @@ export function createIslandGather(game, { expedition }) {
     const s = poll(); const P = game.player; if (!P || P.dead) return s;
     const tg = nearest(P.position); const locked = performance.now() < lock;
     if (tg && !game.carving?.nearest?.(P.position)) { prompt.style.display = 'block'; prompt.textContent = t('ig.prompt', { k: game.input.touch?.enabled ? '' : 'E · ', w: t('g2.' + tg.kind) }); game.input.touch?.setAction(t('touch.gather')); }
-    else if (prompt.style.display !== 'none') { prompt.style.display = 'none'; }
+    else if (prompt.style.display !== 'none') { prompt.style.display = 'none'; game.input.touch?.clearAction?.(t('touch.gather')); }
     if (locked) { s.move.x = s.move.y = 0; s.lightAttack = s.heavyAttack = false; }
     if (s.interact && tg && !locked && !busy) { s.interact = false; if (P.weaponDrawn) show(t('qr.sheathe'), true); else gather(tg); }
     return s;

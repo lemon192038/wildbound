@@ -146,6 +146,19 @@ try {
     check('scope: all 5 ranged classes draw + aim from sheathed, scope up, model hidden, centre on the target, the shot hits', Object.values(scopeRes).every((r) => r.drawn && r.aim && r.k > 0.95 && r.hidden && r.center < 2 && r.hits >= 1), scopeRes);
     check('scope zoom differs by weapon (heavy crossbow most, pistol least)', scopeRes.heavyxbow.fov < scopeRes.lightxbow.fov && scopeRes.lightxbow.fov < scopeRes.pistol.fov, { fov: Object.fromEntries(Object.entries(scopeRes).map(([c, r]) => [c, r.fov])) });
     step(0.1, {}); for (let i = 0; i < 30; i++) g.cameraRig.update(1 / 60, {}); step(0.05, {}); check('releasing AIM leaves the scope and shows the hunter again', g.cameraRig.scopeK < 0.2 && P.view.root.visible, { k: +g.cameraRig.scopeK.toFixed(2) });
+    { // touch: while scoped the ATTACK button stays on top (the scope sits under the touch controls) and fires
+      const { TouchControls } = await import('/src/core/touch.js'); const tc = g.input.touch || (g.input.touch = new TouchControls()); tc.show();
+      reset('lightxbow'); P.debug.setDrawn(false); step(0.1); front(14); m.hits.length = 0; g.cameraRig.yaw = P.facing + Math.PI; g.cameraRig.pitch = 0.28;
+      const camStep = (sec, inp) => step(sec, (i) => { g.cameraRig.update(1 / 60, {}); return typeof inp === 'function' ? inp(i) : inp; });
+      camStep(1.6, { guard: true }); const atk = [...tc.root.querySelectorAll('.tc-btn')].find((b) => b.dataset.act === 'light'); const r = atk.getBoundingClientRect();
+      const onTop = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === atk;
+      camStep(0.05, (i) => ({ guard: true, lightAttack: i === 0 })); camStep(1, { guard: true });
+      check('touch: the ATTACK button stays visible on top of the scope and fires while aiming', onTop && g.cameraRig.scopeK > 0.9 && m.hits.length >= 1, { onTop, hits: m.hits.length });
+      // the context button (carve / gather / egg) is shared: a module may only clear its own label
+      tc.setAction('採集'); tc.clearAction('剥取'); const kept = tc.actBtn.style.display !== 'none'; tc.clearAction('採集');
+      check('touch: one module cannot hide another module\'s context button (gathering stays tappable)', kept && tc.actBtn.style.display === 'none');
+      tc.root.classList.remove('tc-on'); tc.enabled = false; g.input.touch = null; step(0.05, {}); for (let i = 0; i < 30; i++) g.cameraRig.update(1 / 60, {}); step(0.05, {});
+    }
     window.__manualCam = true;
     const hbSave = m.getHitboxes; const head = new g.THREE.Vector3();
     m.getHitboxes = () => { head.set(m.position.x, m.position.y + 1.6, m.position.z); return [{ part: 'body', sphere: new g.THREE.Sphere(m.position, 1.4) }, { part: 'head', sphere: new g.THREE.Sphere(head, 0.6) }]; };

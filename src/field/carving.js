@@ -115,7 +115,7 @@ export function createCarving(game, { expedition = null } = {}) {
       const what = tg.kind === 'piece' ? `${t('pt.piece')}: ${partName(tg.pc.part)}` : `${tg.o.name} (${bodyLeft(tg.o)})`;
       prompt.style.display = 'block'; prompt.textContent = t('cv.prompt', { k: game.input.touch?.enabled ? '' : 'E · ', w: what });
       game.input.touch?.setAction(t('touch.carve'));
-    } else if (prompt.style.display !== 'none') { prompt.style.display = 'none'; game.input.touch?.setAction(null); }
+    } else if (prompt.style.display !== 'none') { prompt.style.display = 'none'; game.input.touch?.clearAction?.(t('touch.carve')); }
     if (locked) { s.move.x = s.move.y = 0; s.lightAttack = s.heavyAttack = s.dodge = false; }
     if (s.interact && tg && !locked && !busy) {
       s.interact = false;

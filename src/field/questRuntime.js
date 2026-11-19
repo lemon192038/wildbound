@@ -172,7 +172,7 @@ export function startQuestRuntime(game, ctx) {
   game.input.poll = () => {
     const s = poll(); const n = st.phase !== 'done' && !P.dead ? gather.nearest(P.position) : null;
     if (n) { prompt.style.display = 'block'; prompt.textContent = t('qr.gatherPrompt', { k: game.input.touch?.enabled ? '' : 'E · ', l: n.label }); game.input.touch?.setAction(t('touch.gather')); }
-    else { prompt.style.display = 'none'; game.input.touch?.setAction(null); }
+    else if (prompt.style.display !== 'none') { prompt.style.display = 'none'; game.input.touch?.clearAction?.(t('touch.gather')); } // only its own label (the island's gathering uses the same button)
     if (gatherLock > 0) { s.move.x = s.move.y = 0; s.lightAttack = s.heavyAttack = s.dodge = false; }
     if (s.interact && n && gatherLock <= 0 && !P.weaponDrawn) {
       s.interact = false; const g = gather.gather(n);

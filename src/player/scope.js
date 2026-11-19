@@ -43,7 +43,7 @@ export function createScope() {
   if (typeof document === 'undefined') return { set() {}, el: null };
   const el = document.createElement('div'); el.className = 'wb-scope';
   el.innerHTML = `<style>
-    .wb-scope{position:fixed;inset:0;z-index:11;pointer-events:none;opacity:0;transition:opacity .12s linear;display:none}
+    .wb-scope{position:fixed;inset:0;z-index:4;pointer-events:none;opacity:0;transition:opacity .12s linear;display:none}
     .wb-scope .ring{position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,transparent 0,transparent calc(var(--r) - 2px),rgba(0,0,0,.55) var(--r),#020202 calc(var(--r) + 10px),#000 100%)}
     .wb-scope .glass{position:absolute;left:50%;top:50%;width:calc(var(--r) * 2);height:calc(var(--r) * 2);margin:calc(var(--r) * -1) 0 0 calc(var(--r) * -1);border-radius:50%;
       box-shadow:inset 0 0 calc(var(--r) * .22) rgba(0,0,0,.75),inset 0 0 0 3px rgba(0,0,0,.85)}
@@ -51,7 +51,8 @@ export function createScope() {
     .wb-scope text{font-family:system-ui,sans-serif;font-weight:600}
     .wb-scope .zoom{position:absolute;left:50%;top:calc(50% + var(--r) + 14px);transform:translateX(-50%);color:#d8cfb8;font:600 13px/1 system-ui,sans-serif;letter-spacing:.12em;opacity:.8}
   </style><div class="ring"></div><div class="glass"></div><svg viewBox="-100 -100 200 200"></svg><div class="zoom"></div>`;
-  (document.getElementById('ui-root') || document.body).appendChild(el);
+  // under the HUD (#ui-root z 10) and under the touch controls (z 5): the ATTACK / AIM buttons stay visible and pressable
+  document.body.appendChild(el);
   const svg = el.querySelector('svg'), zoomEl = el.querySelector('.zoom'); let kind = null, shownK = -1;
   const resize = () => el.style.setProperty('--r', `${Math.round(Math.min(innerWidth, innerHeight) * 0.46)}px`); resize(); addEventListener('resize', resize);
   return {

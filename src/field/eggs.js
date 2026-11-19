@@ -35,7 +35,7 @@ export function createEggs(game, { expedition }) {
     const s = poll(); const P = game.player; if (!P || P.dead || P.ride?.active) { prompt.style.display = 'none'; return s; }
     const tg = nearest(P.position); const locked = performance.now() < lock;
     if (tg && !game.carving?.nearest?.(P.position)) { prompt.style.display = 'block'; prompt.textContent = t('egg.prompt', { k: game.input.touch?.enabled ? '' : 'E · ', w: label(tg) }); game.input.touch?.setAction(t('touch.egg')); }
-    else if (prompt.style.display !== 'none') prompt.style.display = 'none';
+    else if (prompt.style.display !== 'none') { prompt.style.display = 'none'; game.input.touch?.clearAction?.(t('touch.egg')); }
     if (s.interact && tg && !locked && !busy) { s.interact = false; if (P.weaponDrawn) show(t('qr.sheathe'), true); else take(tg); }
     return s;
   };
