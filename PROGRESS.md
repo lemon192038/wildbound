@@ -546,7 +546,7 @@ Design and reasoning: `ECOLOGY.md` (Japanese).
 - `src/fauna/__fauna.test.mjs`: all passed, three runs in a row (dragon reactions, huddle, juvenile → adult, basking, egg-taking hostility).
 - `src/field/__dragons.test.mjs` (new): roles, sky patrol > 250 m, bird caught in flight, young boar caught, provisioning, small prey ignored, resident stays in territory and hunts inside only, aggro hands over to the boss AI.
 - `src/player/__tame.test.mjs`: 25/25 with the real models (19 constructs, saddle heights 0.9–2.5 m).
-- Player, combat, weapons: passed. `tools/island-test.mjs`: 0 failed. `tools/volcano-test.mjs`: 1 of the first 4 runs failed (item not captured), later runs passed — see the note below.
+- Player, combat, weapons: passed. `tools/island-test.mjs`: 0 failed. `tools/volcano-test.mjs`: 6 of 7 runs passed; the one failure (the first run) was not captured, so which check failed is unknown (possibly flaky).
 - Built game: 9 bosses load (incl. the 2 new dragons); the Venom-fang nest shows its clutch and 2 dragon hatchlings.
 
 ## Not started (see IMPLEMENTATION_PLAN.md)
