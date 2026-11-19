@@ -43,6 +43,7 @@ export const SPOTS = {
   storage: { npc: [-42.8, -18, Math.PI / 2], talk: [-39.3, -18] },
   dock: { npc: [1.6, -71.2, 0], talk: [1.6, -68.0] },
   sage: { npc: [-9.5, -7.5, Math.PI * 0.8], talk: [-8.2, -10.3] }, // Mame Chishikii, the old know-it-all by the fountain
+  tamer: { npc: [14.5, -12, -Math.PI / 2], talk: [11.2, -12], pen: [17.5, -12] }, // Monster Workshop (taming): Beastwright Jorun and a construct on show
 };
 
 // blocked footprints inside walkable prims: rects [x0,x1,z0,z1] or circles {c:[x,z], r}
@@ -59,6 +60,7 @@ export const BLOCKS = [
   [-44, -32.6, -5, 13], // alchemy atelier + counter
   { c: [-56, -45.5], r: 4.6 }, // quay tower
   [47, 54, -26, -20], // market corner tower
+  { c: [17.5, -12], r: 2.2 }, // Monster Workshop: the construct on show
 ];
 export const STALLS = [ // [x, z, w, d, rot] market stalls (blocked)
   [31, -9, 4, 2.6, 0], [31, -19, 4, 2.6, 0], [49, -8, 4, 2.6, Math.PI], [49, -19, 3.6, 2.6, Math.PI],

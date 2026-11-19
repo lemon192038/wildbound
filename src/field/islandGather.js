@@ -25,7 +25,7 @@ export function createIslandGather(game, { expedition }) {
   const meshes = {};
   for (const [k, [geo, col, emi]] of Object.entries(LOOK)) {
     const m = new THREE.InstancedMesh(geo(), new THREE.MeshStandardMaterial({ color: col, emissive: emi, emissiveIntensity: 0.6, roughness: 0.8 }), MAX);
-    m.count = 0; m.frustumCulled = false; m.name = 'gather-' + k; scene.add(m); meshes[k] = m;
+    m.count = 0; m.frustumCulled = false; m.name = 'gather-' + k; m.userData.global = true; scene.add(m); meshes[k] = m;
   }
   const tiles = new Map(); const used = {}; let pts = []; let rebuild = true, scanT = 0;
   const stats = { gathered: 0, refused: 0 };

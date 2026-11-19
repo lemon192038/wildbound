@@ -93,9 +93,11 @@ const G = {
   gear: `<circle cx="24" cy="24" r="6"/><path d="M24 4v7M24 37v7M4 24h7M37 24h7M10 10l5 5M33 33l5 5M38 10l-5 5M15 33l-5 5"/>`,
   logout: `<path d="M20 8H10v32h10M30 15l9 9-9 9M18 24h21"/>`,
   scroll: `<path d="M12 6h24v32a4 4 0 0 1-4 4H12a4 4 0 0 1-4-4v-4h24"/><path d="M16 14h14M16 20h14M16 26h10"/>`,
+  paw: `<path d="M24 26c-7 0-12 6-12 11 0 4 3 6 6 6 3 0 4-2 6-2s3 2 6 2c3 0 6-2 6-6 0-5-5-11-12-11z" fill="currentColor" fill-opacity=".25"/><path d="M24 26c-7 0-12 6-12 11 0 4 3 6 6 6 3 0 4-2 6-2s3 2 6 2c3 0 6-2 6-6 0-5-5-11-12-11z"/><circle cx="12" cy="20" r="4"/><circle cx="19" cy="11" r="4"/><circle cx="29" cy="11" r="4"/><circle cx="36" cy="20" r="4"/>`,
   sail: `<path d="M24 4v30M24 6l14 24H24M22 10L10 30h12M6 36h36l-4 6H10z"/>`,
   arrowR: `<path d="M10 24h28M28 14l10 10-10 10"/>`, arrowL: `<path d="M38 24H10M20 14L10 24l10 10"/>`,
 };
+G.tamer = G.paw; // Monster Workshop dialogue plate
 export function glyph(name, cls = '') {
   return `<svg class="tw-glyph ${cls}" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${G[name] || G.scroll}</svg>`;
 }

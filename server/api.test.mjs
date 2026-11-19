@@ -243,6 +243,25 @@ ok(r.state.ledger.length > 5 && r.state.ledger.every((l) => typeof l.d === 'numb
   r = await act(gt, 'completeQuest', { iid: biid2, report: { kills: { beetle: 3 } } }); ok(r.ok && r.result.ok, 'creature quest (3 Magma Beetles) completes');
 }
 
+// ---- taming: Monster Workshop (src/shared/tame.js, economy craftTame / equipTame)
+{
+  const { tameRecipe } = await import('../src/shared/tame.js'); const { MONSTERS, ITEMS } = await import('../src/shared/gamedata.js');
+  const T = await call('/api/register', { name: 'Tamer', password: 'tamer-pass-1' }); const tt = T.token, tid = T.state.user.id;
+  ok((await act(tt, 'craftTame', { sp: 'nope' })).error === 'no_tame', 'an unknown construct is refused');
+  ok((await act(tt, 'craftTame', { sp: 'snake' })).error === 'missing', 'a construct needs every part material');
+  const R = tameRecipe('snake', MONSTERS, ITEMS); const all = { ...R.parts }; for (const [k, q] of Object.entries(R.extra)) all[k] = (all[k] || 0) + q;
+  const short = { ...all }; const firstPart = Object.keys(R.parts)[0]; short[firstPart] -= 1; await give(tid, short); await store.mutateSave(tid, (d) => { d.coins += R.coins; });
+  ok((await act(tt, 'craftTame', { sp: 'snake' })).error === 'missing', 'one part material short → still refused, nothing spent');
+  await give(tid, { [firstPart]: 1 });
+  r = await act(tt, 'craftTame', { sp: 'snake' });
+  ok(r.ok && r.state.tames.snake && r.state.tameEquip === 'snake', 'the artificial Lava Snake is built and auto-equipped');
+  ok(Object.keys(all).every((k) => !r.state.box[k]) , 'every part + gathered material was consumed');
+  ok((await act(tt, 'craftTame', { sp: 'snake' })).error === 'owned', 'one construct per species');
+  ok((await act(tt, 'equipTame', { sp: 'flame' })).error === 'not_owned', 'cannot equip a construct you do not own');
+  r = await act(tt, 'equipTame', { sp: null }); ok(r.ok && r.state.tameEquip === null, 'construct unequipped');
+  r = await act(tt, 'equipTame', { sp: 'snake' }); ok(r.ok && r.state.tameEquip === 'snake', 'construct re-equipped');
+}
+
 // ---- the Volcano Slime world event (server/volcano.js)
 {
   const reg = async (n) => { const r = await call('/api/register', { name: n, password: n + '-pass-123' }); return { tok: r.token, id: r.state.user.id }; };

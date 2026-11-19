@@ -51,6 +51,7 @@ export class TouchControls {
       [t('touch.next'), 'next', 268, 160, 44, 'tap'],
       [t('touch.lock'), 'lockOn', 130, 250, 54, 'tap'],
       [t('touch.jump'), 'jump', 128, 56, 60, 'tap'],
+      [t('touch.ride'), 'summon', 300, 140, 54, 'tap'], // taming: summon / ride / dismount the equipped construct
       [t('touch.rope'), 'rope', 300, 64, 60, 'tap'], // tap once to arm, then double-tap the target (tap again: cancel)
     ];
     for (const [label, act, r, b, size, mode] of B) {
@@ -154,7 +155,7 @@ export class TouchControls {
     s.sprint ||= t.sprint; s.guard ||= t.guard; s.heavyHeld ||= t.heavyHeld; s.lightHeld ||= t.lightHeld;
     const p = this.pressed;
     s.lightAttack ||= p.has('light'); s.heavyAttack ||= p.has('heavy'); s.dodge ||= p.has('dodge'); s.jump ||= p.has('jump');
-    s.item ||= p.has('item'); s.lockOn ||= p.has('lockOn'); s.interact ||= p.has('interact');
+    s.item ||= p.has('item'); s.lockOn ||= p.has('lockOn'); s.interact ||= p.has('interact'); s.summon ||= p.has('summon');
     p.clear();
   }
 }

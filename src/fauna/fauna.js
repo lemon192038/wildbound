@@ -47,7 +47,7 @@ export function createFauna(game) {
   const hunters = [];
   function gatherHunters() {
     hunters.length = 0; const P = game.player;
-    if (P?.position && !P.dead) hunters.push({ pos: P.position, state: P.state, ref: P, local: true });
+    if (P?.position && !P.dead && !P.unseen) hunters.push({ pos: P.position, state: P.state, ref: P, local: true });
     for (const r of game.remotePlayers?.values?.() || []) { const p = r.position || r.object3d?.position; if (p) hunters.push({ pos: p, state: r.state, ref: r }); }
   }
   function nearestHunter(x, z) { let best = null, bd = Infinity; for (const h of hunters) { const d = Math.hypot(h.pos.x - x, h.pos.z - z); if (d < bd) { bd = d; best = h; } } return [best, bd]; }

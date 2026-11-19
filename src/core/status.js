@@ -43,6 +43,7 @@ export function createStatus(game) {
       let d = DEF[kind]?.[level]; if (!d || game.player?.dead) return false;
       const sk = game.player?.gear?.skills || {};
       if (api.wards[kind] > 0 || immune[kind] > 0) return false;
+      if (game.player?.ride?.immune?.(kind)) return false; // taming traits: heatproof / lava swimmer / poisonproof constructs
       if (kind === 'burn' && sk.heatward) d = { ...d, t: d.t * (1 - 0.3 * sk.heatward) };
       if (kind === 'poison') { if (sk.antivenom >= 3) return false; if (sk.antivenom) d = { ...d, dps: d.dps * (1 - 0.3 * sk.antivenom) }; }
       if (kind === 'blast') { if (sk.blastward >= 3) return false; if (sk.blastward) d = { ...d, t: d.t + 3 * sk.blastward }; }

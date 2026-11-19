@@ -117,7 +117,7 @@ export async function createWorld(game) {
   function hazard(dt) {
     const P = game.player; if (!P?.position || P.dead) { burnT = 0; return; }
     const { x, z, y } = P.position;
-    if (!(terrain.lavaAt(x, z) && y < LY + 0.8)) { burnT = Math.max(0, burnT - dt); return; }
+    if (P.lavaSafe || !(terrain.lavaAt(x, z) && y < LY + 0.8)) { burnT = Math.max(0, burnT - dt); return; } // riding a lava swimmer: safe
     cueT -= dt;
     if (cueT <= 0) { cueT = 0.12; fx.emit(x, LY + 0.2, z, (Math.random() - 0.5) * 2, 3 + Math.random() * 3, (Math.random() - 0.5) * 2, 0.8, 0.5, 2, 1, 0.5, 0.15, 0.1, 0.08, 0.45, 1.5, 0.5); }
     if (dt <= 0) return;
@@ -178,6 +178,7 @@ export async function createWorld(game) {
     getHeight: terrain.getHeight,
     getNormal: terrain.getNormal,
     lavaAt: terrain.lavaAt,
+    lavaSurfaceAt: (x, z) => (terrain.lavaAt(x, z) ? LY : null), // taming: lava swimmers ride on the surface
     lavaLevel: LY,
     bounds: { radius: F.boundsR, arenaRadius: F.cave ? 55 : 45 },
     sun, spawn, colliders,

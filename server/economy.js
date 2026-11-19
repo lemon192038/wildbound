@@ -10,6 +10,7 @@ import {
 
 import { ISLAND_LOOT, ISLAND_LIMITS } from '../src/shared/islandLoot.js';
 import { pointByGid, rollGather, GATHER_KINDS, GATHER_LIMITS } from '../src/shared/islandGather.js';
+import { TAMES, tameRecipe } from '../src/shared/tame.js';
 import { createIslandField } from '../src/world/island/islandField.js';
 let FIELD = null; const islandField = () => (FIELD ||= createIslandField(1337)); // gather points are re-derived from the island itself
 export class GameError extends Error { constructor(code, message) { super(message || code); this.code = code; } }
@@ -129,6 +130,22 @@ export const ACTIONS = {
     give(d.box, r.out[0], r.out[1] * qty); d.crafted[recipe] = (d.crafted[recipe] || 0) + qty;
     d.craftLog.push({ t: now, recipe, qty }); trim(d.craftLog, LOG_MAX);
     return { msg: `Brewed ${r.out[1] * qty}× ${ITEMS[r.out[0]].name}` };
+  },
+  // Monster Workshop (taming): build an artificial monster from every part material of that monster + island materials.
+  craftTame(d, { sp } = {}, { now } = {}) {
+    if (typeof sp !== 'string' || !TAMES[sp]) fail('no_tame', 'Unknown construct');
+    d.tames ||= {}; if (d.tames[sp]) fail('owned', 'You already own that construct');
+    if (d.quests.expedition) fail('busy', 'Cannot build during a hunt');
+    const r = tameRecipe(sp, MONSTERS, ITEMS); const mats = { ...r.parts }; for (const [k, q] of Object.entries(r.extra)) mats[k] = (mats[k] || 0) + q;
+    pay(d, { coins: r.coins, mats }, `Monster Workshop: construct ${sp}`, now);
+    d.tames[sp] = { at: now }; if (!d.tameEquip) d.tameEquip = sp;
+    return { msg: 'Construct complete', sp };
+  },
+  equipTame(d, { sp } = {}) {
+    if (d.quests.expedition) fail('busy', 'Cannot change gear during a hunt');
+    if (sp == null) { d.tameEquip = null; return { msg: 'Unequipped' }; }
+    if (typeof sp !== 'string' || !d.tames?.[sp]) fail('not_owned', 'You do not own that construct');
+    d.tameEquip = sp; return { msg: 'Equipped', sp };
   },
   move(d, { item, qty, to }) {
     const it = ITEMS[item]; if (!it) fail('no_item'); int(qty, 1, 999);
@@ -372,7 +389,7 @@ export function publicState(d, user, now) {
     recipes: Object.fromEntries(Object.keys(RECIPES).map((k) => [k, recipeUnlocked(RECIPES[k], d)])),
     quests: { cleared: d.quests.cleared, active: d.quests.active, expedition: d.quests.expedition ? { iid: d.quests.expedition.iid, qid: d.quests.expedition.qid, dest: d.quests.expedition.dest || destForMonster(QUESTS[d.quests.expedition.qid]?.monster), free: !!d.quests.expedition.free, island: !!d.quests.expedition.island, carves: d.quests.expedition.n || 0, at: d.quests.expedition.at, carried: d.quests.expedition.carried } : null, history: d.quests.history.slice(-30),
       available: Object.fromEntries(Object.keys(QUESTS).map((k) => [k, questAvailable(k, d)])) },
-    hunts: d.hunts, areas: d.areas,
+    hunts: d.hunts, areas: d.areas, tames: d.tames || {}, tameEquip: d.tameEquip || null,
     shop: Object.fromEntries(Object.entries(d.shop).map(([k, s]) => [k, { left: s.left, restockAt: s.at + SHOP.restockMinutes * 60000 }])),
     notices: d.notices, serverTime: now,
   };

@@ -12,7 +12,7 @@ export function buildCamp(game, at) {
   const ring = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.12, 6, 12), new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 1 })); ring.rotation.x = Math.PI / 2; ring.position.set(0.5, 0.08, 0.8);
   const fire = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.8, 6), new THREE.MeshBasicMaterial({ color: 0xffa040 })); fire.position.set(0.5, 0.4, 0.8);
   const light = new THREE.PointLight(0xff9a40, 3, 16, 2); light.position.set(0.5, 1.2, 0.8);
-  g.add(tent, crate, crate2, pole, flag, ring, fire, light); g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); scene.add(g);
+  g.add(tent, crate, crate2, pole, flag, ring, fire, light); g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); g.userData.global = true; scene.add(g);
   world.spawn.player.set(at.x, y, at.z); // faint → back to camp
   let t = 0; game.addUpdater?.((dt) => { t += dt; fire.scale.y = 0.85 + Math.sin(t * 9) * 0.12; light.intensity = 2.6 + Math.sin(t * 13) * 0.5; flag.rotation.y = Math.sin(t * 1.7) * 0.25; });
   return g;

@@ -92,7 +92,7 @@ export async function createMonster(game) {
   m.perception = createPerception(game, m, senseProfile('varkhul'), { home: spawn });
   // ---------- hunters ----------
   const hunters = () => {
-    const list = []; if (game.player && !(game.player.hp <= 0)) list.push({ id: game.player.id ?? 'local', position: game.player.position, state: game.player.state, local: true });
+    const list = []; if (game.player && !(game.player.hp <= 0) && !game.player.unseen) list.push({ id: game.player.id ?? 'local', position: game.player.position, state: game.player.state, local: true });
     if (game.remotePlayers) for (const [id, r] of game.remotePlayers) { const p = r.position || r.object3d?.position; if (p && !(r.hp <= 0)) list.push({ id, position: p, state: r.state }); }
     return list;
   };

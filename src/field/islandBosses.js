@@ -33,7 +33,7 @@ export function territoryHomes(F) { return TERRITORIES.map((T) => ({ kind: T.kin
 export function createIslandBosses(game, homes) {
   const { THREE } = game; const W = game.world, F = W.island;
   const state = { loaded: 0, failed: 0, active: new Set() };
-  const hunters = () => { const l = []; if (game.player?.position) l.push(game.player.position); for (const r of game.remotePlayers?.values?.() || []) { const p = r.position || r.object3d?.position; if (p) l.push(p); } return l; };
+  const hunters = () => { const l = []; if (game.player?.position && !game.player.unseen) l.push(game.player.position); for (const r of game.remotePlayers?.values?.() || []) { const p = r.position || r.object3d?.position; if (p) l.push(p); } return l; };
 
   async function spawnAll() {
     for (const { kind, id, opts, home } of homes) {
@@ -46,7 +46,7 @@ export function createIslandBosses(game, homes) {
         const m = await MAKERS[kind](game, o);
         W.spawn.monster = saved;
         // everything this boss added at the scene root (its lights, particle/fx systems) rests with it when far away
-        m.islandExtras = game.scene.children.filter((o) => !before.has(o) && o !== m.object3d);
+        m.islandExtras = game.scene.children.filter((o) => !before.has(o) && o !== m.object3d && !o.userData.global); // global: added meanwhile by other systems (construct mount, camp, gathering)
         m.kind = kind; m.islandId = id; m.islandHome = new THREE.Vector3(home[0], 0, home[1]);
         if (game.net?.connected && !game.net.isHost) m.remoteControlled = true; // the host simulates every boss
         game.monsters.push(m); state.loaded++;

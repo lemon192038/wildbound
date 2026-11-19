@@ -178,7 +178,7 @@ export async function createIslandWorld(game) {
   function hazard(dt) {
     const P = game.player; if (!P?.position || P.dead || dt <= 0) { burnT = Math.max(0, burnT - dt); return; }
     const { x, z, y } = P.position;
-    if (!(lavaAt(x, z) && y < Ls.level + 0.8)) { burnT = Math.max(0, burnT - dt); return; }
+    if (P.lavaSafe || !(lavaAt(x, z) && y < Ls.level + 0.8)) { burnT = Math.max(0, burnT - dt); return; } // riding a lava swimmer: safe
     if ((game.volcanoFlow ?? 1) < 0.05 && Math.hypot(x - F.crater.x, z - F.crater.z) > F.crater.r + 20) { burnT = Math.max(0, burnT - dt); return; } // stopped rivers have crusted over
     burnT -= dt;
     if (burnT <= 0) { burnT = 0.45; P.drain?.(8); game.status?.apply('burn', 'large'); game.events?.emit('camera:shake', { intensity: 0.18, duration: 0.2 }); _p.set(x, Ls.level, z); fx.spawnSplash(_p, 0.6); }
@@ -219,6 +219,7 @@ export async function createIslandWorld(game) {
 
   const world = {
     update, getHeight: chunks.getHeight, getNormal: chunks.getNormal, lavaAt, lavaLevel: 0, canWalk,
+    lavaSurfaceAt: (x, z) => (lavaAt(x, z) ? Ls.level : null), // taming: lava swimmers ride on the surface
     regionAt: F.regionAt, region: F.regionAt(sp.x, sp.z), field: 'island', fieldName: F.name, island: F,
     bounds: { radius: HALF * 1.5, arenaRadius: 45 }, sun, spawn, colliders: opts.props.colliders,
     spawnDust: fx.spawnDust, spawnSplash: fx.spawnSplash, waterLevel: 0, waterHeightAt: () => 0, waterSources: [], // the sea: y = 0 everywhere

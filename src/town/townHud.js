@@ -15,6 +15,7 @@ import { createMarketPanel } from '../ui/town/marketPanel.js';
 import { createStoragePanel } from '../ui/town/storagePanel.js';
 import { createDockPanel } from '../ui/town/dockPanel.js';
 import { createMenuPanel } from '../ui/town/menuPanel.js';
+import { createTamerPanel } from '../ui/town/tamerPanel.js';
 import { dialogueFor } from '../ui/town/dialogue.js';
 import { t, questName, itemName, serverMsg, npcName, facilityName } from '../shared/i18n.js';
 
@@ -113,7 +114,7 @@ export function createTownHud(game) {
     navigate(url, text) { leaving = true; const v = el('div', 'tw-voyage-fade', `<div><span class="tw-spin"></span><p>${esc(text || t('hud.settingSail'))}</p></div>`, root); requestAnimationFrame(() => v.classList.add('on')); setTimeout(() => { location.href = url; }, 900); },
     logout: async () => { closeWin(); await acct.logout(); },
   };
-  const panels = { quest: createQuestPanel(ctx), smith: createForgePanel(ctx), alchemy: createAlchemyPanel(ctx), shop: createMarketPanel(ctx), storage: createStoragePanel(ctx), dock: createDockPanel(ctx), menu: createMenuPanel(ctx) };
+  const panels = { quest: createQuestPanel(ctx), smith: createForgePanel(ctx), alchemy: createAlchemyPanel(ctx), shop: createMarketPanel(ctx), storage: createStoragePanel(ctx), dock: createDockPanel(ctx), menu: createMenuPanel(ctx), tamer: createTamerPanel(ctx) };
   const npcOf = (id) => (game.world?.interactables || []).find((i) => i.id === id)?.npc || '';
 
   function openPanel(id) {

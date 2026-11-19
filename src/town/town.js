@@ -11,6 +11,7 @@ import { buildCity } from './build.js';
 import { createSea, createShip, addRowboats, createCrane, createWaterfall } from './harbour.js';
 import { createFx, createGulls } from './fx.js';
 import { createNpcs } from './npcs.js';
+import { createMountModel } from '../tame/mountModel.js';
 
 export async function createTown(game) {
   const { THREE, scene, renderer, camera, params } = game;
@@ -187,9 +188,18 @@ export async function createTown(game) {
   // ---- townsfolk ----
   const npcs = createNpcs(game, { getHeight: L.getHeight, walkable: L.walkable, low, colliders, spots: SPOTS, sparks: fx.sparks, anvilTop: B.anvilTop });
 
+  // ---- Monster Workshop: a construct on show by Beastwright Jorun (the hunter's equipped one, else a sample) ----
+  let showcase = null; const showAt = SPOTS.tamer.pen;
+  function setShowcase(sp) {
+    if (showcase?.sp === sp) return; if (showcase) { scene.remove(showcase.root); showcase.dispose(); }
+    showcase = createMountModel(sp); showcase.root.position.set(showAt[0], L.getHeight(showAt[0], showAt[1]), showAt[1]); showcase.root.rotation.y = -Math.PI * 0.6; add(showcase.root);
+  }
+  setShowcase('boar');
+  game.events?.on?.('account:state', ({ state: st }) => setShowcase(st?.tameEquip && st.tames?.[st.tameEquip] ? st.tameEquip : 'boar'));
+
   // ---- interactables ----
   const V = (x, z) => new THREE.Vector3(x, L.getHeight(x, z), z);
-  const NAMES = { quest: ["Hunters' Guild", 'Guildmistress Ysolde'], smith: ['Forge', 'Master Smith Borrik'], alchemy: ['Alchemy Atelier', 'Alchemist Nerith'], shop: ['Market', 'Merchant Pell'], storage: ['Item Box', 'Quartermaster Iva'], dock: ['Departure Dock', 'Captain Maro'], sage: ['Fountain Square', 'Mame Chishikii'] };
+  const NAMES = { quest: ["Hunters' Guild", 'Guildmistress Ysolde'], smith: ['Forge', 'Master Smith Borrik'], alchemy: ['Alchemy Atelier', 'Alchemist Nerith'], shop: ['Market', 'Merchant Pell'], storage: ['Item Box', 'Quartermaster Iva'], dock: ['Departure Dock', 'Captain Maro'], sage: ['Fountain Square', 'Mame Chishikii'], tamer: ['Monster Workshop', 'Beastwright Jorun'] };
   const interactables = Object.entries(SPOTS).map(([id, s]) => ({ id, name: NAMES[id][0], npc: NAMES[id][1], position: V(s.talk[0], s.talk[1]), radius: 3, npcObject: npcs.objects[id] }));
 
   // ---- shadow camera follows the hunter (or the fixed debug camera) ----
@@ -219,7 +229,7 @@ export async function createTown(game) {
     const cg = crane.userData.cargo; cg.rotation.x = Math.sin(time * 0.9) * 0.06; cg.rotation.z = Math.cos(time * 0.7) * 0.05;
     for (const pl of lights) { const l = pl.userData, f = l.flicker ? 0.75 + 0.25 * Math.sin(time * 13 + Math.sin(time * 7.3) * 2) : 0.9 + 0.1 * Math.sin(time * 9 + l.p.x); pl.intensity = l.i * f * (tod === 'dusk' ? 1.4 : 1); }
     if (B.fountainTex) B.fountainTex.offset.set(time * 0.03, time * 0.02);
-    npcs.update(dt > 0 ? dt : rawDt);
+    npcs.update(dt > 0 ? dt : rawDt); showcase?.update(rawDt, 0);
     fx.update(rawDt, camera, renderer);
     dust.update(rawDt, camera, renderer);
     gulls.update(time);

@@ -80,6 +80,7 @@ async function bootField() {
   game.loading.set('player', 1); bootMark('player');
   const status = createStatus(game);             // burn / poison ailments on the local hunter
   game.addUpdater((dt) => status.update(dt));
+  await setupRide();                             // taming: summon / ride the equipped artificial monster
   game.cameraRig = createCameraRig(game);        // third-person orbit cam, lock-on, shake
   // Quest target: ?hunt=wyvern → Cindral (flying, user-made mesh), ?hunt=brute → Gorvath, default → Varkhul.
   const makeMonster = (g) => ({ wyvern: createWyvern, brute: createBrute }[g.hunt] || createMonster)(g);
@@ -109,6 +110,16 @@ async function bootField() {
 }
 
 game.account = createAccount(game);            // server-side accounts & economy (src/account/client.js)
+
+// Taming (src/tame/ride.js): the equipped construct (account state, server-validated) can be summoned and ridden in the field.
+// ?tame=<sp> rides one without an account (offline / headless checks only; the shop still needs the server).
+async function setupRide() {
+  const { createRide } = await import('./tame/ride.js');
+  const ride = createRide(game); game.tame = ride; game.player.ride = ride;
+  const tp = game.params.get('tame'); if (tp) game.tameOverride = tp;
+  game.addUpdater((dt) => ride.update(dt));
+  if (!game.account?.state) game.account?.restore?.().catch(() => null); // free hunts: learn which construct is equipped
+}
 
 async function bootTown() {
   const [{ createTown }, { createTownHud }] = await Promise.all([import('./town/town.js'), import('./town/townHud.js')]);
@@ -160,6 +171,7 @@ async function bootIsland({ quest = false } = {}) {
   engine.post = createPost(game);
   game.player = await createPlayer(game); game.loading.set('player', 1); bootMark('player');
   const status = createStatus(game); game.addUpdater((dt) => status.update(dt));
+  await setupRide();
   game.cameraRig = createCameraRig(game);
   game.audio = createAudio(game);
   game.ui = createUI(game);

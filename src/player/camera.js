@@ -78,6 +78,7 @@ export function createCameraRig(game) {
     } else if (rig.time - lastInput > 2.5 && P.state === 'sprint') {
       rig.yaw += wrap(P.facing + Math.PI - rig.yaw) * Math.min(1, rawDt * 1.2); // gentle auto-recenter while sprinting
     }
+    if (P.ride?.active) wantDist += 2.6 * (P.ride.scale || 1) + (P.ride.flying ? 2.5 : 0); // riding: pull back to frame the construct
     if (rig.aimK > 0.01) wantDist += (2.3 - wantDist) * rig.aimK; // aiming: tight over-the-shoulder view
     if (first) { rig.target.copy(desired); first = false; }
     // critically damped spring on the hunter-anchored focus point

@@ -109,7 +109,7 @@ export async function createWyvern(game, opts = {}) {
   const tpos = () => (m.target ? m.target.position.clone() : m.position.clone().add(fwd().multiplyScalar(8)).setY(groundAt(m.position.x, m.position.z)));
   m.perception = createPerception(game, m, senseProfile('wyvern'), { home: spawn });
   function hunters() {
-    const list = []; if (game.player && !game.player.dead) list.push(game.player);
+    const list = []; if (game.player && !game.player.dead && !game.player.unseen) list.push(game.player);
     for (const r of game.remotePlayers?.values?.() || []) if (r.position) list.push(r);
     return list;
   }

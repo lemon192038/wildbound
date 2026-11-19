@@ -52,6 +52,7 @@ This file is the roadmap; `PROGRESS.md` tracks status. Stages follow the user's 
 6. **Ecosystem** — **implemented (stage 6)**: see PROGRESS.md; open items are terrain visuals for environment change and boss populations.
    - Server-side population model: breeding and growth (no instant respawns), migration, carcass decay and use, per-individual learning, long-term environment change.
    - Three levels of detail: detailed AI near players, a simple AI in the same region, statistical simulation far away.
+7b. **Taming, quests on the island, aiming, gathering** — **implemented (stage 8a)**, see PROGRESS.md: Monster Workshop and 19 rideable constructs with traits, island quests with ship drop + base camp, 100 gathering materials, ranged aiming, part lock-on.
 7. **Volcano Slime** (hidden world event) — **implemented (stage 7)**, see PROGRESS.md
    - World counters and state persisted server-side: slime kills, lava flow, the magma chamber, a crater-devour counter with an atomic 100th trigger, the victim player, boss HP 100,000, phases.
    - The victim rules exactly as specified; slime rampage effects on the ecosystem.

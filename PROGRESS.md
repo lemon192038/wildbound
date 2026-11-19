@@ -482,6 +482,44 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
   - blows damage it; entering the crater devours; the normal state has no boss.
 - All other suites passed (server 67, perception, parts, status, eco, player, combat, weapons 54/54). Island test 0 failed.
 
+## Stage 8a: Aiming, part lock-on, quests on the island, gathering, props, water, taming (2026-11-19)
+
+| Item | Status | Notes |
+|---|---|---|
+| Ranged aiming: hold GUARD (Q / LT / touch 照準) with a bow or gun drawn → over-the-shoulder camera, crosshair, slower strafe; shots go to the crosshair point (monster / fauna hitboxes, terrain) | ✅ | `player.js` (`P.aiming`, `crosshairPoint`), `camera.js` (`aimK`); weapons test |
+| Lock-on per part: each press moves to the next part of the nearest monster or creature, then off; reticle and camera use the part | ✅ | `P.lockPart`, `P.lockPointOf`; weapons test |
+| Grappling hook: press once to arm, then double-tap / double-click the target; 5 s cooldown | ✅ | `input.js`, `touch.js`, `grapple.js` |
+| Quests on the open island: accepting any quest sends you to the Volcanic Island; the ship drops you near the target, and the base camp (tent, fire, respawn point) is there | ✅ | `src/field/islandCamp.js`, `campProps.js`, `main.js bootIsland({quest})`; the old boss fields still work with `?hunt=` |
+| Quests for every island monster (13 creatures, 4 dragons) + 3 gathering quests: 20 in all | ✅ | `src/shared/islandQuests.js`; `slayN` judged by the server from reported kills |
+| 100 gatherable materials (92 new + 8 classic), placed deterministically per region and kind (11 kinds); the server re-derives each point and rolls the item | ✅ | `src/shared/islandGather.js`, `src/field/islandGather.js`, `economy.islandGather`; idempotent, rate-limited, per-expedition cap |
+| Water: island sea uses the shared water shader; new layered waterfalls (field cliff + up to 5 coastal cliffs on the island) | ✅ build / screenshot | look only checked under SwiftShader ❓ |
+| 21 new view-blocking prop types (twisted / charred giant trees, fallen logs, stumps, rock arches, spires, leaning slabs, ash dunes, steam chimneys, ash reeds, thorn bushes, giant ribcages, ruined columns / walls, crystal spires, mushroom clumps, giant ferns, palms, driftwood, cairns, obsidian shards) | ✅ | `src/world/island/propsExtra.js`; one InstancedMesh per type, colliders with grapple kinds |
+| **Taming:** Monster Workshop (モンスター屋, Beastwright Jorun) in town builds an artificial monster (人造モンスター) from every part material of one monster + gathered materials + coins; one per species, 19 species | ✅ | `src/shared/tame.js`, `src/ui/town/tamerPanel.js`, server `craftTame` / `equipTame` (all-or-nothing payment) |
+| Equip one construct; RIDE button (T / touch 呼出 / pad D-pad up): 1st press summons, 2nd mounts on the spot, a press while riding dismounts on the spot | ✅ | `src/tame/ride.js`; the hunter sits on a saddle (`seatPose`) |
+| Constructs never fight (no attacks / items while mounted), move fast (10–18 m/s), slopes slow non-climbers, ordinary constructs cannot enter lava | ✅ | taming test |
+| Traits: lava swimmer (Lava Snake: crosses lava, no lava damage, no burn), flight (Flame / Venom-fang Dragons, Cindaryl, Cindral, Ash Bird), never targeted (Stone / Grand Mole), rock mimicry (Golem, only when still), heatproof, poisonproof, sprinter, climber, great leap (Slime), sturdy (not thrown off), charger (ploughs through props) | ✅ | perception / fauna / boss target lists skip `P.unseen`; lava hazards skip `P.lavaSafe`; `status.apply` asks `ride.immune` |
+| A hit throws the rider off unless the construct is sturdy | ✅ | |
+| Co-op: other hunters see your construct under you | 🟡 | serialized (`rd`, `rf`) and drawn by `createRemoteHunter`; not tested with two clients ❓ |
+| Construct look | 🟡 | procedural body plans (quad, dragon, bird, serpent, beetle, blob, mole, golem) with glowing construct seams; simple compared with the real monsters |
+
+Fix found on the way: objects added to the scene while an island boss was spawning were recorded as that boss's "extras" and hidden with it when far away (the summoned mount disappeared). Systems added meanwhile now mark their roots `userData.global` (mount, camp, gathering meshes).
+
+### Stage 8a tests (2026-11-19)
+- `server/api.test.mjs`: **140/140 on SQLite and pg-mem**. New checks:
+  - island gathering: bad point, idempotent use, rate limit, empty point, gather quest from the server's own count;
+  - creature quests (`slayN`);
+  - taming: unknown construct, missing parts, one material short (nothing spent), built and auto-equipped, every material consumed, one per species, equip / unequip / not owned.
+- `node src/player/__tame.test.mjs` (new): 25 checks, all passed:
+  - summon → mount → dismount on the spot; faster than running; no attacks;
+  - lava blocks an ordinary construct, the Lava Snake crosses it with a lava-safe, burn-immune rider;
+  - Flame Dragon flies over lava and lands; heat / poison immunity;
+  - Stone Mole rider unseen (perception ignores it; the control on foot is noticed), golem only when still;
+  - thrown off vs sturdy; slime leap; all 19 models build with a saddle; T key and touch button.
+- `node src/player/__weapons.test.mjs`: aiming / part lock / rope (5 s cooldown, one-press arm) checks pass.
+- Island quest end-to-end (local server, `qi_boar`): camp near the target, gather points, objective panel, a server-granted gather.
+- Built game screenshots: the new props on the island; riding the wolf-leader construct; flying the Flame Dragon construct.
+- Not verified: iPad touch feel of RIDE / AIM, two-client co-op riding, waterfall look on a real GPU.
+
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
   - island content

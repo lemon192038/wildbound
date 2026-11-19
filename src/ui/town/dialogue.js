@@ -54,6 +54,10 @@ export function dialogueFor(id, s, visits = 0, world = {}) {
         : act?.type === 'deliver' ? t('dlg.d.deliver') : t('dlg.d.free');
       return L([where, line2, (s.pouch?.potion || 0) ? '' : t('dlg.d.light')], t('dlg.d.map'));
     }
+    case 'tamer': { // Beastwright Jorun: builds saddled constructs modelled on monsters (never the real creatures)
+      const own = Object.keys(s?.tames || {}).length; const eq = s?.tameEquip;
+      return L([v === 0 ? t('dlg.tm.hi1') : t('dlg.tm.hi2', { name }), own ? t('dlg.tm.have', { n: own, m: eq ? monsterShort(eq) : '—' }) : t('dlg.tm.none')], t('dlg.tm.open'));
+    }
     case 'sage': { // Mame Chishikii: monster lore without names; the volcano line changes when the lava has stopped
       const stopped = world.volcano && (world.volcano.phase === 'stopped' || (world.volcano.flow ?? 1) <= 0);
       return L([visits === 0 ? t('dlg.sage.hi') : '', t('dlg.sage.h' + (visits % SAGE_HINTS)), stopped ? t('dlg.sage.stopped') : t('dlg.sage.deep')], t('dlg.sage.more'));

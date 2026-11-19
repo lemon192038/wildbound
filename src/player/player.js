@@ -7,6 +7,10 @@ import { HunterView } from './hunterView.js';
 import { CLIPS } from './anim.js';
 import { WeaponTrail, Sparks } from './vfx.js';
 import { createGrapple, GRAPPLE } from './grapple.js';
+import { createMountModel } from '../tame/mountModel.js';
+import { seatPose } from '../tame/ride.js';
+import { TAMES } from '../shared/tame.js';
+const _Y = new THREE.Vector3(0, 1, 0);
 import { t as tr } from '../shared/i18n.js';
 import { WEAPON_CLASSES, CLASS_MOVES, CHARGES, classOf, ARROWS_BY_LEVEL, arrowFalloff, MELODIES } from '../shared/weaponClasses.js';
 
@@ -482,6 +486,7 @@ export async function createPlayer(game) {
   }
   P.receiveHit = ({ damage = 0, knockback = 0, from, kind, stun, source } = {}) => {
     if (P.dead || iframe > 0 || invuln > 0 || frozen) return false;
+    if (P.ride?.active && !P.ride.sturdy) P.ride.dismount(P, 'thrown'); // constructs never fight: a hit throws the rider off (sturdy ones hold on)
     if (P.state === 'parry' && t <= C.parry && parryable(kind, source) && !B.silenced) {
       const to = from ? new THREE.Vector3(from.x - P.position.x, 0, from.z - P.position.z).normalize() : fwd(new THREE.Vector3());
       if (fwd(new THREE.Vector3()).dot(to) > -0.2) { parrySuccess(source, from); return false; }
@@ -539,6 +544,10 @@ export async function createPlayer(game) {
     events.emit('player:respawn', {});
   }
 
+  // ---------------- riding (src/tame/ride.js) ----------------
+  P.ride = null; P.unseen = false; P.lavaSafe = false;
+  P.onMount = () => { ropeRelease('mount'); P.weaponDrawn = false; view.setInHand(false); parryReady = false; holdT = -1; airborne = false; vy = 0; vel.set(0, 0, 0); setState('idle', 0.05); P.lockTarget = null; P.lockPart = null; trail.clear(); };
+  P.onDismount = (thrown) => { airborne = false; vy = 0; vel.set(0, 0, 0); lastGround = P.position.y; setState(thrown ? 'knockdown' : 'idle', 0.08); if (thrown) invuln = Math.max(invuln, 0.6); };
   // ---------------- update ----------------
   let lastDt = 1 / 60, prevGuard = false;
   P.update = (dt, input, rawDt = dt) => {
@@ -558,6 +567,17 @@ export async function createPlayer(game) {
     else if (inp.item) buffer = { a: P.sharpness < 0.6 && P.hp > P.maxHp * 0.7 ? 'whetstone' : 'potion', t: 0.3 }; else if (inp.interact) buffer = { a: 'whetstone', t: 0.3 };
     if (buffer && (buffer.t -= dt) <= 0) buffer = null;
     const take = (a) => { if (buffer && buffer.a === a) { buffer = null; return true; } return false; };
+    if (inp.summon && P.ride && !P.dead && (P.ride.active || LOCO.has(P.state) || P.state === 'guard')) { buffer = null; P.ride.toggle(P); }
+    if (P.ride?.active) {
+      if (P.dead) P.ride.dismount(P, 'thrown');
+      else { // mounted: the construct moves, the hunter sits (no attacks, no items, no rope)
+        P.aiming = false; aimHud(false); ropeCd = Math.max(0, ropeCd - dt); buffer = null;
+        P.ride.drive(P, dt, inp, wish, wishLen); speedNow = 0; object3d.rotation.y = P.facing; lastGround = P.position.y;
+        if ((stamDelay -= dt) <= 0 && P.stamina > 30) P.exhausted = false;
+        view.update(dt, { t: 0, phase: 0, amt: 0, drawn: false, sprint: false, tremble: 0 }); P.ride.pose(view.rig.bones); view.root.updateMatrixWorld(true);
+        trail.update(clock); updateArrows(dt); return;
+      }
+    }
     if (inp.lockOn && !P.dead) cycleLock();
     if (P.lockTarget && (P.lockTarget.hp <= 0 || P.lockTarget.state === 'dead' || P.lockTarget.dead) && !autoplay) { P.lockTarget = null; P.lockPart = null; }
     // ranged aiming: hold GUARD (Q / LT / touch AIM) with a bow or a gun drawn — over-the-shoulder camera, crosshair, shots go
@@ -845,7 +865,7 @@ export async function createPlayer(game) {
   }
   let lastWalkable = null;
 
-  P.serialize = () => ({ sa: superArmor ? 1 : 0,
+  P.serialize = () => ({ sa: superArmor ? 1 : 0, rd: P.ride?.active ? P.ride.sp : undefined, rf: P.ride?.flying ? 1 : undefined,
     p: [+P.position.x.toFixed(2), +P.position.y.toFixed(2), +P.position.z.toFixed(2)], f: +P.facing.toFixed(3), s: P.state, t: +t.toFixed(3),
     hp: Math.round(P.hp), w: view.inHand ? 1 : 0, wc: P.cls, a: +amt.toFixed(2), c: P.chargeLevel, h: heavyLevel,
   });
@@ -876,6 +896,14 @@ export function createRemoteHunter(game, id) {
   const view = new HunterView(game, { cloth: 0x2f7f95, plume: 0x3fb4cf, mantle: 0x34505e, suit: 0x3a4a58, trim: 0xd8d0c0 });
   const object3d = view.root;
   let last = null, lastS = null, localT = 0, phase = 0, amt = 0, px = null, pz = null;
+  let mount = null; const seat0 = new THREE.Vector3(), _mv = new THREE.Vector3(); // co-op: the construct another hunter is riding
+  function rideRemote(sp, flying, dt, speed) {
+    if (!sp) { if (mount) { game.scene.remove(mount.root); mount.dispose(); mount = null; } return false; }
+    if (mount?.sp !== sp) { if (mount) { game.scene.remove(mount.root); mount.dispose(); } mount = createMountModel(sp); mount.root.userData.global = true; game.scene.add(mount.root); mount.root.position.set(0, 0, 0); mount.root.rotation.y = 0; mount.seatWorld(seat0); }
+    const yaw = object3d.rotation.y; _mv.copy(seat0).applyAxisAngle(_Y, yaw);
+    mount.root.position.copy(object3d.position).add(new THREE.Vector3(0, 0.9, 0)).sub(_mv); mount.root.rotation.y = yaw; mount.update(dt, speed, { flying });
+    return true;
+  }
   return {
     id, object3d, view, ownsTransform: false,
     applyRemote(st = {}) {
@@ -894,8 +922,9 @@ export function createRemoteHunter(game, id) {
       view.play(clip || 'loco', 0.12);
       view.setGlow(s === 'charge' ? (+st.c || 0) : 0, localT);
       if (dt > 0) view.update(dt, { t: localT, phase, amt, drawn, sprint: s === 'sprint', tremble: s === 'charge' ? (+st.c || 0) * 0.6 : 0 });
+      if (rideRemote(typeof st.rd === 'string' && TAMES[st.rd] ? st.rd : null, !!st.rf, dt, sp)) seatPose(view.rig.bones);
       last = st;
     },
-    dispose() { view.dispose(); },
+    dispose() { rideRemote(null); view.dispose(); },
   };
 }

@@ -88,7 +88,7 @@ export async function createBrute(game) {
   const partByName = (n) => m.parts.find((p) => p.name === n) || m.parts[5];
   const tpos = () => (m.target ? m.target.position.clone() : m.position.clone().add(fwd().multiplyScalar(8)));
   m.perception = createPerception(game, m, senseProfile('brute'), { home: spawn });
-  function hunters() { const l = []; if (game.player && !game.player.dead) l.push(game.player); for (const r of game.remotePlayers?.values?.() || []) if (r.position) l.push(r); return l; }
+  function hunters() { const l = []; if (game.player && !game.player.dead && !game.player.unseen) l.push(game.player); for (const r of game.remotePlayers?.values?.() || []) if (r.position) l.push(r); return l; }
   function pickTarget() { let best = null, bs = -1e9; for (const h of hunters()) { const s = -h.position.distanceTo(m.position) + Math.min(22, (m.threat.get(String(h.id ?? 'local')) || 0) / 120) + (h === m.target ? 4 : 0); if (s > bs) { bs = s; best = h; } } m.target = best; }
   const toTarget = () => (m.target ? new THREE.Vector3().subVectors(m.target.position, m.position).setY(0) : fwd());
   function faceTarget(dt, rate, at) { const v = at ? new THREE.Vector3().subVectors(at, m.position).setY(0) : toTarget(); if (v.lengthSq() < 0.01) return; m.yaw += clamp(wrapA(Math.atan2(v.x, v.z) - m.yaw), -rate * dt, rate * dt); }

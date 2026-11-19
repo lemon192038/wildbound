@@ -25,6 +25,7 @@ Read this first, then `PROGRESS.md` (what exists / what is next) and `IMPLEMENTA
   - `node src/shared/__eco.test.mjs`
   - `node src/player/__combat.test.mjs`
   - `node src/player/__weapons.test.mjs`
+  - `node src/player/__tame.test.mjs`
   - Build with `npx vite build`, then run the headless checks with `npx vite preview --port 4173`:
     - `node tools/island-test.mjs`
     - `node tools/volcano-test.mjs`
@@ -41,6 +42,8 @@ Read this first, then `PROGRESS.md` (what exists / what is next) and `IMPLEMENTA
 - **`src/shared/ecosystem.js` / `server/world.js` / `src/fauna/ecoClient.js`:** the island ecosystem (far layer). The server is authoritative (`world_state` table, `/api/eco`); clients spawn from it and report only their own kills.
 - **`src/shared/weaponClasses.js` / `src/player/weaponClips.js` / `src/shared/classGear.js`:** weapon classes (one balance table, per-class clips, class weapons). `src/player/grapple.js`: the grappling hook (targeting, rope, cooldown; physics in `player.js`).
 - **`server/volcano.js` / `src/field/volcano.js` / `src/monster/volcanoSlime.js`:** the hidden Volcano Slime world event (server decides every phase; `/api/volcano`). Keep it out of quests, guides and the boss list. `src/shared/lineGear.js`: material-line weapons (~10 per class).
+- **`src/shared/tame.js` / `src/tame/ride.js` / `src/tame/mountModel.js` / `src/ui/town/tamerPanel.js`:** taming. The Monster Workshop builds constructs (server: `craftTame` / `equipTame`); the RIDE button summons / mounts / dismounts; traits are read through `P.unseen`, `P.lavaSafe`, `ride.immune()`. Constructs never fight.
+- **`src/shared/islandQuests.js` / `src/field/islandCamp.js`:** quests run on the open island (ship drop + base camp near the target). `src/world/island/propsExtra.js`: 21 extra prop types. `src/world/waterfall.js`: shared waterfall.
 - **`src/core/status.js`:** every player ailment (DoT, control, stat-downs), stacking/immunity rules, `mods()`/`blocks()` read by `player.js`.
 - **`src/core/parts.js`:** shared part rules: part HP vs body HP, one-time break damage, hardness/deflect/wear, regrowth, lost abilities, part targeting.
 - **`src/ui/debugOverlay.js`:** the developer overlay, `?debug=1` (`?debug=2` adds gizmos; F3 toggles).

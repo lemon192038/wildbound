@@ -102,7 +102,7 @@ export function createPerception(game, m, profile = senseProfile('default'), opt
     const reach = Math.max(S.sight, S.hearing * 1.2, S.smell, S.chaseEnd);
     let best = null;
     for (const h of candidates(hunters, reach)) {
-      if (!h?.position || h.hp <= 0 || h.dead) continue;
+      if (!h?.position || h.hp <= 0 || h.dead || h.unseen) continue; // taming: unseen / camouflaged constructs
       const r = sense(h, step);
       if (!best || r.gain > best.gain || (r.gain === best.gain && r.dist < best.dist)) best = r, best.h = h;
     }
