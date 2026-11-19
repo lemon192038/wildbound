@@ -109,6 +109,37 @@ function boarGeo(THREE) {
     ],
   });
 }
+function moleGeo(THREE) {
+  // ≈3.3 m: heavy rock-armoured body with overlapping plates, huge digging fore-claws (aPart 1, 2), small blind head, back crystals (Grand Mole: bigger scale)
+  const plate = (x, y, z, o) => { const v = 0.06 + hash(Math.floor(x * 4), Math.floor(y * 4), Math.floor(z * 4)) * 0.05; const seam = Math.abs(Math.sin(z * 5)) < 0.08 ? 1 : 0; o[0] = seam ? 0.35 : v * 1.1; o[1] = seam ? 0.12 : v; o[2] = seam ? 0.05 : v * 0.85; o[3] = seam * 0.35; };
+  const body = new THREE.SphereGeometry(0.9, 16, 10); body.scale(1, 0.78, 1.5); body.translate(0, 0.95, -0.2);
+  const parts = [part(THREE, body, 0, plate)];
+  const head = new THREE.ConeGeometry(0.42, 1.0, 8); head.rotateX(Math.PI / 2); head.scale(1, 0.75, 1); head.translate(0, 0.8, 1.55); parts.push(part(THREE, head, 6, (x, y, z, o) => { const nose = z > 1.9 ? 1 : 0; o[0] = nose ? 0.45 : 0.07; o[1] = nose ? 0.25 : 0.06; o[2] = nose ? 0.22 : 0.05; o[3] = 0; }));
+  [-1, 1].forEach((sx, i) => {
+    const arm = new THREE.CylinderGeometry(0.22, 0.3, 0.9, 7); arm.rotateZ(sx * 0.8); arm.translate(sx * 0.85, 0.6, 0.85); parts.push(part(THREE, arm, 1 + i, plate));
+    for (let k = 0; k < 4; k++) { const cl = new THREE.ConeGeometry(0.07, 0.55, 4); cl.rotateX(1.9); cl.translate(sx * (1.05 + k * 0.1) - sx * 0.15, 0.22, 1.2 + (k - 1.5) * 0.05); parts.push(part(THREE, cl, 1 + i, (x, y, z, o) => { o[0] = 0.75; o[1] = 0.7; o[2] = 0.6; o[3] = 0; })); }
+  });
+  [-1, 1].forEach((sx, i) => { const l = new THREE.CylinderGeometry(0.16, 0.22, 0.7, 6); l.translate(sx * 0.65, 0.35, -1.0); parts.push(part(THREE, l, 3 + i, plate)); });
+  for (let i = 0; i < 6; i++) { const c = new THREE.OctahedronGeometry(0.15, 0); c.scale(0.7, 2.4, 0.7); c.rotateZ((hash(i, 2, 3) - 0.5) * 0.8); c.translate((hash(i, 5, 1) - 0.5) * 0.9, 1.65, 0.1 - i * 0.3); parts.push(part(THREE, c, 0, (x, y, z, o) => { o[0] = 0.5; o[1] = 0.85; o[2] = 0.95; o[3] = 0.35; })); }
+  return mergeGeometries(parts);
+}
+function golemGeo(THREE) {
+  // ≈4 m standing: stacked boulders. aPart 1/2 arms, 3/4 legs, 7 magma core (chest). Dormant pose is driven in the shader.
+  const rock = (seed) => (x, y, z, o) => { const v = 0.05 + hash(Math.floor(x * 3) + seed, Math.floor(y * 3), Math.floor(z * 3)) * 0.04; const ash = y > 2.6 ? 0.08 : 0; const crack = Math.abs(Math.sin(x * 6 + y * 4 + seed)) < 0.05 ? 1 : 0; o[0] = crack ? 0.9 : v + ash; o[1] = crack ? 0.25 : v * 0.95 + ash; o[2] = crack ? 0.04 : v * 0.9 + ash; o[3] = crack * 0.7; };
+  const lump = (r, sx, sy, sz, x, y, z, seed) => { const g = new THREE.IcosahedronGeometry(r, 1); const p = g.attributes.position; for (let i = 0; i < p.count; i++) { const k = 1 + 0.18 * (hash(p.getX(i) * 3 + seed, p.getY(i) * 3, p.getZ(i) * 3) - 0.5); p.setXYZ(i, p.getX(i) * k, p.getY(i) * k, p.getZ(i) * k); } g.scale(sx, sy, sz); g.translate(x, y, z); return g; };
+  const parts = [];
+  parts.push(part(THREE, lump(1.25, 1.1, 0.95, 0.9, 0, 2.2, 0, 1), 0, rock(1)));              // torso
+  parts.push(part(THREE, lump(0.8, 1, 0.8, 1, 0, 1.15, -0.1, 2), 0, rock(2)));                // hips
+  parts.push(part(THREE, lump(0.45, 1, 0.85, 1, 0, 3.35, 0.35, 3), 6, rock(3)));              // head
+  const core = new THREE.IcosahedronGeometry(0.42, 1); core.translate(0, 2.25, 0.88); parts.push(part(THREE, core, 7, (x, y, z, o) => { o[0] = 1; o[1] = 0.4; o[2] = 0.06; o[3] = 1; }));
+  [-1, 1].forEach((sx, i) => { parts.push(part(THREE, lump(0.55, 0.9, 1.5, 0.9, sx * 1.7, 2.0, 0.2, 4 + i), 1 + i, rock(4 + i))); parts.push(part(THREE, lump(0.6, 1.1, 0.9, 1.1, sx * 1.85, 0.9, 0.45, 6 + i), 1 + i, rock(6 + i))); });
+  [-1, 1].forEach((sx, i) => parts.push(part(THREE, lump(0.5, 0.9, 1.2, 0.9, sx * 0.6, 0.45, -0.1, 8 + i), 3 + i, rock(8 + i))));
+  return mergeGeometries(parts);
+}
+function moundGeo(THREE) {
+  const g = new THREE.SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+  return part(THREE, g, 0, (x, y, z, o) => { const v = 0.07 + hash(Math.floor(x * 6), y, Math.floor(z * 6)) * 0.05; o[0] = v * 1.1; o[1] = v; o[2] = v * 0.9; o[3] = 0; });
+}
 function snakeSegGeo(THREE) {
   // one body segment along +z (length 1): cooled black rock plates with molten seams between them
   const g = new THREE.CylinderGeometry(0.5, 0.5, 1.02, 10, 3, true); g.rotateX(Math.PI / 2); const p = g.attributes.position;
@@ -151,6 +182,21 @@ const VERT = {
     if (mode > 0.5 && mode < 1.5 && aPart == 1.0) transformed.z += sin(ph * 10.0) * 0.18 * (1.0 - transformed.y / 0.7); }
   if (aPart == 6.0 && mode > 0.5 && mode < 1.5) { transformed.y -= 0.18; }
   if (mode > 1.5 && mode < 2.5) { transformed.y *= 0.7; }`,
+  mole: `
+  float ph = aAnim.x, mv = aAnim.y, mode = aAnim.z;
+  if (aPart >= 1.0 && aPart <= 2.0) { float s = aPart == 1.0 ? 0.0 : 3.14159; transformed.z += sin(ph * 7.0 + s) * 0.3 * mv; if (mode > 0.5 && mode < 1.5) { transformed.y += 0.5 + sin(ph * 6.0 + s) * 0.2; transformed.z += 0.3; } }
+  if (aPart >= 3.0 && aPart <= 4.0) { transformed.z += sin(ph * 7.0 + aPart * 3.14159) * 0.2 * mv; }
+  if (mode > 2.5) { transformed.y -= clamp(transformed.z, 0.0, 2.0) * 0.12; }`,
+  golem: `
+  float ph = aAnim.x, rise = aAnim.y, arm = aAnim.z;
+  // dormant: hunched into a single boulder (arms tucked, head sunk), standing as rise → 1
+  float k = rise;
+  if (aPart == 1.0 || aPart == 2.0) { transformed.x *= mix(0.55, 1.0, k); transformed.y = mix(transformed.y * 0.55 + 0.3, transformed.y, k);
+    float up = arm > 0.0 ? arm : 0.0; float down = arm < 0.0 ? -arm : 0.0; transformed.y += up * 1.6 * smoothstep(0.5, 2.6, transformed.y) ; transformed.z += up * 0.6 - down * 0.2; transformed.y -= down * 0.8 * smoothstep(0.5, 2.6, transformed.y) * 0.5;
+    transformed.z += sin(ph * 2.0 + aPart * 3.14159) * 0.15 * k; }
+  if (aPart >= 3.0 && aPart <= 4.0) { transformed.z += sin(ph * 2.0 + aPart * 3.14159) * 0.25 * k; transformed.y *= mix(0.6, 1.0, k); }
+  if (aPart == 0.0 || aPart == 6.0 || aPart == 7.0) { transformed.y = mix(transformed.y * 0.55, transformed.y, k); if (aPart == 6.0) transformed.y -= (1.0 - k) * 0.6; }`,
+  mound: ``,
   snakeSeg: ``,
   snakeHead: `
   if (aPart == 1.0) { float a = aAnim.y * 0.7; float z = transformed.z; float y = transformed.y; transformed.y = y * cos(a) - z * sin(a); transformed.z = y * sin(a) + z * cos(a); }`,
@@ -180,9 +226,9 @@ const VERT = {
   if (aPart == 3.0) transformed.y += sin(ph * 3.0) * 0.05;`,
 };
 
-export function createFaunaRender(THREE, scene, { low = false, caps = { beetle: 220, slime: 180, bird: 60, lizard: 40, snakeSeg: 200, snakeHead: 10, wolf: 40, boar: 40 } } = {}) {
-  const geos = { beetle: beetleGeo(THREE), slime: slimeGeo(THREE), bird: birdGeo(THREE), lizard: lizardGeo(THREE), snakeSeg: snakeSegGeo(THREE), snakeHead: snakeHeadGeo(THREE), wolf: wolfGeo(THREE), boar: boarGeo(THREE) };
-  const glowCol = { beetle: [1.0, 0.36, 0.05], slime: [1.0, 0.42, 0.06], bird: [1.0, 0.4, 0.08], lizard: [1.0, 0.32, 0.05], snakeSeg: [1.0, 0.34, 0.04], snakeHead: [1.0, 0.36, 0.05], wolf: [1.0, 0.3, 0.05], boar: [0.35, 0.85, 1.0] };
+export function createFaunaRender(THREE, scene, { low = false, caps = { beetle: 220, slime: 180, bird: 60, lizard: 40, snakeSeg: 200, snakeHead: 10, wolf: 40, boar: 40, mole: 12, golem: 16, mound: 12 } } = {}) {
+  const geos = { beetle: beetleGeo(THREE), slime: slimeGeo(THREE), bird: birdGeo(THREE), lizard: lizardGeo(THREE), snakeSeg: snakeSegGeo(THREE), snakeHead: snakeHeadGeo(THREE), wolf: wolfGeo(THREE), boar: boarGeo(THREE), mole: moleGeo(THREE), golem: golemGeo(THREE), mound: moundGeo(THREE) };
+  const glowCol = { beetle: [1.0, 0.36, 0.05], slime: [1.0, 0.42, 0.06], bird: [1.0, 0.4, 0.08], lizard: [1.0, 0.32, 0.05], snakeSeg: [1.0, 0.34, 0.04], snakeHead: [1.0, 0.36, 0.05], wolf: [1.0, 0.3, 0.05], boar: [0.35, 0.85, 1.0], mole: [1.0, 0.45, 0.15], golem: [1.0, 0.36, 0.05], mound: [0, 0, 0] };
   const meshes = {}; const anims = {};
   for (const sp of Object.keys(geos)) {
     const cap = Math.round(caps[sp] * (low ? 0.7 : 1));

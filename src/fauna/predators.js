@@ -136,7 +136,7 @@ export function createPredatorAI(ctx) {
     c.huntH = false;
     // prey near the shore
     if (c.hunger > 0.25 && c.cd <= 0) {
-      const prey = nearestOf(c, S.landReach, (o) => !o.dead && o.sp !== 'snake' && o.ai !== 'burrowed' && (o.sp !== 'bird' || o.alt < 1.5) && lavaInfo(o.pos.x, o.pos.z).sd < S.landReach);
+      const prey = nearestOf(c, S.landReach, (o) => !o.dead && o.ai !== 'burrowed' && (o.sp === 'beetle' || o.sp === 'slime' || o.sp === 'lizard' || (o.sp === 'bird' && o.alt < 1.5) || (o.sp === 'boar' && o.stage === 0)) && lavaInfo(o.pos.x, o.pos.z).sd < S.landReach);
       if (prey) { c.lungeFrom = c.pos.clone(); c.lungeAt = prey.pos.clone(); c.prey = prey; c.cd = 6; setAi(c, 'lunge'); return; }
       const bird = nearestOf(c, 26, (o) => o.sp === 'bird' && !o.dead && o.alt > 2 && o.alt < 14);
       if (bird && c.ballCd <= 0) { c.ballAt = bird; c.ballCd = A.lavaBall.cooldown * 1.5; setAi(c, 'ball'); return; }

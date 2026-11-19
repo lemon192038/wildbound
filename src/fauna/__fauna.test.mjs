@@ -154,5 +154,37 @@ const alive = (f, sp) => f.list.filter((c) => !c.dead && (!sp || c.sp === sp));
   ok(fauna.stats.predation > 0 || juv.hp < juv.maxHp, `wolves hunt the juvenile boar (pred ${fauna.stats.predation}, juv hp ${Math.round(juv.hp)})`);
   ok(pack.members.some((w) => w.hp < w.maxHp) || herd.state === 'defend', `the herd defends against the pack (herd ${herd.state})`);
 }
+{ // Stone Mole: lives underground, tracks footsteps, bursts up under a hunter who keeps moving above it, digs back down
+  const { fauna, player, damage, step } = setup('crystal');
+  player.position.set(0, 5, 0); step(0.2); for (const o of [...fauna.list]) { o.dead = true; o.corpseT = 0.01; } step(0.1);
+  const M = fauna.spawnOne('mole', 30, 0, 2, { S: null });
+  if (M.S !== undefined && M.maxHp === 15000) M.maxHp = M.hp = 7200; // ignore the random Grand Mole roll for this test
+  player.state = 'idle'; step(3); ok(M.under && M.getHitboxes().length === 0 && damage.taken === 0, `mole stays underground, untouchable (${M.ai})`);
+  player.position.set(12, 5, 0); player.state = 'run'; for (let i = 0; i < 40; i++) { player.position.x += 0.25; step(0.1); }
+  ok(M.ai === 'track' || M.ai === 'lurk' || !M.under, `mole follows the footsteps underground (${M.ai})`);
+  for (let i = 0; i < 80 && M.under; i++) { player.position.x = M.pos.x + Math.sin(i) * 0.6; step(0.1); }
+  ok(!M.under, `mole bursts out under a hunter moving above it (${M.ai})`);
+  step(1); ok(damage.taken > 0, `the burst / claws hurt the hunter (${damage.taken} dmg)`);
+  player.state = 'idle'; let wentDown = false; for (let i = 0; i < 300; i++) { step(0.1); if (M.under || M.ai === 'dig') wentDown = true; }
+  ok(wentDown, `mole digs back down after a while (${M.ai})`);
+  const G = fauna.spawnOne('mole', -40, 0, 2, { S: (await import('./species.js')).SPECIES.grandmole });
+  ok(G.sp === 'mole' && G.maxHp === 15000, 'Grand Mole is a Stone Mole individual (15,000 HP), not a separate species');
+}
+{ // Boulder Golem: a rock until you get close; graded wake-up; defends its territory only; birds perch on it
+  const { fauna, player, damage, step } = setup('ruins');
+  player.position.set(0, 5, -80); step(0.2); for (const o of [...fauna.list]) { o.dead = true; o.corpseT = 0.01; } step(0.1);
+  const Gm = fauna.spawnOne('golem', 0, 0); Gm.patient = false;
+  player.position.set(0, 5, -15); step(2); ok(Gm.ai === 'dormant', `golem keeps its rock disguise at 15 m (${Gm.ai})`);
+  player.position.set(0, 5, -5); step(4); ok(Gm.ai !== 'dormant', `golem rises when the hunter comes close (${Gm.ai})`);
+  step(12); ok(damage.taken > 0, `awake golem attacks (${damage.taken} dmg)`);
+  player.position.set(0, 5, -90); step(30); ok(Gm.ai === 'dormant' || Gm.ai === 'settle' || Gm.ai === 'return', `golem returns home and settles back into a rock (${Gm.ai})`);
+  ok(Math.hypot(Gm.pos.x, Gm.pos.z) < 6, 'golem did not leave its territory');
+  const G2 = fauna.spawnOne('golem', 60, 0); G2.patient = false; G2.receiveHit({ damage: 100, attackerId: 'local' }); step(0.2);
+  ok(G2.ai === 'rising' && G2.hostile, 'striking a dormant golem wakes it hostile');
+  const G3 = fauna.spawnOne('golem', -60, 0); const b = fauna.spawnOne('bird', -60, 20); b.t = 20;
+  for (let i = 0; i < 300 && !b.perchOn; i++) { if (b.ai === 'soar' && b.t > 16) { b.ai = 'toPerch'; b.perchTarget = G3; b.t = 0; } step(0.1); }
+  ok(!!b.perchOn, `an Ash Bird perches on the dormant golem (${b.ai})`);
+  G3.receiveHit({ damage: 50, attackerId: 'local' }); step(0.3); ok(!b.perchOn && b.ai === 'takeoff', `…and bursts away when the "rock" moves (${b.ai})`);
+}
 console.log(fails ? `${fails} FAILED` : 'all fauna tests passed');
 process.exit(fails ? 1 : 0);

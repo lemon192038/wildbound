@@ -80,7 +80,10 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
 | Crystal Tusk = a large boar individual (not a species): leads the defence, crystal charge + rest, stays by the juveniles | ✅ | HP 8,500 |
 | Magma Wolf packs (never alone, exactly one leader): den with juveniles, patrol behind the leader, alert on sighting, encircle and attack in turns from the flanks (leader head-on), leader's howl orders retreat (half down / leader hurt / boss near) | ✅ | unit-tested. Wolf HP 1,600 / leader 4,200 are ASSUMED: the design document gives no numbers |
 | Wolves hunt juvenile / weak boars (a guarding Tusk often makes them give up), lizards, beetles, small slimes, grounded birds; feed on carcasses; herds fight back | ✅ | observed in simulation |
-| Remaining species: Stone Mole (+Grand Mole), 燼皮, Flame Dragon / Venom-fang Dragon, Cindaryl, Golem | ⬜ | next |
+| Stone Mole: lives underground (no hitboxes, a moving mound + dust when near), tracks footsteps by vibration, waits below a still hunter, bursts up under a hunter moving above it / when the mound is struck / on heavy-hit tremors; claw swipes and digging charge on the surface, digs back down after a while or when hurt; eats burrowed beetles; avoids lava snakes | ✅ | unit-tested; HP 7,200 |
+| Grand Mole = old giant Stone Mole individual (≈8 % of moles): back crystals, longer chases | ✅ | HP 15,000 |
+| Boulder Golem: rock mimicry with distance-graded wake-up (alert → faint core glow → rises → hostile); some wait until the hunter has passed; rock fist, ground slam, rock throw, short charge; defends its territory only, then walks home and settles back into a rock; Ash Birds perch on dormant golems and burst away when they wake | ✅ | unit-tested; HP 12,000 (Gorvath stays the existing mutant boss) |
+| Remaining species: 燼皮 (ground drake, no flight), Flame Dragon ♂ / Venom-fang Dragon ♀ (one species), Cindaryl (special ♀) | ⬜ | next |
 
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
@@ -145,3 +148,17 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
 - Ecology: a hungry pack killed an unguarded juvenile boar, and the herd defended against it.
 - Browser (headless): a herd and a pack interacted next to the hunter, with no errors.
 - Crystal glow was toned down after the screenshot.
+
+### Stage 3d tests (mole / golem, 2026-11-19)
+- `node src/fauna/__fauna.test.mjs`: 51 passed.
+- Mole:
+  - Underground and untouchable; follows the footsteps.
+  - Bursts out under a moving hunter (30 dmg), then digs back down.
+  - The Grand Mole is a mole with 15,000 HP.
+- Golem:
+  - Stays a rock at 15 m and rises at 5 m.
+  - Attacks (138 dmg), returns home and settles without leaving its territory.
+  - Striking a dormant golem wakes it hostile.
+  - A bird perched on a golem bursts away when the golem moves.
+- Bug found and fixed: the mole's surface timer did not run while it was attacking, so a mole fighting a hunter at close range never dug back down.
+- Browser (headless): the mole burst out and knocked the hunter down; the woken golem fought; the far golem stayed a rock. No errors.

@@ -96,6 +96,36 @@ export const SPECIES = {
     attacks: { bite: { damage: 20, knockback: 6, creature: 260 }, lunge: { damage: 28, knockback: 10, creature: 340 } },
     drops: ['mw_fang_l', 'mw_pelt_l', 'mw_core'],
   },
+  mole: {
+    name: { ja: 'ストーンモール', en: 'Stone Mole' }, epithet: { ja: '地中の掘削者', en: 'Burrower of the Deep Rock' }, threat: 'midboss',
+    hp: 7200, defense: 0.92, speed: 2.4, digSpeed: 8, chargeSpeed: 9, size: 1.0,    // adult 2.8–3.8 m; slow above ground, fast below
+    senses: { sight: 6, hearing: 30, smell: 14 },                                    // feels footsteps through the ground (感知 93/100)
+    habitat: 'underground', special: { id: 'grandmole', chance: 0.08 },
+    regions: { crystal: 0.07, peaks: 0.05, fungal: 0.05, ashplain: 0.04, core: 0.02 },  // island ≈ 10–25
+    eats: ['beetle_larva', 'root', 'mineral', 'underground'], fears: ['snake'], rivals: ['golem'],
+    attacks: { claw: { damage: 26, knockback: 8 }, burst: { damage: 30, knockback: 12 }, dig: { damage: 30, knockback: 11 } },
+    surfaceTime: [12, 20], chase: 30,
+    drops: ['sm_claw', 'sm_plate', 'sm_ore'],
+  },
+  grandmole: { // the old giant individual of the Stone Mole — NOT a separate species (stats from the design document)
+    name: { ja: 'グランドモール', en: 'Grand Mole' }, epithet: { ja: 'ストーンモールの老齢個体', en: 'Elder Stone Mole' }, threat: 'midboss', of: 'mole',
+    hp: 15000, defense: 1.0, speed: 2.1, digSpeed: 9, chargeSpeed: 9, size: 1.45,
+    senses: { sight: 6, hearing: 38, smell: 16 }, regions: {},
+    attacks: { claw: { damage: 36, knockback: 10 }, burst: { damage: 42, knockback: 14 }, dig: { damage: 40, knockback: 13 } },
+    surfaceTime: [16, 26], chase: 60,                                                 // strong territoriality: long chases near the nest
+    drops: ['sm_claw_l', 'sm_plate_l', 'sm_ancient_core'],
+  },
+  golem: {
+    name: { ja: 'ボルダーゴーレム', en: 'Boulder Golem' }, epithet: { ja: '岩に擬態するもの', en: 'The Stone That Waits' }, threat: 'midboss',
+    hp: 12000, defense: 0.98, speed: 1.4, chargeSpeed: 6, size: 1.0,              // slow; 擬態 100/100
+    senses: { sight: 18, hearing: 22, smell: 0 },
+    regions: { peaks: 0.08, ruins: 0.12, crystal: 0.05, core: 0.03 },                  // island ≈ 10–20
+    eats: ['mineral', 'geothermal'], fears: ['dragon'], rivals: ['mole', 'gorvath'],
+    distances: { alert: 18, glow: 10, rise: 6, wake: 3.5 },
+    attacks: { fist: { damage: 40, knockback: 10 }, slam: { damage: 18, knockback: 6, radius: 6, cooldown: 8 }, throw: { damage: 32, knockback: 9, speed: 16, cooldown: 7, range: [10, 30] }, charge: { damage: 35, knockback: 12, cooldown: 10 } },
+    territory: 25,
+    drops: ['bg_stone', 'bg_core', 'bg_ore'],
+  },
 };
 // growth stages (mature slimes can split; juveniles stay near home)
 export const STAGES = [{ id: 'juvenile', scale: 0.55, hp: 0.35 }, { id: 'young', scale: 0.78, hp: 0.65 }, { id: 'adult', scale: 1, hp: 1 }, { id: 'large', scale: 1.28, hp: 1.5 }];
