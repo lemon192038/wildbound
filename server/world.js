@@ -4,7 +4,7 @@
 //   • hunters read nearby tiles (GET /api/eco) and report kills / nest intrusions / injuries (POST /api/eco/report);
 //     reports are idempotent per event id, rate limited per account, and can only remove creatures that exist
 import { createIslandField } from '../src/world/island/islandField.js';
-import { createEcoWorld, stepEco, catchUp, applyReport, snapshot, serializeEco, loadEco, census, ECO } from '../src/shared/ecosystem.js';
+import { createEcoWorld, stepEco, catchUp, applyReport, snapshot, serializeEco, loadEco, census, ECO, takeEggFrom } from '../src/shared/ecosystem.js';
 
 const TICK = 30, SAVE_MS = 120000, EID_TTL = 15 * 60 * 1000, MAX_EVENTS = 20;
 
@@ -58,6 +58,12 @@ export async function createWorld(store, { seed = 1337, now = () => Date.now(), 
         if (r.ok && type === 'kill' && ev.sp === 'slime' && cause === 'hunter') onSlimeKill?.(1); // the Volcano Slime's flow weakens (server/volcano.js)
       }
       return out;
+    },
+    // taking an egg from an ecosystem nest (economy islandEgg): the nest must exist with eggs left; one fewer hatches.
+    // Idempotent per (user, eid) so a retried save transaction never takes two.
+    takeEgg(userId, { eid, sp, x, z, nid } = {}) {
+      const key = 'egg:' + userId + ':' + eid; if (seen.has(key)) return seen.get(key + '#r');
+      const r = takeEggFrom(W, field, { sp, x, z, nid }); seen.set(key, now()); seen.set(key + '#r', r); if (r.ok) dirty = true; return r;
     },
     stats: () => ({ t: W.t, census: census(W), stats: W.stats }),
     setRampage(on) { W.rampage = !!on; dirty = true; },

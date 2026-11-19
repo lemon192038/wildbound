@@ -248,6 +248,8 @@ ok(r.state.ledger.length > 5 && r.state.ledger.every((l) => typeof l.d === 'numb
   const { tameRecipe } = await import('../src/shared/tame.js'); const { MONSTERS, ITEMS } = await import('../src/shared/gamedata.js');
   const T = await call('/api/register', { name: 'Tamer', password: 'tamer-pass-1' }); const tt = T.token, tid = T.state.user.id;
   ok((await act(tt, 'craftTame', { sp: 'nope' })).error === 'no_tame', 'an unknown construct is refused');
+  ok((await act(tt, 'craftTame', { sp: 'snake' })).error === 'missing_life', 'a construct needs an egg or a juvenile’s remains');
+  await give(tid, { egg_snake: 1 });
   ok((await act(tt, 'craftTame', { sp: 'snake' })).error === 'missing', 'a construct needs every part material');
   const R = tameRecipe('snake', MONSTERS, ITEMS); const all = { ...R.parts }; for (const [k, q] of Object.entries(R.extra)) all[k] = (all[k] || 0) + q;
   const short = { ...all }; const firstPart = Object.keys(R.parts)[0]; short[firstPart] -= 1; await give(tid, short); await store.mutateSave(tid, (d) => { d.coins += R.coins; });
@@ -255,11 +257,40 @@ ok(r.state.ledger.length > 5 && r.state.ledger.every((l) => typeof l.d === 'numb
   await give(tid, { [firstPart]: 1 });
   r = await act(tt, 'craftTame', { sp: 'snake' });
   ok(r.ok && r.state.tames.snake && r.state.tameEquip === 'snake', 'the artificial Lava Snake is built and auto-equipped');
-  ok(Object.keys(all).every((k) => !r.state.box[k]) , 'every part + gathered material was consumed');
+  ok(Object.keys(all).every((k) => !r.state.box[k]) && !r.state.box.egg_snake, 'every part + gathered material and the egg were consumed');
   ok((await act(tt, 'craftTame', { sp: 'snake' })).error === 'owned', 'one construct per species');
   ok((await act(tt, 'equipTame', { sp: 'flame' })).error === 'not_owned', 'cannot equip a construct you do not own');
   r = await act(tt, 'equipTame', { sp: null }); ok(r.ok && r.state.tameEquip === null, 'construct unequipped');
   r = await act(tt, 'equipTame', { sp: 'snake' }); ok(r.ok && r.state.tameEquip === 'snake', 'construct re-equipped');
+  // a juvenile's remains work too (Flame Dragon construct: the dragon lineage)
+  const R2 = tameRecipe('flame', MONSTERS, ITEMS); const all2 = { ...R2.parts }; for (const [k, q] of Object.entries(R2.extra)) all2[k] = (all2[k] || 0) + q;
+  await give(tid, { ...all2, juv_dragon: 1 }); await store.mutateSave(tid, (d) => { d.coins += R2.coins; });
+  r = await act(tt, 'craftTame', { sp: 'flame' }); ok(r.ok && r.state.tames.flame && !r.state.box.juv_dragon, 'a dragon juvenile’s remains build the Flame Dragon construct');
+}
+// ---- eggs and juveniles (src/shared/lifecycle.js, economy islandEgg / islandCarve stage 0)
+{
+  const E = await call('/api/register', { name: 'Eggseeker', password: 'eggseeker-pass-1' }); const et = E.token;
+  ok((await act(et, 'islandEgg', { iid: 'x', eid: 'e1x', src: 'big', nest: 'nest_venom' })).error === 'no_expedition', 'egg taking needs an expedition');
+  r = await act(et, 'departIsland'); const eiid = r.result.iid; clock += 10000;
+  r = await act(et, 'islandEgg', { iid: eiid, eid: 'egg.b1', src: 'big', nest: 'nest_venom' });
+  ok(r.ok && r.state.box.egg_dragon === 1, 'a dragon egg from the Venom-fang nest');
+  ok((await act(et, 'islandEgg', { iid: eiid, eid: 'egg.b1', src: 'big', nest: 'nest_venom' })).result?.dup, 'the same egg id is idempotent');
+  ok((await act(et, 'islandEgg', { iid: eiid, eid: 'egg.b2', src: 'big', nest: 'nest_venom' })).error === 'empty', 'a big nest is empty for a while after an egg is taken');
+  ok((await act(et, 'islandEgg', { iid: eiid, eid: 'egg.b3', src: 'big', nest: 'nest_nope' })).error === 'no_nest', 'an unknown nest is refused');
+  ok((await act(et, 'islandEgg', { iid: eiid, eid: 'egg.e1', src: 'eco', sp: 'beetle', x: 0, z: 0 })).error, 'no ecosystem nest there → refused');
+  { // an ecosystem nest: plant one with 2 eggs in a real tile, take one through the API
+    const T = Object.values(world.W.tiles).find((q) => q.p.beetle); const half = world.field.half;
+    T.nest.push({ sp: 'beetle', n: 2, t: 999, dx: 30, dz: 30, kind: 'egg', id: 4242 });
+    const ex = -half + T.tx * 64 + 30, ez = -half + T.tz * 64 + 30;
+    r = await act(et, 'islandEgg', { iid: eiid, eid: 'egg.e2', src: 'eco', sp: 'beetle', x: ex, z: ez, nid: 4242 });
+    ok(r.ok && r.state.box.egg_beetle === 1 && T.nest.find((q) => q.id === 4242).n === 1, 'an ecosystem nest gives a beetle egg and has one fewer to hatch');
+    await act(et, 'islandEgg', { iid: eiid, eid: 'egg.e3', src: 'eco', sp: 'beetle', x: ex, z: ez, nid: 4242 });
+    ok((await act(et, 'islandEgg', { iid: eiid, eid: 'egg.e4', src: 'eco', sp: 'beetle', x: ex, z: ez, nid: 4242 })).error === 'empty', 'an emptied nest is refused');
+  }
+  r = await act(et, 'islandCarve', { iid: eiid, cid: 'jx.1:b0', src: 'boar', part: 'body', stage: 0 });
+  ok(r.ok && r.state.box.juv_boar === 1, 'carving a juvenile boar gives its remains');
+  ok((await act(et, 'islandCarve', { iid: eiid, cid: 'jx.1:b1', src: 'boar', part: 'body', stage: 0 })).error === 'bad_carve', 'a juvenile carcass has a single carve');
+
 }
 
 // ---- the Volcano Slime world event (server/volcano.js)

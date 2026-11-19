@@ -31,18 +31,27 @@ const STAGE_MASS = [0.3, 0.6, 1, 1.1];
 // meal: s an adult needs per meal (predators) · nestRegion: preferred nest ground
 export const ECO = {
   beetle: { mode: 'egg', season: null, clutch: [3, 5], incubate: 1800, grow: [1800, 3600, 6 * 3600], life: 3 * 3600, iq: 0.15, protect: 0, cooldown: 2400 },
-  slime: { mode: 'split', season: null, clutch: [1, 1], incubate: 0, grow: [1200, 2400, 5 * 3600], life: 3 * 3600, iq: 0.05, protect: 0, cooldown: 1500 },
+  // asexual: one adult buds a clutch of gel eggs into a hot seep (a heavy blow still splits a slime — that is a wound reaction)
+  slime: { mode: 'spawn', season: null, clutch: [2, 4], incubate: 900, grow: [1200, 2400, 5 * 3600], life: 3 * 3600, iq: 0.05, protect: 0, cooldown: 1800, nestRegion: ['caldera', 'geotherm', 'canyon'] },
   bird: { mode: 'egg', season: [0, 0.35], clutch: [2, 3], incubate: 2400, grow: [2400, 4800, 8 * 3600], life: 4 * 3600, iq: 0.5, protect: 0.3, cooldown: 3600, meal: 1800, nestRegion: ['peaks', 'coast'] },
   lizard: { mode: 'egg', season: [0.1, 0.45], clutch: [2, 4], incubate: 3000, grow: [3000, 5400, 10 * 3600], life: 5 * 3600, iq: 0.35, protect: 0.1, cooldown: 5400, meal: 2400, nestRegion: ['geotherm', 'canyon'] },
   snake: { mode: 'egg', season: [0.5, 0.8], clutch: [1, 3], incubate: 4200, grow: [4200, 7200, 14 * 3600], life: 6 * 3600, iq: 0.3, protect: 0.2, cooldown: 7200, meal: 3000, nestRegion: ['caldera', 'canyon'] },
-  boar: { mode: 'birth', season: [0.2, 0.6], clutch: [2, 3], incubate: 3600, grow: [3600, 6000, 12 * 3600], life: 5 * 3600, iq: 0.45, protect: 0.75, cooldown: 7200 },
-  wolf: { mode: 'birth', season: [0.6, 0.95], clutch: [2, 4], incubate: 3600, grow: [3000, 6000, 12 * 3600], life: 5 * 3600, iq: 0.85, protect: 0.85, cooldown: 9000, meal: 2400 },
-  mole: { mode: 'birth', season: [0.3, 0.7], clutch: [1, 2], incubate: 4800, grow: [4800, 7200, 16 * 3600], life: 8 * 3600, iq: 0.3, protect: 0.6, cooldown: 10800 },
-  // ASSUMPTION (flagged to the user): golems do not breed; new ones slowly form in mineral-rich ground
-  golem: { mode: 'none', season: null, clutch: [1, 1], incubate: 0, grow: [0, 0, 30 * 3600], life: 20 * 3600, iq: 0.2, protect: 0, cooldown: 4 * 3600, form: 4 * 3600 },
+  // boars / wolves / moles lay leathery eggs in a den and the adults guard it (den: true); the young hatch well developed
+  boar: { mode: 'egg', den: true, season: [0.2, 0.6], clutch: [2, 3], incubate: 3600, grow: [3600, 6000, 12 * 3600], life: 5 * 3600, iq: 0.45, protect: 0.75, cooldown: 7200, nestRegion: ['fungal', 'coast', 'crystal'] },
+  wolf: { mode: 'egg', den: true, season: [0.6, 0.95], clutch: [2, 4], incubate: 3600, grow: [3000, 6000, 12 * 3600], life: 5 * 3600, iq: 0.85, protect: 0.85, cooldown: 9000, meal: 2400 },
+  mole: { mode: 'egg', den: true, season: [0.3, 0.7], clutch: [1, 2], incubate: 4800, grow: [4800, 7200, 16 * 3600], life: 8 * 3600, iq: 0.3, protect: 0.6, cooldown: 10800 },
+  // golems bud a core-stone (egg) into a mineral vein; it grows into a small golem very slowly (one parent, needs minerals)
+  golem: { mode: 'bud', season: null, clutch: [1, 2], incubate: 2 * 3600, grow: [3 * 3600, 6 * 3600, 30 * 3600], life: 24 * 3600, iq: 0.2, protect: 0.3, cooldown: 4 * 3600, needMin: 0.5, juvHaz: 0.3, nestRegion: ['ruins', 'peaks', 'crystal'] },
   drake: { mode: 'egg', season: [0.4, 0.7], clutch: [1, 2], incubate: 6000, grow: [6000, 10800, 20 * 3600], life: 10 * 3600, iq: 0.7, protect: 0.5, cooldown: 4 * 3600, meal: 3600 },
 };
 export const ECO_SPECIES = Object.keys(ECO);
+// user request: more monsters overall. Every per-tile density in species.js is multiplied by this (the relative
+// abundances between species and regions stay as designed).
+export const ABUNDANCE = 1.6;
+// v2: every lineage lays eggs, golems bud, more monsters (ABUNDANCE). A saved v1 world keeps its clock, counters and the
+// Volcano Slime's kill count, but its populations are re-rolled at the new abundance (nothing else is lost).
+export const ECO_VERSION = 2;
+const ASEXUAL = new Set(['split', 'spawn', 'bud']);
 export const GROUP_SP = ECO_SPECIES.filter((sp) => SPECIES[sp].group);
 const SOLO_SP = ECO_SPECIES.filter((sp) => !SPECIES[sp].group);
 // environment resources each diet word draws on
@@ -77,7 +86,7 @@ const sum = (a) => a[0] + a[1] + a[2] + a[3];
 // field: the island field (regionAt, half, lava). Initial populations follow the per-tile densities in species.js.
 export function createEcoWorld(field, { seed = 1337, now = 0 } = {}) {
   const r = mulberry32(seed * 7 + 99); const N = Math.ceil((field.half * 2) / TILE);
-  const W = { v: 1, seed, t: 0, wall: now, step: 0, tiles: {}, n: N, refuge: {}, stats: { births: 0, deaths: 0, predation: 0, starved: 0, migrated: 0, hunted: 0, eruptions: 0, formed: 0, seeded: 0 }, slimeKills: 0, init: {} };
+  const W = { v: ECO_VERSION, seed, t: 0, wall: now, step: 0, tiles: {}, n: N, refuge: {}, stats: { births: 0, deaths: 0, predation: 0, starved: 0, migrated: 0, hunted: 0, eruptions: 0, formed: 0, seeded: 0 }, slimeKills: 0, init: {} };
   const Ls = {};
   for (let tz = 0; tz < N; tz++) for (let tx = 0; tx < N; tx++) {
     const x0 = -field.half + tx * TILE, z0 = -field.half + tz * TILE;
@@ -88,7 +97,7 @@ export function createEcoWorld(field, { seed = 1337, now = 0 } = {}) {
     const T = { tx, tz, regs, lavaFrac: +lavaFrac.toFixed(2), base: e0.map((v) => +v.toFixed(3)), K: {},
       env: { ash: e0[0], heat: e0[1], min: e0[2], fun: e0[3], pla: e0[4], ins: 0.2, car: 0, lava: 0 }, p: {}, g: [], nest: [], cc: [], hunt: 0, wary: {}, cd: {}, inj: {} };
     for (const sp of ECO_SPECIES) {
-      const S = SPECIES[sp]; const dens = regs.reduce((a, g) => a + (S.regions[g] || 0), 0) / 4;
+      const S = SPECIES[sp]; const dens = regs.reduce((a, g) => a + (S.regions[g] || 0), 0) / 4 * ABUNDANCE;
       if (S.habitat === 'lava' && lavaFrac === 0) continue;
       if (!(dens > 0)) continue;
       if (S.group) { // dens = groups per tile; K counts individuals
@@ -98,7 +107,7 @@ export function createEcoWorld(field, { seed = 1337, now = 0 } = {}) {
       } else {
         T.K[sp] = +Math.max(dens, 1.2).toFixed(2); T.D ||= {}; T.D[sp] = +dens.toFixed(3); // a lone territory holder always fits
         let n = Math.floor(dens * (0.6 + r() * 0.8)); if (r() < dens - Math.floor(dens)) n++;
-        const a = [0, 0, 0, 0]; for (let i = 0; i < n; i++) a[sp === 'golem' ? 2 : rollStage(r)]++; T.p[sp] = a;
+        const a = [0, 0, 0, 0]; for (let i = 0; i < n; i++) a[rollStage(r)]++; T.p[sp] = a;
       }
     }
     W.tiles[keyOf(tx, tz)] = T;
@@ -223,7 +232,7 @@ export function stepEco(W, dt) {
       R = clamp(R, 0, 1.3); T.res[sp] = +R.toFixed(3); const s = R; T.sat[sp] = +s.toFixed(2);
       // ---- deaths: age and starvation (dead bodies stay as carcasses)
       const starve = Math.max(0, 0.4 - s) / 0.4;
-      const haz = [1 / (10 * 3600), 1 / (20 * 3600), 1 / (30 * 3600), 1 / L.life].map((h) => h + starve * starve / 3600);
+      const haz = [1 / (10 * 3600), 1 / (20 * 3600), 1 / (30 * 3600), 1 / L.life].map((h, i) => h * (i < 2 ? L.juvHaz ?? 1 : 1) + starve * starve / 3600); // juvHaz: young that are hard to kill (stone golems)
       const crowd = T.K[sp] ? Math.max(0, n / Math.max(1, T.K[sp] * 1.5) - 1) / 3600 : 0;
       for (let i = 0; i < 4; i++) {
         const dead = binom(st[i], (haz[i] + crowd) * dt, r); if (!dead) continue;
@@ -235,6 +244,7 @@ export function stepEco(W, dt) {
       if (SPECIES[sp].group) for (const g of T.g) { if (g.sp === sp) grow(g.n); } else if (T.p[sp]) grow(T.p[sp]);
     }
     // ---- breeding (nests hatch after incubation; parents need food; crowding stops it)
+    if (E.lava > 0.6) T.nest = T.nest.filter((q) => q.sp === 'snake' || q.sp === 'slime'); // a lava flood cooks every nest except the lava-bank ones
     for (const nst of T.nest) nst.t -= dt;
     for (const nst of T.nest.filter((q) => q.t <= 0)) {
       const sp = nst.sp; let born = nst.n;
@@ -248,22 +258,20 @@ export function stepEco(W, dt) {
     for (const nst of T.nest) { const raiders = (PREDATORS[nst.sp] || []).reduce((a, p) => a + popOf(T, p), 0); if (raiders && r() < (1 - (ECO[nst.sp].protect || 0)) * raiders * dt / (4 * 3600)) nst.n = Math.max(0, nst.n - 1); }
     for (const sp of ECO_SPECIES) {
       const L = ECO[sp]; if (T.cd[sp] > 0 || !inSeason(W, sp) || (T.sat[sp] ?? 1) < 0.45) continue;
+      if (T.env.lava > 0.5 && sp !== 'snake' && sp !== 'slime') continue; // nobody lays eggs on fresh lava
       const st = stagesOf(T, sp), n = sum(st), K = T.K[sp] || 0; if (n >= Math.max(1, K * 1.4)) continue;
-      if (L.mode === 'none') { // golems: slow forming in mineral-rich ground (ASSUMPTION)
-        if (K > 0 && n < K && T.env.min > 0.6 && (W._golems ?? 0) < (W.init.golem || 0) && r() < dt / L.form) { (T.p[sp] ||= [0, 0, 0, 0])[2]++; St.formed++; T.cd[sp] = L.cooldown; }
-        continue;
-      }
-      let adults = st[2] + st[3]; const need = L.mode === 'split' ? 1 : 2;
+      if (L.needMin && T.env.min < L.needMin) continue; // golems bud only into mineral-rich ground
+      let adults = st[2] + st[3]; const need = ASEXUAL.has(L.mode) ? 1 : 2;
       // solitary species meet a mate from the neighbouring ground in the breeding season (temporary contact only)
       if (adults === 1 && need === 2 && !SPECIES[sp].group) for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) { const U = W.tiles[keyOf(T.tx + dx, T.tz + dz)]; const a = U?.p[sp]; if (a && a[2] + a[3] > 0) { adults = 2; break; } }
       if (adults < need || T.nest.some((q) => q.sp === sp)) continue;
       if (r() > Math.min(1, dt / 900)) continue;
       const nr = L.nestRegion; if (nr && !T.regs.some((g) => nr.includes(g)) && r() > 0.3) continue; // preferred nest ground (elsewhere: rarely)
       const clutch = L.clutch[0] + Math.floor(r() * (L.clutch[1] - L.clutch[0] + 1));
-      if (L.mode === 'split' && W.rampage) T.cd[sp] = 0; // the awakened slime pours out spawn
+      if (sp === 'slime' && W.rampage) T.cd[sp] = 0; // the awakened slime pours out spawn
       if (L.mode === 'split') { const a = T.p[sp]; const big = a[3] > 0 ? 3 : 2; a[big]--; a[1] += 2; St.births++; T.cd[sp] = L.cooldown; continue; } // slimes split into two young
       const gid = SPECIES[sp].group ? (T.g.filter((g) => g.sp === sp).sort((a, b) => sum(b.n) - sum(a.n))[0]?.id) : undefined;
-      T.nest.push({ sp, n: clutch, t: L.incubate, dx: Math.floor(8 + r() * (TILE - 16)), dz: Math.floor(8 + r() * (TILE - 16)), gid, kind: L.mode });
+      T.nest.push({ sp, n: clutch, t: L.incubate, dx: Math.floor(8 + r() * (TILE - 16)), dz: Math.floor(8 + r() * (TILE - 16)), gid, kind: L.den ? 'den' : L.mode, id: (W.step * 131 + T.tx * 7 + T.tz * 13 + ECO_SPECIES.indexOf(sp)) % 1e9 }); if (sp === 'golem') St.formed++;
       T.cd[sp] = L.cooldown;
     }
   }
@@ -358,13 +366,24 @@ export function applyReport(W, field, ev) {
   return { ok: true, stage: stg };
 }
 
+// a hunter takes one egg from a nest: the nest (by id, or by species + position inside the tile) loses one egg
+export function takeEggFrom(W, field, { sp, x, z, nid } = {}) {
+  if (!ECO[sp] || !Number.isFinite(x) || !Number.isFinite(z)) return { ok: false, why: 'bad' };
+  const T = tileAt(W, field, x, z); if (!T) return { ok: false, why: 'tile' };
+  const lx = x + W.n * TILE / 2 - T.tx * TILE, lz = z + W.n * TILE / 2 - T.tz * TILE;
+  const q = T.nest.find((n) => n.sp === sp && (nid != null && n.id === nid || Math.hypot(n.dx - lx, n.dz - lz) < 4));
+  if (!q) return { ok: false, why: 'no_nest' }; if (!(q.n > 0)) return { ok: false, why: 'empty' };
+  q.n--; T.hunt += 0.3; T.wary[sp] = Math.min(1, (T.wary[sp] || 0) + 0.3 * ECO[sp].iq); note(W, sp, 'eggTaken');
+  return { ok: true, left: q.n };
+}
+
 // ------------------------------------------------------------------ snapshots for clients
 export function snapshot(W, tx, tz, rad = 3) {
   const out = []; for (let z = tz - rad; z <= tz + rad; z++) for (let x = tx - rad; x <= tx + rad; x++) { const T = W.tiles[keyOf(x, z)]; if (T) out.push(tileView(T)); }
   return { t: W.t, season: +seasonFrac(W).toFixed(3), activity: +activityAt(W).toFixed(2), slimeKills: W.slimeKills, tiles: out };
 }
 export function tileView(T) {
-  return { tx: T.tx, tz: T.tz, p: T.p, g: T.g.map((g) => ({ sp: g.sp, n: g.n, s: g.s, id: g.id })), nest: T.nest.map((q) => ({ sp: q.sp, n: q.n, dx: q.dx, dz: q.dz, t: Math.round(q.t), gid: q.gid })),
+  return { tx: T.tx, tz: T.tz, p: T.p, g: T.g.map((g) => ({ sp: g.sp, n: g.n, s: g.s, id: g.id })), nest: T.nest.map((q) => ({ sp: q.sp, n: q.n, dx: q.dx, dz: q.dz, t: Math.round(q.t), gid: q.gid, id: q.id, kind: q.kind })),
     cc: T.cc.map((c) => ({ sp: c.sp, s: carcassState(c), dx: c.dx, dz: c.dz })), wary: T.wary, hunt: +T.hunt.toFixed(2),
     env: Object.fromEntries(Object.entries(T.env).map(([k, v]) => [k, +v.toFixed(2)])), sat: T.sat };
 }
@@ -381,7 +400,8 @@ export function serializeEco(W) {
 export function loadEco(field, json) {
   const D = typeof json === 'string' ? JSON.parse(json) : json;
   const W = createEcoWorld(field, { seed: D.seed });
-  Object.assign(W, { t: D.t, wall: D.wall, step: D.step, stats: D.stats || W.stats, slimeKills: D.slimeKills || 0, init: D.init || W.init });
+  Object.assign(W, { t: D.t, wall: D.wall, step: D.step, stats: D.stats || W.stats, slimeKills: D.slimeKills || 0, init: (D.v || 1) >= ECO_VERSION ? D.init || W.init : W.init });
+  if ((D.v || 1) < ECO_VERSION) { W.migratedFrom = D.v || 1; return W; } // older model: fresh populations at the new abundance
   for (const [k, T] of Object.entries(W.tiles)) { const s = D.tiles?.[k]; if (!s) { T.p = {}; T.g = []; continue; } Object.assign(T, { p: s.p || {}, g: s.g || [], nest: s.nest || [], cc: s.cc || [], env: { ...T.env, ...s.env }, hunt: s.hunt || 0, wary: s.wary || {}, cd: s.cd || {}, inj: s.inj || {}, res: s.res || {} }); }
   return W;
 }

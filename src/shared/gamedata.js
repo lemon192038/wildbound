@@ -1,5 +1,6 @@
 import { ISLAND_ITEMS } from './islandLoot.js';
 import { GATHER_ITEMS } from './islandGather.js';
+import { LIFE_ITEMS } from './lifecycle.js';
 import { ISLAND_WEAPONS, ISLAND_ARMOR_SETS } from './islandGear.js';
 import { CLASS_WEAPONS } from './classGear.js';
 import { LINE_WEAPONS } from './lineGear.js';
@@ -71,7 +72,8 @@ export const ITEMS = {
 // Each skill has max points; effects are applied by the field runtime/player.
 // island materials (stage 5): src/shared/islandLoot.js
 for (const [k, v] of Object.entries(ISLAND_ITEMS)) { const { ja, jaDesc, ...def } = v; ITEMS[k] = def; }
-for (const [k, v] of Object.entries(GATHER_ITEMS)) { const { ja, jaDesc, ...def } = v; ITEMS[k] = def; } // island gathering (src/shared/islandGather.js)
+for (const [k, v] of Object.entries(GATHER_ITEMS)) { const { ja, jaDesc, ...def } = v; ITEMS[k] = def; }
+for (const [k, v] of Object.entries(LIFE_ITEMS)) { const { ja, jaDesc, ...def } = v; ITEMS[k] = def; } // eggs + juvenile remains (src/shared/lifecycle.js) // island gathering (src/shared/islandGather.js)
 
 export const SKILLS = {
   attackBoost: { name: 'Attack Boost', max: 5, desc: '+3% attack per level.' },

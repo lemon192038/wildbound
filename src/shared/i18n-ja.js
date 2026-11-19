@@ -1,5 +1,6 @@
 import { ISLAND_ITEMS } from './islandLoot.js';
 import { GATHER_ITEMS } from './islandGather.js';
+import { LIFE_ITEMS } from './lifecycle.js';
 import { ISLAND_QUESTS } from './islandQuests.js';
 import { ISLAND_WEAPONS, ISLAND_ARMOR_SETS } from './islandGear.js';
 import { CLASS_WEAPONS } from './classGear.js';
@@ -222,6 +223,7 @@ export default {
   items: {
     ...Object.fromEntries(Object.entries(ISLAND_ITEMS).map(([k, v]) => [k, [v.ja, v.jaDesc]])),
     ...Object.fromEntries(Object.entries(GATHER_ITEMS).map(([k, v]) => [k, [v.ja, v.jaDesc]])),
+    ...Object.fromEntries(Object.entries(LIFE_ITEMS).map(([k, v]) => [k, [v.ja, v.jaDesc]])),
     potion: ['翠の回復薬', '苦みのある薬草の水薬。傷を癒やし、体力をそこそこ回復する。'],
     megaPotion: ['蜜仕立ての回復薬', '蜂蜜でとろみをつけた水薬。体力を大きく回復する。'],
     ancientDraught: ['古の秘薬', '伝説に語られる霊薬。体力とスタミナを全快させ、しばし活力を与える。'],

@@ -134,9 +134,9 @@ export function createApi(store, { allowedOrigins = [], log = console.log, now =
         const body = await readBody(req); const type = body.type;
         if (type === 'ackNotices') { await store.mutateSave(a.user.id, (d) => { d.notices = []; }); return send(res, 200, { ok: true, state: await stateFor(a.user) }); }
         if (typeof type !== 'string' || !Object.prototype.hasOwnProperty.call(ACTIONS, type)) return err(res, 400, 'bad_action', 'Unknown action');
-        const t = now();
+        const t = now(); const wNow = type === 'islandEgg' ? await world : null;
         try {
-          const { doc, result } = await store.mutateSave(a.user.id, (d) => { expireStale(d, t); return ACTIONS[type](d, body, { now: t, rand }); });
+          const { doc, result } = await store.mutateSave(a.user.id, (d) => { expireStale(d, t); return ACTIONS[type](d, body, { now: t, rand, world: type === 'islandEgg' ? wNow : null, uid: a.user.id }); });
           return send(res, 200, { ok: true, result, state: publicState(doc, a.user, t) });
         } catch (e) {
           if (e instanceof GameError) return send(res, 200, { ok: false, error: e.code, message: e.message, state: await stateFor(a.user) });

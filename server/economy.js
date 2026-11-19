@@ -11,6 +11,7 @@ import {
 import { ISLAND_LOOT, ISLAND_LIMITS } from '../src/shared/islandLoot.js';
 import { pointByGid, rollGather, GATHER_KINDS, GATHER_LIMITS } from '../src/shared/islandGather.js';
 import { TAMES, tameRecipe } from '../src/shared/tame.js';
+import { LIFE, LINEAGE, BIG_NESTS, NEST_LIMITS, juvOf } from '../src/shared/lifecycle.js';
 import { createIslandField } from '../src/world/island/islandField.js';
 let FIELD = null; const islandField = () => (FIELD ||= createIslandField(1337)); // gather points are re-derived from the island itself
 export class GameError extends Error { constructor(code, message) { super(message || code); this.code = code; } }
@@ -132,11 +133,15 @@ export const ACTIONS = {
     return { msg: `Brewed ${r.out[1] * qty}× ${ITEMS[r.out[0]].name}` };
   },
   // Monster Workshop (taming): build an artificial monster from every part material of that monster + island materials.
-  craftTame(d, { sp } = {}, { now } = {}) {
+  craftTame(d, { sp, use } = {}, { now } = {}) {
     if (typeof sp !== 'string' || !TAMES[sp]) fail('no_tame', 'Unknown construct');
     d.tames ||= {}; if (d.tames[sp]) fail('owned', 'You already own that construct');
     if (d.quests.expedition) fail('busy', 'Cannot build during a hunt');
     const r = tameRecipe(sp, MONSTERS, ITEMS); const mats = { ...r.parts }; for (const [k, q] of Object.entries(r.extra)) mats[k] = (mats[k] || 0) + q;
+    // one egg or one juvenile's remains of this lineage (the hunter may choose; otherwise whichever they have, egg first)
+    const lifeItem = use === 'juv' ? r.life.juv : use === 'egg' ? r.life.egg : count(d.box, r.life.egg) > 0 ? r.life.egg : r.life.juv;
+    if (count(d.box, lifeItem) < 1) fail('missing_life', 'You need an egg or a juvenile’s remains of this monster');
+    mats[lifeItem] = (mats[lifeItem] || 0) + 1;
     pay(d, { coins: r.coins, mats }, `Monster Workshop: construct ${sp}`, now);
     d.tames[sp] = { at: now }; if (!d.tameEquip) d.tameEquip = sp;
     return { msg: 'Construct complete', sp };
@@ -227,7 +232,7 @@ export const ACTIONS = {
     d.quests.expedition = { iid, qid: null, dest: 'island', island: true, free: true, at: now, carried, carved: {}, kills: {}, n: 0 };
     return { msg: 'Setting sail for the Volcanic Island', iid, dest: 'island', carried };
   },
-  islandCarve(d, { iid, cid, src, part } = {}, { now, rand }) {
+  islandCarve(d, { iid, cid, src, part, stage } = {}, { now, rand }) {
     const ex = d.quests.expedition; if (!ex || !(ex.island || ex.onIsland) || ex.iid !== iid) fail('no_expedition', 'Not on an island expedition');
     if (typeof cid !== 'string' || !/^[A-Za-z0-9._:-]{3,64}$/.test(cid)) fail('bad_carve', 'Bad carve id');
     if (ex.carved[cid]) return { dup: true, item: ex.carved[cid], msg: 'Already carved' };            // idempotent retry
@@ -242,6 +247,12 @@ export const ACTIONS = {
     const [entity, slot] = cid.split(':'); if (!entity || !slot) fail('bad_carve', 'Bad carve id');
     if (isPart ? slot !== 'p' + part : !/^b\d$/.test(slot) || +slot.slice(1) >= L.carves) fail('bad_carve', 'Nothing left to carve');
     // kill-rate limit: distinct carcasses of this source per minute (bosses: one per cooldown)
+    // a juvenile's carcass: one carve, its remains (the Monster Workshop needs them), a per-expedition cap
+    if (stage === 0 && !isPart) {
+      if (slot !== 'b0') fail('bad_carve', 'Nothing left to carve'); const juv = juvOf(src); if (!juv) fail('bad_source', 'Unknown creature');
+      ex.juv = (ex.juv || 0); if (ex.juv >= NEST_LIMITS.juvPerExpedition) fail('full', 'You cannot carry more juvenile remains');
+      ex.juv++; give(d.box, juv, 1); ex.carved[cid] = juv; ex.n++; return { item: juv, msg: `Carved ${ITEMS[juv].name}` };
+    }
     const k = (ex.kills[src] ||= []); const known = k.some((e) => e[0] === entity);
     if (!known) {
       const recent = k.filter((e) => now - e[1] < 60000).length;
@@ -252,6 +263,28 @@ export const ACTIONS = {
     const item = partItem || (table ? weighted(table.carves, rand) : weighted(L.body, rand));
     give(d.box, item, 1); ex.carved[cid] = item; ex.n++;
     return { item, msg: `Carved ${ITEMS[item]?.name || item}` };
+  },
+  // take one egg from a nest. src 'eco': an ecosystem nest (the server's world checks it exists, has eggs left, and loses one);
+  // src 'big': a big monster's fixed nest (BIG_NESTS) with a per-hunter cooldown. Idempotent per eid; capped per expedition.
+  islandEgg(d, { iid, eid, src, sp, x, z, nid, nest } = {}, { now, world, uid }) {
+    const ex = d.quests.expedition; if (!ex || !(ex.island || ex.onIsland) || ex.iid !== iid) fail('no_expedition', 'Not on an island expedition');
+    if (typeof eid !== 'string' || !/^[A-Za-z0-9._:-]{3,64}$/.test(eid)) fail('bad_egg', 'Bad egg id');
+    ex.eggs ||= {}; if (ex.eggs[eid]) return { dup: true, item: ex.eggs[eid], msg: 'Already taken' };
+    if (Object.keys(ex.eggs).length >= NEST_LIMITS.eggsPerExpedition) fail('full', 'You cannot carry more eggs');
+    let item;
+    if (src === 'big') {
+      const B = BIG_NESTS.find((b) => b.id === nest); if (!B) fail('no_nest', 'No such nest');
+      d.bigNests ||= {}; if (now - (d.bigNests[nest] || 0) < NEST_LIMITS.bigNestCooldownMin * 60000) fail('empty', 'The nest is empty for now');
+      d.bigNests[nest] = now; item = LIFE[B.lineage].egg;
+    } else if (src === 'eco') {
+      const lin = LINEAGE[sp]; if (!lin || !LIFE[lin]) fail('bad_source', 'Unknown creature');
+      if (!world) fail('no_world', 'The ecosystem is not running');
+      const r = world.takeEgg(uid, { eid, sp, x: Number(x), z: Number(z), nid: nid == null ? null : Number(nid) });
+      if (!r?.ok) fail(r?.why === 'empty' ? 'empty' : 'no_nest', r?.why === 'empty' ? 'The nest is empty' : 'There is no nest there');
+      item = LIFE[lin].egg;
+    } else fail('bad_source', 'Unknown nest');
+    give(d.box, item, 1); ex.eggs[eid] = item;
+    return { item, msg: `Took ${ITEMS[item].name}` };
   },
   // gather from an island point: the server re-derives the point from its id (tile + index), checks its uses, the pace and a
   // per-expedition cap, then rolls the item itself. Idempotent per (point, use).

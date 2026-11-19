@@ -5,6 +5,7 @@
 //
 // The real monsters' lore is untouched: these are man-made constructs modelled on them, not the creatures themselves.
 import { ISLAND_LOOT } from './islandLoot.js';
+import { eggOf, juvOf } from './lifecycle.js';
 
 // Traits (what each one does is implemented in src/tame/ride.js + the hazard / perception hooks)
 //   lavaSwim  : moves over lava; the rider takes no lava damage and no burn
@@ -57,6 +58,7 @@ export function partMaterials(sp, monsters, items) {
 }
 export function tameRecipe(sp, monsters, items) {
   const T = TAMES[sp]; if (!T) return null;
-  return { parts: partMaterials(sp, monsters, items), extra: { ...T.extra }, coins: T.coins };
+  // life: one egg OR one juvenile's remains of the same lineage (user request) — `use` picks which is spent
+  return { parts: partMaterials(sp, monsters, items), extra: { ...T.extra }, coins: T.coins, life: { egg: eggOf(sp), juv: juvOf(sp) } };
 }
 export const hasTrait = (sp, tr) => !!TAMES[sp]?.traits.includes(tr);

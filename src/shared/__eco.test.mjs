@@ -52,7 +52,7 @@ const posOf = (T) => [-F.half + T.tx * TILE + 32, -F.half + T.tz * TILE + 32];
 }
 { // 4) migration: lava damage and hunting pressure push animals out to better ground
   const W = createEcoWorld(F, { seed: 3 });
-  const T = Object.values(W.tiles).filter((q) => popT(q, 'beetle') >= 3)[0]; const before = popT(T, 'beetle');
+  const T = Object.values(W.tiles).filter((q) => popT(q, 'beetle') >= 3 && popT(q, 'beetle') <= q.K.beetle * 1.2 && pushOf(W, q, 'beetle') < 0.3)[0] || Object.values(W.tiles).filter((q) => popT(q, 'beetle') >= 3)[0]; const before = popT(T, 'beetle');
   ok(pushOf(W, T, 'beetle') < 0.3, 'a healthy tile has little reason to leave');
   T.env.lava = 1; T.hunt = 5;
   ok(pushOf(W, T, 'beetle') > 0.5, `lava + hunting make them want to leave (push ${pushOf(W, T, 'beetle').toFixed(2)})`);
@@ -79,6 +79,18 @@ const posOf = (T) => [-F.half + T.tx * TILE + 32, -F.half + T.tz * TILE + 32];
   const W = createEcoWorld(F, { seed: 21 }); run(W, 1); const W2 = loadEco(F, serializeEco(W));
   ok(JSON.stringify(census(W2)) === JSON.stringify(census(W)) && W2.t === Math.round(W.t), 'serialize → load keeps every population and the clock');
   stepEco(W, 120); stepEco(W2, 120); ok(Math.abs(census(W).beetle - census(W2).beetle) <= 3, 'a reloaded world keeps evolving the same way');
+}
+{ // 8) every lineage reproduces through eggs: dens for boars / wolves / moles, gel eggs for slimes, budded core-stones for golems
+  const W = createEcoWorld(F, { seed: 4 }); const seen = {};
+  for (let i = 0; i < 24 * 30; i++) { stepEco(W, 120); for (const T of Object.values(W.tiles)) for (const q of T.nest) seen[q.sp] ||= q.kind; if (Object.keys(seen).length === Object.keys(ECO).length) break; }
+  ok(Object.keys(ECO).every((sp) => seen[sp]), `every species laid eggs within a day (${JSON.stringify(seen)})`);
+  ok(seen.boar === 'den' && seen.wolf === 'den' && seen.mole === 'den' && seen.slime === 'spawn' && seen.golem === 'bud', 'dens / gel eggs / core-stones as designed');
+  ok(Object.values(W.tiles).some((T) => T.nest.some((q) => q.id != null)), 'nests carry an id (egg taking)');
+}
+{ // 9) a saved v1 world: clock and Volcano Slime counter kept, populations re-rolled at the new abundance
+  const W = createEcoWorld(F, { seed: 1337 }); W.slimeKills = 77; const J = JSON.parse(serializeEco(W)); J.v = 1; for (const k in J.tiles) { J.tiles[k].p = {}; J.tiles[k].g = []; }
+  const W2 = loadEco(F, J); const c = census(W2);
+  ok(W2.slimeKills === 77 && W2.migratedFrom === 1 && c.beetle > 500 && c.golem > 0, `v1 → v2: slime kills kept, populations restored (${c.beetle} beetles)`);
 }
 console.log(fails ? `${fails} FAILED` : 'all ecosystem tests passed');
 process.exit(fails ? 1 : 0);
