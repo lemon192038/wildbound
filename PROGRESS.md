@@ -412,7 +412,7 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
   - War Horn a-a-b → perform → attack up; Vault Staff vault + aerial hit; Anchor chain hits at 8 m; three blades > sword hits.
   - All the earlier class and rope checks still pass.
 - `server/api.test.mjs`: **98/98 on SQLite and pg-mem** (forge + equip a Rusted Ancient Anchor → loadout `cls: 'anchor'`).
-- All other suites passed. Island test: 0 failed. Pose renders reviewed; a Bulwark Axe start-form mismatch was found and fixed.
+- All other suites passed. Island test: 0 failed. `tools/volcano-test.mjs`: the first run after a fresh build failed again, the next 5 passed (same pattern as stage 8b; likely cold-start timing, unconfirmed). Pose renders reviewed; a Bulwark Axe start-form mismatch was found and fixed.
 
 ## Stage 7: Volcano Slime (hidden world event) + ~10 weapons per class (2026-11-19)
 **Implemented — event** (server `server/volcano.js`; client `src/field/volcano.js`; boss `src/monster/volcanoSlime.js`):
@@ -564,7 +564,7 @@ Design and reasoning: `ECOLOGY.md` (Japanese).
 - `src/player/__weapons.test.mjs`: all passed — the 5 ranged classes draw + aim from sheathed, scope up, model hidden, centre on the target, the shot hits; zoom differs by weapon; releasing AIM leaves the scope; class balance ±10 %; ranged/melee 0.92; same-rarity attack spread ≤ 8 %.
 - Built game: the chart shows 22 habitat pins; departing from the Crystal Boar habitat registered `landing: hab_boar` and the island booted with the base camp 44 m from the habitat and the quest target set.
 - Scope screenshots (test bench): light crossbow, heavy crossbow, bow.
-- All other suites passed. Island test: 0 failed.
+- All other suites passed. Island test: 0 failed. `tools/volcano-test.mjs`: the first run after a fresh build failed again, the next 5 passed (same pattern as stage 8b; likely cold-start timing, unconfirmed).
 
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
