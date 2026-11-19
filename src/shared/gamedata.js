@@ -1,3 +1,4 @@
+import { ISLAND_ITEMS } from './islandLoot.js';
 // Wildbound shared game data — imported by BOTH the browser client and the Node server.
 // The server is authoritative: it validates every purchase/craft/upgrade/reward against these tables,
 // the client only uses them for display. Pure data + tiny pure helpers; no DOM, no Node APIs.
@@ -57,6 +58,9 @@ export const ITEMS = {
 
 // ---------------------------------------------------------------- skills
 // Each skill has max points; effects are applied by the field runtime/player.
+// island materials (stage 5): src/shared/islandLoot.js
+for (const [k, v] of Object.entries(ISLAND_ITEMS)) { const { ja, jaDesc, ...def } = v; ITEMS[k] = def; }
+
 export const SKILLS = {
   attackBoost: { name: 'Attack Boost', max: 5, desc: '+3% attack per level.' },
   critEye: { name: 'Keen Eye', max: 5, desc: '+5% affinity per level.' },

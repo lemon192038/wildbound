@@ -328,10 +328,19 @@ export function createWorldMap(ctx) {
     if (a === 'storage') return ctx.open('storage');
     if (a === 'focus') return select(b.dataset.d, true);
     if (a === 'mode') { mode[selected] = b.dataset.m; return renderDetail(); }
-    if (a === 'island') { ctx.navigate(fieldUrl('field', 'island'), t('ld.island')); return; } // open world (stage 1): no server expedition yet
-    if (a === 'resume') { const ex = s?.quests?.expedition; if (ex) ctx.navigate(fieldUrl('quest', ex.iid), t('d.resuming')); return; }
+    if (a === 'island') { departIsland(); return; }
+    if (a === 'resume') { const ex = s?.quests?.expedition; if (ex) ctx.navigate(ex.island ? islandUrl(ex.iid) : fieldUrl('quest', ex.iid), t('d.resuming')); return; }
     if (a === 'depart') return depart(selected);
   });
+  // island expedition: registered on the server so field carving can be recorded (offline: plain exploration)
+  const islandUrl = (iid) => fieldUrl('field', 'island') + (iid ? `&iid=${encodeURIComponent(iid)}` : '');
+  async function departIsland() {
+    if (busy) return; const s = st();
+    if (s?.quests?.expedition?.island) { ctx.navigate(islandUrl(s.quests.expedition.iid), t('d.resuming')); return; }
+    if (s?.quests?.expedition) { ctx.toast(t('wm.exElsewhere', { d: destName(s.quests.expedition.dest) }), 'err'); return; }
+    busy = true; const r = ctx.acct?.loggedIn ? await ctx.acct.act('departIsland') : { ok: false, error: 'offline' }; busy = false;
+    ctx.navigate(islandUrl(r.ok ? r.result.iid : null), t('ld.island'));
+  }
   async function depart(id) {
     const s = st(); if (busy || !id || !s || s.quests.expedition) return;
     const D = DESTINATIONS[id]; const questHere = questDest(s) === id; const m = questHere ? mode[id] || 'quest' : 'free';

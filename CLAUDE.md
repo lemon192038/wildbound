@@ -32,6 +32,7 @@ Read this first, then `PROGRESS.md` (what exists / what is next) and `IMPLEMENTA
 - **`src/world/island/`:** the open volcanic island (streamed chunks, regions, props).
 - **`src/core/perception.js` + `src/shared/senses.js`:** monster senses.
 - **`src/fauna/`:** small island fauna (species data, AI, census, instanced render).
+- **`src/shared/islandLoot.js` / `src/core/rights.js` / `src/field/carving.js`:** island materials, carving rights, field carving (server: `departIsland` / `islandCarve` / `returnIsland` in `server/economy.js`).
 - **`src/core/parts.js`:** shared part rules: part HP vs body HP, one-time break damage, hardness/deflect/wear, regrowth, lost abilities, part targeting.
 - **`src/ui/debugOverlay.js`:** the developer overlay, `?debug=1` (`?debug=2` adds gizmos; F3 toggles).
 - **`src/core/log.js`:** throttled diagnostics.

@@ -1,3 +1,4 @@
+import { ISLAND_ITEMS } from './islandLoot.js';
 // 日本語パック。キーは i18n-en.js と同じ。ゲームデータは gamedata.js の id をキーにした表（名前・説明）。
 // 表記方針: 落ち着いた和風ファンタジーの文体。UI ラベルは簡潔に、NPC の台詞は人物ごとの口調で。
 // 防具名は「シリーズ名＋部位」（例: エンバーハイドヘルム）。数値の桁区切りはそのまま、単位は「コイン」「秒」「分」。
@@ -146,7 +147,7 @@ export default {
     'g.herb': '薬草の群生', 'g.mushroom': '光茸の群生', 'g.lichen': '潮苔', 'g.ore': '鉱石の露頭', 'g.crimson': '紅鉱脈', 'g.crystal': '嵐水晶', 'g.hive': '野生の蜂の巣', 'g.bones': '骨塚',
     // タッチ操作（丸ボタンに収まる短い表記）
     'touch.move': '移動', 'touch.attack': 'こうげき', 'touch.heavy': 'ため', 'touch.dodge': '回避', 'touch.guard': 'ガード', 'touch.item': 'アイテム', 'touch.next': '次へ', 'touch.lock': 'ロック', 'touch.menu': 'メニュー',
-    'touch.talk': '話す', 'touch.gather': '採集',
+    'touch.talk': '話す', 'touch.gather': '採集', 'touch.carve': '剥取',
     // サーバーメッセージ（server/economy.js・server/api.js の英語文面を翻訳）
     'srv.coins': 'コインが足りません（{n}コイン必要）', 'srv.notEnough': '{item}が足りません', 'srv.missingMats': '素材が足りません: {item}', 'srv.stock': '在庫は残り{n}個です',
     'srv.bought': '{item}を{n}個購入しました', 'srv.soldFor': '{item}を{n}個売却しました（{c}コイン）', 'srv.sold': '{item}を{n}個売却', 'srv.soldEquip': '{c}コインで売却しました', 'srv.soldLedger': '{item}を売却', 'srv.forged': '{item}を生産しました',
@@ -195,7 +196,7 @@ export default {
     'ld.ph.prepare': '遠征の準備', 'ld.ph.world': '地形を生成', 'ld.ph.chunks': '周辺の地形を構築', 'ld.ph.player': 'ハンターを準備', 'ld.ph.monster': 'モンスターを準備', 'ld.ph.ui': '画面を準備',
     'region.caldera': '火口', 'region.core': '火山中央地帯', 'region.canyon': '溶岩渓谷', 'region.peaks': '火山山岳地帯', 'region.ashplain': '火山灰平原', 'region.fungal': '森林・菌類地帯', 'region.crystal': '巨大鉱物地帯', 'region.ruins': '古代遺跡', 'region.geotherm': '地熱地帯', 'region.coast': '海岸地帯', 'region.sea': '外海',
     'dragon.flame': '火焔龍', 'dragon.flameUpper': '火焔龍（上位個体）', 'dragon.venom': '毒牙龍', 'dragon.cindaryl': 'シンダリル', 'dragon.cindaryl.title': '猛毒姫', 'fauna.drake': '燼皮',
-    'fauna.sighted': '{n} を発見', 'f.deflect': '弾かれた！', 'f.regrew': '{m}の{p}が再生した', 'pt.ok': '健在', 'pt.hurt': '損傷', 'pt.heavy': '重傷', 'pt.broken': '破壊', 'pt.regen': '再生中', 'fauna.beetle': 'マグマビートル', 'fauna.slime': 'マグマスライム', 'fauna.bird': 'アッシュバード',
+    'fauna.sighted': '{n} を発見', 'f.deflect': '弾かれた！', 'cv.prompt': '{k}剥ぎ取る — {w}', 'cv.offline': '港で出航手続きをしていないため、素材は記録されません', 'cv.failed': '剥ぎ取れなかった', 'cv.err.rate': '短時間に剥ぎ取りすぎです', 'cv.err.full': '剥ぎ取り袋がいっぱいです。港へ戻りましょう', 'cv.err.too_early': '上陸直後は剥ぎ取れません', 'cv.err.no_expedition': '遠征が終了しています', 'pt.piece': '剥がれ落ちた部位', 'isl.returned': '{n}回剥ぎ取って港へ戻った', 'isl.offline': 'オフラインで上陸しました（素材は記録されません）', 'f.regrew': '{m}の{p}が再生した', 'pt.ok': '健在', 'pt.hurt': '損傷', 'pt.heavy': '重傷', 'pt.broken': '破壊', 'pt.regen': '再生中', 'fauna.beetle': 'マグマビートル', 'fauna.slime': 'マグマスライム', 'fauna.bird': 'アッシュバード',
     'island.return': '港へ戻る', 'island.returnQ': '探索を終えて港へ戻りますか？', 'island.enter': '{r} に入った', 'wm.island': '火山島を探索（β）', 'wm.islandSub': '島の全域を自由に探索します。報酬は出ません（開発中）。',
     'ld.tip.0': '燼に焼き締められた甲殻には、水と氷がよく通る。', 'ld.tip.1': '霜羊歯の軟膏は火やられを鎮め、しばらく炎を防ぐ。', 'ld.tip.2': '部位を壊せば素材が増える。切った尻尾は剥ぎ取れる。', 'ld.tip.3': '眩光の実は飛んでいる相手を地に落とす。', 'ld.tip.4': '使わなかった道具は、狩りのあとボックスへ戻る。',
     'dlg.d.where1': 'どこへでも連れてってやるぜ！', 'dlg.d.where2': 'さて、今日はどこへ向かうんだ？', 'dlg.d.where3': '海図は広げてある。潮もいい。行き先を言いな。',
@@ -214,6 +215,7 @@ export default {
   },
   // ---------------------------------------------------------------- game data (ids from gamedata.js)
   items: {
+    ...Object.fromEntries(Object.entries(ISLAND_ITEMS).map(([k, v]) => [k, [v.ja, v.jaDesc]])),
     potion: ['翠の回復薬', '苦みのある薬草の水薬。傷を癒やし、体力をそこそこ回復する。'],
     megaPotion: ['蜜仕立ての回復薬', '蜂蜜でとろみをつけた水薬。体力を大きく回復する。'],
     ancientDraught: ['古の秘薬', '伝説に語られる霊薬。体力とスタミナを全快させ、しばし活力を与える。'],
@@ -298,6 +300,7 @@ export default {
   parts: { head: '頭部', forelegs: '前脚', back: '背中', tail: '尾', body: '胴体', wings: '翼', legs: '脚', fistL: '左拳', fistR: '右拳', shell: '外殻', crystal: '結晶', claw: '爪', core: 'コア', arm: '腕', mound: '地表' },
   elements: { fire: '火', water: '水', thunder: '雷', ice: '氷', dragon: '龍', blast: '爆破' },
   dests: {
+    island: ['火山島', '霊峰カルドリスを中心とする火山島の全域。', '残り火の海'],
     ember_foothills: ['燼落の裾野', '霊峰カルドリスの開けた裾野。黒い溶岩原と噴気孔、古い玄武岩の尾根が燻る山頂の下に広がる。燼皮のヴァルクルが縄張りとする地。', '燼の大地シンダーリーチ'],
     ashfang_wastes: ['灰牙の荒地', '火山灰に埋もれた荒れ地。溶岩の堀、倒れた岩柱、崩れた石橋が続き、燼翼のシンドラルが空から動くものすべてを爆撃する。', '燼の大地シンダーリーチ'],
     cinderdeep_hollow: ['燼底の大空洞', '火山の地下に広がる巨大な空洞。溶岩の滝が照らし、蒸気が立ち込める。燼拳のゴルヴァスの足音が大地を揺らす。', '燼の大地シンダーリーチ'],

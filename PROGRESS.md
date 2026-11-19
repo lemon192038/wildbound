@@ -128,6 +128,38 @@ Status legend: ✅ implemented and tested here · 🟡 partial · ⬜ not implem
   - The break banner named the wrong monster when several were around.
 - Observed in simulation: an adult boar herd broke the wolves' jaws, and the jawless pack retreated.
 
+## Stage 5a: Materials, rights and field carving (2026-11-19)
+
+| Item | Status | Notes |
+|---|---|---|
+| Island materials: 61 new items (every species, special individuals and the 3 new dragons) with an `attr` hint for the forge (fire / poison / hardness / crystal / weight / agility…) | ✅ | `src/shared/islandLoot.js`; JA + EN names |
+| Loot tables: body carve table + number of body carves per carcass + material per broken part; the 3 original bosses use their own carve/break tables | ✅ | |
+| Rights: part material only for hunters who damaged THAT part; body material for anyone who damaged the creature anywhere; nobody else; not decided by the last hit | ✅ | `src/core/rights.js`, recorded by the client that dealt the damage |
+| Broken parts drop as glowing pieces on the ground (only the right-holders can pick them up); they crumble after 150 s | ✅ | |
+| Carcasses stay; carving = walk up + E / touch CARVE (weapon sheathed); never auto-added to the inventory; a carcass you have rights to is kept ≥ 150 s; scavenged or decayed carcasses cannot be carved | ✅ | |
+| Server-authoritative carving: `departIsland` / `islandCarve` / `returnIsland`. The material is decided by the server and goes straight into the item box; carve ids are idempotent; per-carcass and per-part limits; kill-rate limits; 1 boss carcass per 8 min; 400 carves per expedition; nothing claimable after returning | ✅ | 14 API tests (SQLite + pg-mem) |
+| World map: sailing to the island registers the expedition (resume works); the pause menu returns to port through the server; offline play still works but shows that nothing is recorded | ✅ | the world-map button was not clicked in a browser (login UI) ❓ |
+| Simultaneous carving by several players | 🟡 | the server handles concurrent requests per user (5 parallel → 1 grant). Fauna are not shared between co-op clients yet, so each hunter carves their own copy (stage 8) |
+| The kill itself is not server-verified | 🟡 | the island is not server-simulated yet (stage 8); rate limits and caps bound abuse |
+| Potions used on the island are not deducted (carried items return in full) | 🟡 | stage 5b (potions / item use) |
+| Forge recipes using the island materials, armour slots, weapon categories, enchanting | ⬜ | stage 5b |
+
+### Stage 5a tests (2026-11-19)
+- `server/api.test.mjs`: 80 passed, on both SQLite and pg-mem (+14 island tests):
+  - Idempotent carve id; 5 parallel carves of one slot → exactly 1 grant.
+  - A boar has only 3 body carves; a boar has no wings.
+  - Unknown creatures are rejected.
+  - Cindral uses its own break table, and there is a boss cooldown.
+  - Lizard kill-rate limit.
+  - Return to port; nothing is claimable afterwards.
+- End-to-end (real local server + headless browser):
+  - Landed with the expedition id.
+  - A carcass killed by another creature is not carvable.
+  - A boar I fought: its broken crystal dropped as a piece; E picked up the piece and made 3 body carves.
+  - The server item box shows Crystal Boar Hide ×3 + Mineral Crystal ×1.
+  - The prompt disappears when nothing is left. No errors.
+- Bug found and fixed: the carving lock counted frames, not real time (at 2 fps a carve took ~27 s).
+
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
   - island content

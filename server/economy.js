@@ -8,6 +8,7 @@ import {
   DESTINATIONS, destForMonster, FREE_EXPEDITION,
 } from '../src/shared/gamedata.js';
 
+import { ISLAND_LOOT, ISLAND_LIMITS } from '../src/shared/islandLoot.js';
 export class GameError extends Error { constructor(code, message) { super(message || code); this.code = code; } }
 const fail = (code, msg) => { throw new GameError(code, msg); };
 const int = (v, lo, hi) => (Number.isInteger(v) && v >= lo && v <= hi ? v : fail('bad_qty', 'Invalid quantity'));
@@ -178,6 +179,7 @@ export const ACTIONS = {
   },
   completeQuest(d, { iid, report }, { now, rand }) {
     const ex = d.quests.expedition; if (!ex || ex.iid !== iid) fail('no_expedition', 'That hunt is not active (already reported?)');
+    if (ex.island) fail('island', 'Island expeditions end with returnIsland');
     if (ex.free) return completeFree(d, ex, report, now, rand);
     const q = QUESTS[ex.qid]; const elapsed = (now - ex.at) / 1000; const r = sanitizeReport(report, q);
     // Too early: refuse WITHOUT consuming the expedition, so an honest (fast) client can simply retry later.
@@ -189,6 +191,54 @@ export const ACTIONS = {
     const rewards = grant(d, q, ex.qid, r, now, rand);
     pushHistory(d, { t: now, qid: ex.qid, ok: true, s: Math.round(elapsed) });
     return { msg: `Quest complete: ${q.name}`, ok: true, rewards, elapsed: Math.round(elapsed) };
+  },
+  // ---------------------------------------------------------------- island expeditions (stage 5)
+  // The open island has no quest: you sail out, hunt freely and CARVE on the spot. Each carve is a separate,
+  // idempotent server call keyed by a client-made carve id (retries / double taps never grant twice). The server
+  // checks the material tables, per-carcass carve counts, kill-rate limits and a per-expedition cap. Rights (who
+  // damaged which part) are decided by the client that dealt the damage — the island is not server-simulated yet
+  // (stage 8), so these limits are what keeps a modified client in check.
+  departIsland(d, p, { now }) {
+    if (d.quests.expedition) fail('busy', 'Already on a hunt');
+    const carried = { ...d.pouch }; d.pouch = {};
+    const iid = crypto.randomBytes(9).toString('base64url');
+    d.quests.expedition = { iid, qid: null, dest: 'island', island: true, free: true, at: now, carried, carved: {}, kills: {}, n: 0 };
+    return { msg: 'Setting sail for the Volcanic Island', iid, dest: 'island', carried };
+  },
+  islandCarve(d, { iid, cid, src, part } = {}, { now, rand }) {
+    const ex = d.quests.expedition; if (!ex || !ex.island || ex.iid !== iid) fail('no_expedition', 'Not on an island expedition');
+    if (typeof cid !== 'string' || !/^[A-Za-z0-9._:-]{3,64}$/.test(cid)) fail('bad_carve', 'Bad carve id');
+    if (ex.carved[cid]) return { dup: true, item: ex.carved[cid], msg: 'Already carved' };            // idempotent retry
+    const L = has(ISLAND_LOOT, src) ? ISLAND_LOOT[src] : null; if (!L) fail('bad_source', 'Unknown creature');
+    const isPart = typeof part === 'string' && part !== 'body';
+    const table = L.from ? MONSTERS[L.from] : null;
+    const partItem = isPart ? (table ? table.breaks?.[part] : L.parts?.[part]) : null;
+    if (isPart && !partItem) fail('bad_part', 'That part yields nothing');
+    if ((now - ex.at) / 1000 < ISLAND_LIMITS.minSecondsAfterDepart) fail('too_early', 'Too soon after landing');
+    if (ex.n >= ISLAND_LIMITS.maxCarves) fail('full', 'Your carving kit is full — return to port');
+    // carve id = <entity>:<slot>; slot b<k> = k-th body carve (k < carves), p:<part> = the dropped part
+    const [entity, slot] = cid.split(':'); if (!entity || !slot) fail('bad_carve', 'Bad carve id');
+    if (isPart ? slot !== 'p' + part : !/^b\d$/.test(slot) || +slot.slice(1) >= L.carves) fail('bad_carve', 'Nothing left to carve');
+    // kill-rate limit: distinct carcasses of this source per minute (bosses: one per cooldown)
+    const k = (ex.kills[src] ||= []); const known = k.some((e) => e[0] === entity);
+    if (!known) {
+      const recent = k.filter((e) => now - e[1] < 60000).length;
+      if (L.from || src === 'flame' || src === 'venom' || src === 'cindaryl') { if (k.some((e) => now - e[1] < ISLAND_LIMITS.bossCooldownMin * 60000)) fail('rate', 'That quarry was just carved'); }
+      else if (recent >= (ISLAND_LIMITS.killsPerMin[src] ?? ISLAND_LIMITS.killsPerMinDefault)) fail('rate', 'Carving too fast');
+      k.push([entity, now]); if (k.length > 60) k.splice(0, k.length - 60);
+    }
+    const item = partItem || (table ? weighted(table.carves, rand) : weighted(L.body, rand));
+    give(d.box, item, 1); ex.carved[cid] = item; ex.n++;
+    return { item, msg: `Carved ${ITEMS[item]?.name || item}` };
+  },
+  returnIsland(d, { iid, used } = {}, { now }) {
+    const ex = d.quests.expedition; if (!ex || !ex.island || ex.iid !== iid) fail('no_expedition', 'Not on an island expedition');
+    const u = {}; for (const [k, v] of Object.entries(used || {})) if (ITEMS[k] && Number.isFinite(v)) u[k] = Math.max(0, Math.min(99, Math.floor(v)));
+    returnCarried(d, ex.carried, u);
+    const items = {}; for (const it of Object.values(ex.carved)) items[it] = (items[it] || 0) + 1;
+    d.quests.expedition = null;
+    pushHistory(d, { t: now, qid: null, dest: 'island', free: true, ok: true, hunted: ex.n > 0, s: Math.round((now - ex.at) / 1000) });
+    return { msg: 'Returned from the Volcanic Island', ok: true, carves: ex.n, items };
   },
   failQuest(d, { iid, report, reason }, { now }) {
     const ex = d.quests.expedition; if (!ex || ex.iid !== iid) fail('no_expedition', 'That hunt is not active');
@@ -283,7 +333,7 @@ export function equipValue(e) {
 // Expire hunts that were never reported (crashed tab, closed browser): items carried are returned.
 export function expireStale(d, now) {
   const ex = d.quests.expedition; if (!ex) return false;
-  const limit = ex.free ? FREE_EXPEDITION.timeLimit : QUESTS[ex.qid]?.timeLimit; if (!limit || now - ex.at > (limit + 600) * 1000) { returnCarried(d, ex.carried, {}); d.quests.expedition = null; pushHistory(d, { t: now, qid: ex.qid, ok: false, why: 'Expired', s: 0 }); return true; }
+  const limit = ex.island ? ISLAND_LIMITS.expireHours * 3600 : ex.free ? FREE_EXPEDITION.timeLimit : QUESTS[ex.qid]?.timeLimit; if (!limit || now - ex.at > (limit + 600) * 1000) { returnCarried(d, ex.carried, {}); d.quests.expedition = null; pushHistory(d, { t: now, qid: ex.qid, ok: false, why: 'Expired', s: 0 }); return true; }
   return false;
 }
 
@@ -297,7 +347,7 @@ export function publicState(d, user, now) {
     equip: d.equip.map((e) => ({ ...e, value: equipValue(e) })), loadout: d.loadout, sets: d.sets, stats: loadoutStats(d.equip, d.loadout),
     crafted: d.crafted, craftLog: d.craftLog.slice(-30),
     recipes: Object.fromEntries(Object.keys(RECIPES).map((k) => [k, recipeUnlocked(RECIPES[k], d)])),
-    quests: { cleared: d.quests.cleared, active: d.quests.active, expedition: d.quests.expedition ? { iid: d.quests.expedition.iid, qid: d.quests.expedition.qid, dest: d.quests.expedition.dest || destForMonster(QUESTS[d.quests.expedition.qid]?.monster), free: !!d.quests.expedition.free, at: d.quests.expedition.at, carried: d.quests.expedition.carried } : null, history: d.quests.history.slice(-30),
+    quests: { cleared: d.quests.cleared, active: d.quests.active, expedition: d.quests.expedition ? { iid: d.quests.expedition.iid, qid: d.quests.expedition.qid, dest: d.quests.expedition.dest || destForMonster(QUESTS[d.quests.expedition.qid]?.monster), free: !!d.quests.expedition.free, island: !!d.quests.expedition.island, carves: d.quests.expedition.n || 0, at: d.quests.expedition.at, carried: d.quests.expedition.carried } : null, history: d.quests.history.slice(-30),
       available: Object.fromEntries(Object.keys(QUESTS).map((k) => [k, questAvailable(k, d)])) },
     hunts: d.hunts, areas: d.areas,
     shop: Object.fromEntries(Object.entries(d.shop).map(([k, s]) => [k, { left: s.left, restockAt: s.at + SHOP.restockMinutes * 60000 }])),

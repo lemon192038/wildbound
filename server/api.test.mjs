@@ -146,6 +146,37 @@ r = await act(A, 'depart', { mode: 'quest' });
 ok(r.ok && r.result.dest === 'ember_foothills' && !r.state.quests.expedition.free, 'quest expedition goes to its monster\'s destination (Varkhul → Emberfall Foothills)');
 await act(A, 'failQuest', { iid: r.result.iid }); await act(A, 'abandonQuest');
 
+// ---- island expeditions (stage 5): field carving, idempotent, limited
+{
+  ok((await act(B, 'islandCarve', { iid: 'nope', cid: 'x1:b0', src: 'beetle' })).error === 'no_expedition', 'cannot carve without an island expedition');
+  let r = await act(B, 'departIsland'); const iiid = r.result.iid;
+  ok(r.ok && r.state.quests.expedition.island && r.state.quests.expedition.dest === 'island', 'depart for the island');
+  ok((await act(B, 'departIsland')).error === 'busy' && (await act(B, 'depart', { mode: 'free', dest: 'cinderdeep_hollow' })).error === 'busy', 'one expedition at a time');
+  ok((await act(B, 'islandCarve', { iid: iiid, cid: 's1.7:b0', src: 'boar' })).error === 'too_early', 'no carving right after landing');
+  clock += 30 * 1000;
+  const box0 = (await call('/api/state', null, B)).state.box;
+  r = await act(B, 'islandCarve', { iid: iiid, cid: 's1.7:b0', src: 'boar' });
+  ok(r.ok && ['cb_hide', 'cb_crystal', 'cb_tusk'].includes(r.result.item) && r.state.box[r.result.item] === (box0[r.result.item] || 0) + 1, `boar body carve → ${r.result?.item} straight into the box`);
+  const again = await act(B, 'islandCarve', { iid: iiid, cid: 's1.7:b0', src: 'boar' });
+  ok(again.ok && again.result.dup && again.result.item === r.result.item && again.state.box[r.result.item] === r.state.box[r.result.item], 'the same carve id never grants twice (retry / double tap)');
+  const same = await Promise.all(Array.from({ length: 5 }, () => act(B, 'islandCarve', { iid: iiid, cid: 's1.7:b1', src: 'boar' })));
+  const st = (await call('/api/state', null, B)).state;
+  ok(same.filter((x) => x.ok && !x.result.dup).length === 1 && st.quests.expedition.carves === 2, '5 simultaneous carves of one slot → exactly one grant');
+  ok((await act(B, 'islandCarve', { iid: iiid, cid: 's1.7:b3', src: 'boar' })).error === 'bad_carve', 'a boar has only 3 body carves');
+  r = await act(B, 'islandCarve', { iid: iiid, cid: 's1.7:pcrystal', src: 'boar', part: 'crystal' });
+  ok(r.ok && r.result.item === 'cb_crystal', 'broken crystal part → Mineral Crystal');
+  ok((await act(B, 'islandCarve', { iid: iiid, cid: 's1.7:pwings', src: 'boar', part: 'wings' })).error === 'bad_part', 'a boar has no wings to carve');
+  ok((await act(B, 'islandCarve', { iid: iiid, cid: 's1.8:b0', src: 'unicorn' })).error === 'bad_source', 'unknown creatures rejected');
+  r = await act(B, 'islandCarve', { iid: iiid, cid: 's1.9:pwings', src: 'wyvern', part: 'wings' });
+  ok(r.ok && r.result.item === 'cw_membrane', 'island Cindral wing break uses its own break table');
+  ok((await act(B, 'islandCarve', { iid: iiid, cid: 's1.10:b0', src: 'wyvern' })).error === 'rate', 'one Cindral carcass per cooldown (no farming)');
+  let rate = null; for (let i = 0; i < 6; i++) rate = await act(B, 'islandCarve', { iid: iiid, cid: `s1.l${i}:b0`, src: 'lizard' });
+  ok(rate.error === 'rate', 'too many lizard carcasses per minute → rate limited');
+  r = await act(B, 'returnIsland', { iid: iiid, used: {} });
+  ok(r.ok && !r.state.quests.expedition && r.result.carves >= 6, `return to port (${r.result?.carves} carves)`);
+  ok((await act(B, 'returnIsland', { iid: iiid })).error === 'no_expedition' && (await act(B, 'islandCarve', { iid: iiid, cid: 's1.99:b0', src: 'beetle' })).error === 'no_expedition', 'nothing can be claimed after returning');
+}
+
 // ---- persistence across login
 const stA = (await call('/api/state', null, A)).state;
 ok((await call('/api/logout', {}, A)).ok && (await call('/api/state', null, A)).status === 401, 'logout invalidates the session');

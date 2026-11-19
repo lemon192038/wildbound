@@ -160,7 +160,21 @@ async function bootIsland() {
   const { createFauna } = await import('./fauna/fauna.js');
   game.fauna = createFauna(game);                 // small fauna: Magma Beetle, Magma Slime, Ash Bird (local simulation)
   game.events.on('fauna:sighted', ({ species }) => game.ui?.toast?.(t('fauna.sighted', { n: t('fauna.' + species) })));
-  game.questRuntime = { label: t('island.return'), confirm: t('island.returnQ'), abandon: () => { const u = new URL(location.href); const k = new URLSearchParams(); for (const n of ['low', 'hq', 'touch', 'lang']) if (u.searchParams.has(n)) k.set(n, u.searchParams.get(n)); k.set('mode', 'town'); location.href = `${u.pathname}?${k}`; } };
+  // island expedition (server): ?iid=… from the world map. Resolved in the background (a sleeping server must not
+  // delay landing); carving checks it at carve time. Without it the island is playable but nothing is recorded.
+  const expedition = { iid: null };
+  (async () => {
+    const st = await game.account.restore().catch(() => null); const ex = st?.quests?.expedition;
+    if (ex?.island && (!game.params.get('iid') || game.params.get('iid') === ex.iid)) expedition.iid = ex.iid;
+    else game.ui?.toast?.(t('isl.offline'));
+  })();
+  const { createCarving } = await import('./field/carving.js');
+  const carving = createCarving(game, { expedition }); game.carving = carving; game.addUpdater((dt, rawDt) => carving.update(rawDt));
+  const toTown = () => { const u = new URL(location.href); const k = new URLSearchParams(); for (const n of ['low', 'hq', 'touch', 'lang']) if (u.searchParams.has(n)) k.set(n, u.searchParams.get(n)); k.set('mode', 'town'); location.href = `${u.pathname}?${k}`; };
+  game.questRuntime = { label: t('island.return'), confirm: t('island.returnQ'), abandon: async () => {
+    if (expedition.iid) { const r = await game.account.act('returnIsland', { iid: expedition.iid, used: {} }); if (r.ok) game.ui?.toast?.(t('isl.returned', { n: r.result.carves })); }
+    setTimeout(toTown, 600);
+  } };
   game.events.on('world:region', ({ id }) => game.ui?.toast?.(t('island.enter', { r: t('region.' + id) })));
   game.loading.set('ui', 1); bootMark('ui');
   if (game.input.touch) { if (game.params.get('shot') === '1') game.input.touch.show(); else game.events.on('ui:start', () => game.input.touch.show()); }

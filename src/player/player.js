@@ -2,6 +2,7 @@
 // charge levels, hitstop), damage intake, death/respawn, lock-on, autoplay debug. Also remote hunters for co-op.
 import * as THREE from 'three';
 import { deflects, wearFactor } from '../core/parts.js';
+import { noteDamage } from '../core/rights.js';
 import { HunterView } from './hunterView.js';
 import { CLIPS } from './anim.js';
 import { WeaponTrail, Sparks } from './vfx.js';
@@ -141,6 +142,7 @@ export async function createPlayer(game) {
         const glance = deflects(hard, P.sharpness, P.state);
         let damage = mv * ATTACK_POWER * G.atk * G.buffAtk * sharpMult(P.sharpness) * G.sharp * (isCrit ? 1.25 : weakHit ? 0.75 : 1) * (glance ? 0.35 : 1);
         const el = G.element; if (el && el.type !== 'blast') damage += el.value * 0.05 * (m.weakness?.[el.type] ?? 1) * Math.min(1.5, mv / 0.4 + 0.3);
+        noteDamage(m, 'local', hb.part); // material rights: this hunter damaged this part (and so the body)
         const res = m.receiveHit({ damage, part: hb.part, point, normal: _n.clone(), attackerId: 'local', isCrit, element: el?.type, elementValue: el?.value || 0, mv });
         const hz = m.parts?.find((p) => p.name === hb.part)?.hitzone ?? 1;
         const dealt = res && typeof res === 'object' && res.damage != null ? res.damage : typeof res === 'number' ? res : Math.round(damage * hz);
