@@ -260,6 +260,7 @@ export function stepEco(W, dt) {
       if (r() > Math.min(1, dt / 900)) continue;
       const nr = L.nestRegion; if (nr && !T.regs.some((g) => nr.includes(g)) && r() > 0.3) continue; // preferred nest ground (elsewhere: rarely)
       const clutch = L.clutch[0] + Math.floor(r() * (L.clutch[1] - L.clutch[0] + 1));
+      if (L.mode === 'split' && W.rampage) T.cd[sp] = 0; // the awakened slime pours out spawn
       if (L.mode === 'split') { const a = T.p[sp]; const big = a[3] > 0 ? 3 : 2; a[big]--; a[1] += 2; St.births++; T.cd[sp] = L.cooldown; continue; } // slimes split into two young
       const gid = SPECIES[sp].group ? (T.g.filter((g) => g.sp === sp).sort((a, b) => sum(b.n) - sum(a.n))[0]?.id) : undefined;
       T.nest.push({ sp, n: clutch, t: L.incubate, dx: Math.floor(8 + r() * (TILE - 16)), dz: Math.floor(8 + r() * (TILE - 16)), gid, kind: L.mode });
@@ -289,7 +290,9 @@ export function pushOf(W, T, sp) {
   const hunted = Math.min(0.6, T.hunt * 0.15) * (0.5 + ECO[sp].iq);
   const nest = inSeason(W, sp) && ECO[sp].nestRegion && !T.regs.some((g) => ECO[sp].nestRegion.includes(g)) ? 0.3 : 0;
   const injured = Math.min(0.4, (T.inj[sp] || 0) * 0.2);
-  return clamp(food + preds + crowd + volcano + hunted + nest + injured, 0, 1);
+  // Volcano Slime awake: rampaging slime swarms drive everything else out of slime ground (habitats shift for a while)
+  const rampage = W.rampage && sp !== 'slime' && popOf(T, 'slime') > 0 ? (sp === 'golem' ? 0.1 : 0.5) : 0;
+  return clamp(food + preds + crowd + volcano + hunted + nest + injured + rampage, 0, 1);
 }
 function migrate(W, dt, r) {
   const St = W.stats; const N8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]];

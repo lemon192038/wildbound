@@ -11,7 +11,7 @@ function setup(region = 'ashplain', { river = false } = {}) {
   const events = { on: (k, f) => (handlers[k] ||= []).push(f), emit: (k, e) => (handlers[k] || []).forEach((f) => f(e)) };
   const half = 1152;
   // optional lava river along the z axis: |x| < 6 is lava (surface y = 3, bed y = 1), banks at y = 5
-  const F = { half, seed: 1337, regionAt: () => region, lava: (x, z, o = {}) => { if (river) { o.sd = Math.abs(x) - 6; o.level = 3; } else { o.sd = 100; o.level = -10; } return o; } };
+  const F = { half, seed: 1337, crater: { x: 0, z: 0, r: 125, lake: 268 }, regionAt: () => region, lava: (x, z, o = {}) => { if (river) { o.sd = Math.abs(x) - 6; o.level = 3; } else { o.sd = 100; o.level = -10; } return o; } };
   const world = { island: F, low: true, colliders: [], getHeight: (x) => (river && Math.abs(x) < 6 ? 1 : 5), canWalk: () => true, spawnDust() {}, spawnSplash() {}, chunks: { tileOf: (x, z) => [Math.floor((x + half) / 64), Math.floor((z + half) / 64)] } };
   const damage = { taken: 0, hits: 0 };
   const player = { position: new THREE.Vector3(0, 5, 0), state: 'idle', hp: 150, maxHp: 150, receiveHit({ damage: d }) { damage.taken += d; damage.hits++; this.hp -= d; return true; } };
@@ -227,6 +227,19 @@ const alive = (f, sp) => f.list.filter((c) => !c.dead && (!sp || c.sp === sp));
   ok(legs.broken, `wolves broke the boar's legs (legs ${Math.round(legs.hp)}/${legs.maxHp})`);
   step(1); ok(herd.state === 'flee' || herd.state === 'defend', `the herd withdraws / defends around the injured (${herd.state})`);
   ok(disabled(victim.parts, 'charge'), 'crippled boar can no longer charge (injury persists after the fight)');
+}
+{ // Volcano Slime awake: Magma Slimes rampage — they attack creatures and hunters; others flee, golems fight, moles hide
+  const { game, fauna, player, damage, step } = setup('geotherm'); step(1);
+  const sl = alive(fauna, 'slime'); const b = fauna.spawnOne('beetle', 6, 0, 2); const g = fauna.spawnOne('golem', -6, 3, 2); const mo = fauna.spawnOne('mole', 4, -6, 2);
+  for (const [i, s] of sl.slice(0, 4).entries()) s.pos.set(2 + i * 0.5, 5, 2);
+  if (sl.length < 2) { const a = fauna.spawnOne('slime', 2, 2, 2); const c = fauna.spawnOne('slime', 2.5, 2.5, 2); sl.push(a, c); }
+  player.position.set(30, 5, 30); game.volcanoRampage = true; step(6);
+  ok((fauna.stats.rampageHits || 0) > 0, `rampaging slimes attack other creatures (${fauna.stats.rampageHits || 0} hits)`);
+  ok((fauna.stats.rampageFled || 0) > 0, 'other creatures flee the swarm');
+  ok(mo.dead || mo.under, 'burrowers go underground');
+  player.position.set(sl[0].pos.x + 3, 5, sl[0].pos.z); const d0 = damage.taken; step(4);
+  ok(damage.taken > d0, `rampaging slimes attack hunters too (${damage.taken - d0} dmg)`);
+  game.volcanoRampage = false;
 }
 console.log(fails ? `${fails} FAILED` : 'all fauna tests passed');
 process.exit(fails ? 1 : 0);

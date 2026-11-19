@@ -8,7 +8,8 @@ const pick = (a, seed) => a[Math.abs(seed) % a.length];
 const short = (m) => (m ? monsterShort(m) : t('dlg.theBeast'));
 const pl = (n) => (n > 1 ? 's' : '');
 
-export function dialogueFor(id, s, visits = 0) {
+export const SAGE_HINTS = 13;
+export function dialogueFor(id, s, visits = 0, world = {}) {
   const name = s?.user?.name || t('dlg.hunter'); const actId = s?.quests?.active?.qid; const act = actId && QUESTS[actId]; const ex = s?.quests?.expedition;
   const hr = s?.profile?.hr || 1; const v = visits; const q = act ? questName(actId) : '';
   const L = (lines, open, extra = []) => ({ lines: lines.filter(Boolean), choices: [...(open ? [{ id: 'open', label: open }] : []), ...extra, { id: 'leave', label: t('dlg.farewell') }] });
@@ -52,6 +53,10 @@ export function dialogueFor(id, s, visits = 0) {
       const line2 = dq ? t('dlg.d.questTo', { q, d: destName(dq), m: short(act.monster) })
         : act?.type === 'deliver' ? t('dlg.d.deliver') : t('dlg.d.free');
       return L([where, line2, (s.pouch?.potion || 0) ? '' : t('dlg.d.light')], t('dlg.d.map'));
+    }
+    case 'sage': { // Mame Chishikii: monster lore without names; the volcano line changes when the lava has stopped
+      const stopped = world.volcano && (world.volcano.phase === 'stopped' || (world.volcano.flow ?? 1) <= 0);
+      return L([visits === 0 ? t('dlg.sage.hi') : '', t('dlg.sage.h' + (visits % SAGE_HINTS)), stopped ? t('dlg.sage.stopped') : t('dlg.sage.deep')], t('dlg.sage.more'));
     }
     default: return L(['…'], t('dlg.open'));
   }

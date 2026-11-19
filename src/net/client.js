@@ -103,6 +103,7 @@ function startOnline(game, net, params, remote = '') {
   };
   on('hit', (e) => {
     if (!net.connected || net.isHost || !e || e.attacker !== 'local') return;
+    if (e.target?.worldBoss) return; // the Volcano Slime takes damage on the server, not through the host
     const ti = game.monsters.indexOf(e.target);
     if (e.target && ti < 0) return; // not a monster hit
     // Send an INTENT, never damage: the host recomputes damage from the motion value table.

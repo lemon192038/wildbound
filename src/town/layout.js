@@ -42,6 +42,7 @@ export const SPOTS = {
   shop: { npc: [42.75, -14, -Math.PI / 2], talk: [39.1, -14] },
   storage: { npc: [-42.8, -18, Math.PI / 2], talk: [-39.3, -18] },
   dock: { npc: [1.6, -71.2, 0], talk: [1.6, -68.0] },
+  sage: { npc: [-9.5, -7.5, Math.PI * 0.8], talk: [-8.2, -10.3] }, // Mame Chishikii, the old know-it-all by the fountain
 };
 
 // blocked footprints inside walkable prims: rects [x0,x1,z0,z1] or circles {c:[x,z], r}

@@ -60,6 +60,7 @@ import { motionValue, MAX_REACH } from '../src/net/hitcheck.js';
 import { openStore } from './store.js';
 import { createApi } from './api.js';
 import { createWorld } from './world.js';
+import { createVolcano } from './volcano.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -141,8 +142,12 @@ export function startServer({ port = Number(process.env.PORT ?? 8080), host = pr
   const storeReady = givenStore ? Promise.resolve(givenStore) : openStore({ url: databaseUrl, file: dbPath, log });
   let api = null;
   // the island ecosystem runs here, authoritatively (server/world.js); ECO=0 disables it
-  const worldReady = process.env.ECO === '0' ? Promise.resolve(null) : storeReady.then((st) => createWorld(st, { log })).catch((e) => { log('[wildbound] ecosystem failed:', e.message); return null; });
-  storeReady.then((st) => { api = createApi(st, { allowedOrigins, log, world: worldReady }); }).catch((e) => log('[wildbound] store failed:', e.message));
+  // the hidden Volcano Slime world event (server/volcano.js): slime kills reported through the ecosystem drive it
+  let worldRef = null;
+  const volcanoReady = storeReady.then((st) => createVolcano(st, { log, onPhase: (p) => worldRef?.setRampage(p === 'awakened') })).catch((e) => { log('[wildbound] volcano event failed:', e.message); return null; });
+  const worldReady = process.env.ECO === '0' ? Promise.resolve(null) : Promise.all([storeReady, volcanoReady]).then(([st, vol]) => createWorld(st, { log, onSlimeKill: (n) => vol?.slimeKilled(n) }))
+    .then((w) => { worldRef = w; volcanoReady.then((v) => w?.setRampage(v?.state.phase === 'awakened')); return w; }).catch((e) => { log('[wildbound] ecosystem failed:', e.message); return null; });
+  storeReady.then((st) => { api = createApi(st, { allowedOrigins, log, world: worldReady, volcano: volcanoReady }); }).catch((e) => log('[wildbound] store failed:', e.message));
   function routeApi(req, res, pathname) {
     storeReady.then(() => api.handle(req, res, pathname)).catch(() => { res.writeHead(503, { 'Content-Type': 'application/json' }); res.end('{"ok":false,"error":"store"}'); });
   }
@@ -438,7 +443,7 @@ export function startServer({ port = Number(process.env.PORT ?? 8080), host = pr
     for (const c of clients) { send(c, { t: 'bye' }); try { c.ws.close(1001, 'server shutdown'); } catch { /* */ } }
     await new Promise((r) => { server.close(() => r()); server.closeAllConnections?.(); setTimeout(r, 1500).unref(); });
     for (const c of clients) c.ws.terminate();
-    await worldReady.then((w) => w?.close()).catch(() => {}); // persist the ecosystem before the store closes
+    await worldReady.then((w) => w?.close()).catch(() => {}); await volcanoReady.then((v) => v?.close()).catch(() => {}); // persist the ecosystem before the store closes
     if (!givenStore) await storeReady.then((st) => st.close()).catch(() => {});
     log('[wildbound] stopped');
   }

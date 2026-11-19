@@ -175,6 +175,40 @@ export function createFauna(game) {
   }
 
 
+  // ------------------------------------------------------------------ Magma Slime rampage (user spec §6-7)
+  // While the Volcano Slime is awake every Magma Slime turns on everything: hunters and every other creature. They move in
+  // swarms (marching out from the crater, converging on prey). The rest of the island reacts: small creatures flee,
+  // burrowers go underground, predators withdraw, Golems and Crystal Tusks stand and fight.
+  function rampage(c, dt) {
+    const C = F.crater;
+    if (c.sp === 'slime') {
+      c.rcd = (c.rcd || 0) - dt; c.mode = 0; c.engaged = true;
+      const prey = nearestOf(c, 28, (o) => !o.dead && o.sp !== 'slime' && !o.under && o.ai !== 'burrowed');
+      const [h, dH] = nearestHunter(c.pos.x, c.pos.z);
+      const tgt = h && dH < 28 && (!prey || dH < prey.pos.distanceTo(c.pos)) ? { pos: h.pos, hunter: h } : prey ? { pos: prey.pos, creature: prey } : null;
+      if (!tgt) { const a = Math.atan2(c.pos.z - C.z, c.pos.x - C.x) + Math.sin(clock * 0.2 + c.id) * 0.4; steer(c, c.pos.x + Math.cos(a) * 10, c.pos.z + Math.sin(a) * 10, (c.S.speed || 0.8) * 2.2, dt, 3); return true; } // the swarm marches outward
+      const d = steer(c, tgt.pos.x, tgt.pos.z, (c.S.speed || 0.8) * 3.4, dt, 5);
+      if (d < 1.2 * c.scale + 0.9 && c.rcd <= 0) {
+        c.rcd = 1.1; c.squash = 0.7;
+        if (tgt.creature) { hit(tgt.creature, { damage: 40 * c.scale, by: c, part: 'body' }); stats.rampageHits = (stats.rampageHits || 0) + 1; }
+        else if (tgt.hunter?.local) { const ok = game.player.receiveHit?.({ damage: 12 + 4 * c.stage, knockback: 5, from: c.pos.clone(), source: c, kind: 'physical' }); if (ok !== false) game.status?.apply?.('burn', 'small'); }
+      }
+      return true;
+    }
+    const sl = nearestOf(c, c.sp === 'golem' || c.role === 'tusk' ? 18 : 16, (o) => o.sp === 'slime' && !o.dead); if (!sl) return false;
+    if (c.sp === 'golem' || c.role === 'tusk') { // stands and fights
+      c.rcd = (c.rcd || 0) - dt; const d = steer(c, sl.pos.x, sl.pos.z, (c.S.speed || 1.5) * 1.3, dt, 3); c.engaged = true;
+      if (d < 2.2 * c.scale && c.rcd <= 0) { c.rcd = 1.6; hit(sl, { damage: 260, by: c, part: 'body' }); W.spawnDust?.(sl.pos.clone(), 1); }
+      return true;
+    }
+    if (c.sp === 'mole') { c.under = true; c.move = 0; return true; }         // burrowers go deep
+    if (c.sp === 'snake') return false;                                     // the lava is its own
+    if (c.sp === 'bird') { if (c.alt < 1) setAi(c, 'takeoff'); return false; }
+    const a = Math.atan2(c.pos.x - sl.pos.x, c.pos.z - sl.pos.z); // everything else (incl. predators) withdraws
+    steer(c, c.pos.x + Math.sin(a) * 10, c.pos.z + Math.cos(a) * 10, (c.S.speed || 2) * 1.4, dt, 4); c.mode = 3; c.engaged = false; stats.rampageFled = (stats.rampageFled || 0) + 1;
+    return true;
+  }
+
   // ------------------------------------------------------------------ learning (user spec §7-4)
   // Each individual remembers: hits from hunters (and by which move / element), kin killed near it, its nest
   // intruded, its young attacked. Wariness = what the tile's population already learned (ecosystem) + its own
@@ -585,6 +619,7 @@ export function createFauna(game) {
       c.t += sdt; c.flash = Math.max(0, c.flash - sdt * 4); c.heat = Math.max(0, c.heat - sdt); c.burstCd -= sdt;
       if (c.staggerT > 0) { c.staggerT -= sdt; c.move = 0; c.hitDone = true; } // parried: reeling, no attack lands
       else if (c.dodgeT > 0) { c.dodgeT -= sdt; const nx = c.pos.x + c.dodgeDir[0] * 7 * sdt, nz = c.pos.z + c.dodgeDir[1] * 7 * sdt; if (okSpot(nx, nz, c.sp)) { c.pos.x = nx; c.pos.z = nz; } c.move = 1; }
+      else if (game.volcanoRampage && rampage(c, sdt)) { /* the Volcano Slime is awake (src/field/volcano.js) */ }
       else if (learnedDodge(c, d)) { /* side-step started */ }
       else if (c.ai === 'wary') thinkWary(c, sdt);
       else if (wantWary(c, d)) setAi(c, 'wary');

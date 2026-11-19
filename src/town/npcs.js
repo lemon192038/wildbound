@@ -121,6 +121,7 @@ export function createNpcs(game, ctx) {
     alchemy: mk({ bits: B('robe', 'cap'), mode: 3, c1: L(0x4a2a6a), c2: L(0x3a1f4a), c3: L(0x2a8a7a), hair: 0.95, skin: 0.1 }),
     shop: mk({ bits: B('apron', 'hat'), mode: 4, c1: L(0xb87a3a), c2: L(0x4a3a2a), c3: L(0xd8c890), skin: 0.5 }),
     storage: mk({ bits: B('cap', 'beard'), mode: 4, c1: L(0x5a6a3a), c2: L(0x3a3028), c3: L(0x7a5a3a), skin: 0.65, hair: 0.3 }),
+    sage: mk({ bits: B('robe', 'hat', 'beard'), mode: 4, c1: L(0x6a5a3a), c2: L(0x3a2a1a), c3: L(0xd0b070), scale: 0.86, skin: 0.3, hair: 0.98 }),
     dock: mk({ bits: B('hat', 'coat', 'beard'), mode: 4, c1: L(0x1a2a4a), c2: L(0x2a2a30), c3: L(0x101418), scale: 1.05, skin: 0.3, hair: 0.05 }),
   };
   const objects = {};

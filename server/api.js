@@ -6,6 +6,8 @@
 //   POST /api/action   {type, ...payload}     → {ok, result, state} | {ok:false, error, message}
 //   GET  /api/eco?x=&z=&r=                    → island ecosystem tiles around (x, z) (no login needed)
 //   POST /api/eco/report {events:[...]}       → kills / nest intrusions / injuries seen by this hunter (server/world.js)
+//   GET  /api/volcano                         → the hidden world event's public state (server/volcano.js)
+//   POST /api/volcano/devour | /heartbeat | /damage   → facts from this hunter; the server decides every transition
 // Auth: `Authorization: Bearer <token>`. Tokens are 256-bit random; only their SHA-256 is stored.
 // Passwords: scrypt (N=16384, r=8, p=1, 16-byte salt), compared in constant time; never stored in plain text.
 // Players can only ever touch their own save: the user id comes from the session, never from the request.
@@ -28,7 +30,7 @@ export async function verifyPassword(pw, stored) {
 const NAME_RE = /^[\p{L}\p{N}_\- ]{3,16}$/u;
 const nameKey = (n) => n.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
 
-export function createApi(store, { allowedOrigins = [], log = console.log, now = () => Date.now(), world = null } = {}) {
+export function createApi(store, { allowedOrigins = [], log = console.log, now = () => Date.now(), world = null, volcano = null } = {}) {
   // token buckets: auth attempts per IP, actions per user
   const buckets = new Map();
   const allow = (key, rate, burst) => {
@@ -85,6 +87,11 @@ export function createApi(store, { allowedOrigins = [], log = console.log, now =
         if (!Number.isFinite(x) || !Number.isFinite(z)) return err(res, 400, 'bad_input', 'x and z required');
         return send(res, 200, { ok: true, eco: w.view(x, z, Number(q.get('r') ?? 3)) });
       }
+      if (pathname === '/api/volcano' && req.method === 'GET') {
+        const v = await volcano; if (!v) return err(res, 503, 'no_event', 'The world event is not running');
+        if (!allow('vol:' + ip, 2, 20)) return err(res, 429, 'rate', 'Slow down');
+        const who = await auth(req).catch(() => null); return send(res, 200, { ok: true, volcano: v.view(who?.user.id) });
+      }
       if (pathname === '/api/register' || pathname === '/api/login') {
         if (req.method !== 'POST') return err(res, 405, 'method');
         if (!allow('auth:' + ip, 0.2, 8)) return err(res, 429, 'rate', 'Too many attempts — wait a minute');
@@ -112,6 +119,15 @@ export function createApi(store, { allowedOrigins = [], log = console.log, now =
         if (!allow('ecor:' + a.user.id, 0.5, 10)) return err(res, 429, 'rate', 'Slow down');
         const body = await readBody(req); return send(res, 200, { ok: true, results: w.report(a.user.id, body.events) });
       }
+      if (pathname.startsWith('/api/volcano/') && req.method === 'POST') {
+        const v = await volcano; if (!v) return err(res, 503, 'no_event', 'The world event is not running');
+        const body = await readBody(req); const kind = pathname.slice('/api/volcano/'.length);
+        if (kind === 'devour') return send(res, 200, { ...(await v.devour(a.user)), volcano: v.view(a.user.id) });
+        if (kind === 'heartbeat') return send(res, 200, { ...(await v.heartbeat(a.user, { alive: body.alive !== false, region: body.region !== false })), volcano: v.view(a.user.id) });
+        if (kind === 'damage') return send(res, 200, { ...(await v.damage(a.user, body.events)), volcano: v.view(a.user.id) });
+        return err(res, 404, 'not_found');
+      }
+      if (pathname === '/api/logout' && req.method === 'POST') { (await volcano)?.victimLoggedOut(a.user.id); }
       if (pathname === '/api/logout' && req.method === 'POST') { await store.deleteSession(a.tokenHash); return send(res, 200, { ok: true }); }
       if (pathname === '/api/state' && req.method === 'GET') return send(res, 200, { ok: true, state: await stateFor(a.user) });
       if (pathname === '/api/action' && req.method === 'POST') {

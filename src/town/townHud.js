@@ -155,9 +155,12 @@ export function createTownHud(game) {
 
   // ------------------------------------------------------------------ NPC dialogue
   const visits = {};
+  async function refreshVolcano() { try { const r = await game.account?.request?.('/api/volcano', null, { retries: 0 }); if (r?.ok) game.volcanoTown = r.volcano; } catch { /* offline */ } }
+  refreshVolcano();
   function openDialogue(it) {
     if (!state()) return; closeDialogue(); releasePointer();
-    const d = dialogueFor(it.id, state(), (visits[it.id] = (visits[it.id] || 0) + 1) - 1);
+    if (it.id === 'sage') refreshVolcano(); // the old man knows when the lava has stopped
+    const d = dialogueFor(it.id, state(), (visits[it.id] = (visits[it.id] || 0) + 1) - 1, { volcano: game.volcanoTown });
     const node = el('div', 'tw-dlg', `<div class="tw-dlg-box tw-frame"><div class="tw-dlg-plate"><span class="tw-dlg-ico">${glyph(it.id)}</span><div><b>${esc(whoOf(it))}</b><small>${esc(placeOf(it))}</small></div></div>
       <p class="tw-dlg-text"></p><div class="tw-dlg-foot"><span class="tw-dlg-next">${touch ? t('hud.tapCont') : `<kbd>E</kbd> ${t('hud.continue')}`}</span><div class="tw-dlg-choices"></div></div></div>`, root);
     swallowTouch(node);
@@ -172,7 +175,7 @@ export function createTownHud(game) {
     if (dlg.line < dlg.d.lines.length - 1) { dlg.line++; dlg.typed = 0; return; }
     choose('open');
   }
-  function choose(id) { const it = dlg?.it; if (!it) return; if (id === 'open') openPanel(it.id); else { closeDialogue(); restorePointer(); } }
+  function choose(id) { const it = dlg?.it; if (!it) return; if (id === 'open' && it.id === 'sage') { closeDialogue(); openDialogue(it); return; } if (id === 'open') openPanel(it.id); else { closeDialogue(); restorePointer(); } }
   function closeDialogue() { if (!dlg) return; const n = dlg.node; dlg = null; n.classList.remove('on'); setTimeout(() => n.remove(), 200); }
   function typeTick(dt) {
     if (!dlg) return; const line = dlg.d.lines[dlg.line] || ''; const last = dlg.line >= dlg.d.lines.length - 1;

@@ -189,7 +189,7 @@ export async function createTown(game) {
 
   // ---- interactables ----
   const V = (x, z) => new THREE.Vector3(x, L.getHeight(x, z), z);
-  const NAMES = { quest: ["Hunters' Guild", 'Guildmistress Ysolde'], smith: ['Forge', 'Master Smith Borrik'], alchemy: ['Alchemy Atelier', 'Alchemist Nerith'], shop: ['Market', 'Merchant Pell'], storage: ['Item Box', 'Quartermaster Iva'], dock: ['Departure Dock', 'Captain Maro'] };
+  const NAMES = { quest: ["Hunters' Guild", 'Guildmistress Ysolde'], smith: ['Forge', 'Master Smith Borrik'], alchemy: ['Alchemy Atelier', 'Alchemist Nerith'], shop: ['Market', 'Merchant Pell'], storage: ['Item Box', 'Quartermaster Iva'], dock: ['Departure Dock', 'Captain Maro'], sage: ['Fountain Square', 'Mame Chishikii'] };
   const interactables = Object.entries(SPOTS).map(([id, s]) => ({ id, name: NAMES[id][0], npc: NAMES[id][1], position: V(s.talk[0], s.talk[1]), radius: 3, npcObject: npcs.objects[id] }));
 
   // ---- shadow camera follows the hunter (or the fixed debug camera) ----

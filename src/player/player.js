@@ -62,7 +62,7 @@ export async function createPlayer(game) {
   let M = { atk: 1, def: 1, speed: 1, atkSpeed: 1, affinity: 0, critDmg: 1, elem: 1, elemRes: 1, heal: 1, stamRegen: 1 }, B = {};
   let slowT = 0, superArmor = false, sinceHit = 99, clock = 0, prevBlade = [], curBlade = [], speedNow = 0, footSide = 0, stunT = 0;
   const spawn = () => {
-    const s = world.spawn.player; P.position.set(s.x, world.getHeight(s.x, s.z), s.z); lastGround = P.position.y; lastX = s.x; lastZ = s.z;
+    const s = P.respawnAt || world.spawn.player; P.respawnAt = null; P.position.set(s.x, world.getHeight(s.x, s.z), s.z); lastGround = P.position.y; lastX = s.x; lastZ = s.z;
     const m = game.monsters?.[0]; P.facing = m ? Math.atan2(m.position.x - s.x, m.position.z - s.z) : Math.PI;
   };
   spawn();
@@ -491,7 +491,10 @@ export async function createPlayer(game) {
   function die() {
     P.dead = true; P.hp = 0; setState('dead', 0.1); deadT = 0; P.respawnTime = 5; P.chargeLevel = 0; events.emit('player:died', {});
   }
+  // the crater swallows the hunter (src/field/volcano.js): a death without a body
+  P.devour = () => { if (P.dead) return; ropeRelease('devoured'); airborne = false; P.devoured = true; die(); view.root.visible = false; events.emit('player:devoured', {}); };
   function respawn() {
+    view.root.visible = true; P.devoured = false;
     ropeRelease('respawn'); airborne = false; vy = 0; parryReady = false; holdT = -1; spawn(); P.hp = P.maxHp; P.redHp = P.maxHp; P.stamina = P.maxStamina; P.dead = false; P.respawnTime = 0; vel.set(0, 0, 0);
     P.weaponDrawn = false; view.setInHand(false); setState('idle', 0.01); view.resetCloth(); invuln = 2; trail.clear();
     events.emit('player:respawn', {});

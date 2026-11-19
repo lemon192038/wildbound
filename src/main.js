@@ -169,6 +169,8 @@ async function bootIsland() {
     if (ex?.island && (!game.params.get('iid') || game.params.get('iid') === ex.iid)) expedition.iid = ex.iid;
     else game.ui?.toast?.(t('isl.offline'));
   })();
+  const { createVolcanoEvent } = await import('./field/volcano.js');
+  const volcano = createVolcanoEvent(game); game.volcano = volcano; game.addUpdater((dt, rawDt) => volcano.update(dt, rawDt));
   const { createCarving } = await import('./field/carving.js');
   const carving = createCarving(game, { expedition }); game.carving = carving; game.addUpdater((dt, rawDt) => carving.update(rawDt));
   const toTown = () => { const u = new URL(location.href); const k = new URLSearchParams(); for (const n of ['low', 'hq', 'touch', 'lang']) if (u.searchParams.has(n)) k.set(n, u.searchParams.get(n)); k.set('mode', 'town'); location.href = `${u.pathname}?${k}`; };

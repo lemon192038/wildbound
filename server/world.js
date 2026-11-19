@@ -8,7 +8,7 @@ import { createEcoWorld, stepEco, catchUp, applyReport, snapshot, serializeEco, 
 
 const TICK = 30, SAVE_MS = 120000, EID_TTL = 15 * 60 * 1000, MAX_EVENTS = 20;
 
-export async function createWorld(store, { seed = 1337, now = () => Date.now(), log = console.log, autoTick = true } = {}) {
+export async function createWorld(store, { seed = 1337, now = () => Date.now(), log = console.log, autoTick = true, onSlimeKill = null } = {}) {
   const field = createIslandField(seed);
   let W = null, version = 0, dirty = false, saving = null;
   const row = await store.getWorld('eco').catch(() => null);
@@ -55,10 +55,12 @@ export async function createWorld(store, { seed = 1337, now = () => Date.now(), 
         const cause = ['hunter', 'predation', 'other', 'split'].includes(ev.cause) ? ev.cause : 'other';
         const r = applyReport(W, field, { type: type === 'kill' ? undefined : type, sp: ev.sp, stage: ev.stage | 0, x, z, cause });
         seen.set(key, t); if (r.ok) dirty = true; out.push(r);
+        if (r.ok && type === 'kill' && ev.sp === 'slime' && cause === 'hunter') onSlimeKill?.(1); // the Volcano Slime's flow weakens (server/volcano.js)
       }
       return out;
     },
     stats: () => ({ t: W.t, census: census(W), stats: W.stats }),
+    setRampage(on) { W.rampage = !!on; dirty = true; },
     async close() { clearInterval(tT); clearInterval(sT); dirty = true; await save(); },
   };
 }

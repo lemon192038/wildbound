@@ -78,6 +78,11 @@ export const ISLAND_ITEMS = {
   cy_fang: M('Cindaryl Fang', 'シンダリルの毒牙', 5, 320, 'fang', { poison: 3, sharp: 2 }, 'Far larger than any Venom-fang’s.', '毒牙龍を大きく上回る毒牙。'),
   cy_membrane: M('Cindaryl Wing Membrane', 'シンダリルの翼膜', 5, 300, 'membrane', { poison: 2, agility: 2 }, 'A giant venom-veined wing.', '毒の走る巨大な翼膜。'),
   cy_tail: M('Cindaryl Lethal Tail', 'シンダリルの猛毒尾', 5, 320, 'barb', { poison: 4 }, 'The source of lethal venom.', '致死毒の源。'),
+  // Volcano Slime (hidden world event; only granted by the server when it is driven back — server/volcano.js)
+  vs_gel: M('Primordial Magma', '原初の溶流', 6, 260, 'jar-teal', { fire: 3 }, 'Lava that once moved on its own. It still stirs in the jar.', 'かつて自ら動いていた溶岩。瓶の中でまだうごめく。'),
+  vs_shell: M('Cooled Slime Crust', '冷え固まった巨殻', 6, 240, 'slag', { hardness: 3, fire: 1 }, 'A crust shed when the giant sank back into the earth.', '巨体が地の底へ還るときに剥がれ落ちた殻。'),
+  vs_tendril: M('Molten Tendril', '灼熱の触腕片', 7, 420, 'barb', { fire: 3, agility: 1 }, 'A severed tendril, still warm after days.', '切り落とされた触腕。何日経っても温かい。'),
+  vs_core: M('Calamity Core', '古災の核', 8, 1200, 'gem-red', { fire: 5 }, 'The heart of an ancient calamity. It is never fully cold.', '古の災いの心臓。決して冷えきることがない。'),
 };
 
 // body: [[item, weight]...] (rolled per carve), carves: body carves per carcass, parts: broken part → material

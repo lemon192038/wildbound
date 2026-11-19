@@ -157,11 +157,12 @@ export async function createIslandWorld(game) {
     const P = game.player; if (!P?.position || P.dead || dt <= 0) { burnT = Math.max(0, burnT - dt); return; }
     const { x, z, y } = P.position;
     if (!(lavaAt(x, z) && y < Ls.level + 0.8)) { burnT = Math.max(0, burnT - dt); return; }
+    if ((game.volcanoFlow ?? 1) < 0.05 && Math.hypot(x - F.crater.x, z - F.crater.z) > F.crater.r + 20) { burnT = Math.max(0, burnT - dt); return; } // stopped rivers have crusted over
     burnT -= dt;
     if (burnT <= 0) { burnT = 0.45; P.drain?.(8); game.status?.apply('burn', 'large'); game.events?.emit('camera:shake', { intensity: 0.18, duration: 0.2 }); _p.set(x, Ls.level, z); fx.spawnSplash(_p, 0.6); }
   }
 
-  let time = 0, region = null; const _cam = new THREE.Vector3(), camDir = new THREE.Vector3();
+  let time = 0, region = null, lavaT = 0; const _cam = new THREE.Vector3(), camDir = new THREE.Vector3();
   function update(dt, rawDt) {
     time += rawDt; timeU.value = time; sky.material.uniforms.uTime.value = time; shared.uTime.value = time;
     const P = game.player?.position || sp;
@@ -175,7 +176,9 @@ export async function createIslandWorld(game) {
     flashU.value = flash * 0.6; hemi.intensity = hemiBase * (1 + flash * 0.4);
     scene.fog.color.copy(fogBase).lerp(glowCol, flash * 0.1).multiplyScalar(1 + flash * 0.2);
     shared.uPulse.value = 1 + flash * 0.6;
-    for (const m of [opts.lavaMat, opts.farLavaMat]) { m.uniforms.uTime.value = time; m.uniforms.uBoost.value = 1 + flash * 0.5; }
+    // the Volcano Slime event (src/field/volcano.js): a weakening flow slows and darkens the lava; stopped lava crusts over
+    const flow = game.volcanoFlow ?? 1; lavaT += rawDt * (0.15 + 0.85 * flow);
+    for (const m of [opts.lavaMat, opts.farLavaMat]) { m.uniforms.uTime.value = lavaT; m.uniforms.uBoost.value = (0.16 + 0.84 * flow) * (1 + flash * 0.5); }
     lightT -= rawDt; if (lightT <= 0) { lightT = 0.6; placeLights(P.x, P.z); }
     for (const L of lights) L.intensity = (L.userData.base || 0) * (0.82 + 0.12 * Math.sin(time * 2.1 + L.userData.ph) + 0.06 * Math.sin(time * 7.3 + L.userData.ph * 3)) * (1 + flash * 0.5);
     fx.update(rawDt, camera, renderer);

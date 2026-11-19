@@ -3,14 +3,16 @@ import http from 'node:http';
 import { openStore } from './store.js';
 import { createApi } from './api.js';
 import { createWorld } from './world.js';
+import { createVolcano, VOLCANO } from './volcano.js';
 import { census, loadEco } from '../src/shared/ecosystem.js';
 import { ITEMS, WEAPONS, QUESTS } from '../src/shared/gamedata.js';
 
 let clock = 1_700_000_000_000;
 const pgModule = process.env.STORE === 'pgmem' ? (await import('pg-mem')).newDb().adapters.createPg() : null; // run the suite against an in-memory Postgres too
 const store = await openStore({ file: ':memory:', log: () => {}, pgModule });
-const world = await createWorld(store, { now: () => clock, log: () => {}, autoTick: false });
-const api = createApi(store, { now: () => clock, log: () => {}, world });
+const volcano = await createVolcano(store, { now: () => clock, log: () => {}, autoTick: false, onPhase: (p) => world?.setRampage(p === 'awakened') });
+const world = await createWorld(store, { now: () => clock, log: () => {}, autoTick: false, onSlimeKill: (n) => volcano.slimeKilled(n) });
+const api = createApi(store, { now: () => clock, log: () => {}, world, volcano });
 const server = http.createServer((req, res) => api.handle(req, res, new URL(req.url, 'http://x').pathname));
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -213,6 +215,55 @@ ok(r.state.ledger.length > 5 && r.state.ledger.every((l) => typeof l.d === 'numb
   await give(hid, { ironOre: 8, monsterBone: 3 }); await store.mutateSave(hid, (d) => { d.coins += 5000; });
   r = await act(H.token, 'craftWeapon', { def: 'rustedAnchor' }); r = await act(H.token, 'equip', { slot: 'weapon', uid: r.result.uid });
   ok(r.ok && r.state.stats.cls === 'anchor', 'stage 6c class weapon (Rusted Ancient Anchor) forged and equipped: loadout class "anchor"');
+}
+
+// ---- the Volcano Slime world event (server/volcano.js)
+{
+  const reg = async (n) => { const r = await call('/api/register', { name: n, password: n + '-pass-123' }); return { tok: r.token, id: r.state.user.id }; };
+  const V1 = await reg('Volcanist'), V2 = await reg('Cratergoer'), V3 = await reg('Rimwalker'), V4 = await reg('Ashdiver');
+  const vol = (tok, kind, body = {}) => call('/api/volcano/' + kind, body, tok);
+  r = await call('/api/volcano'); ok(r.ok && r.volcano.phase === 'flowing' && r.volcano.flow === 1 && !r.volcano.boss, 'GET /api/volcano: lava flowing, no boss (public)');
+  ok((await vol(V1.tok, 'devour')).counted === false, 'falling into the crater while the lava flows is not counted');
+  // a slime kill reported through the ecosystem weakens the flow
+  const T = Object.values(world.W.tiles).find((q) => q.p.slime && q.p.slime.some((v) => v > 0)); const st = T.p.slime.findIndex((v) => v > 0);
+  await call('/api/eco/report', { events: [{ eid: 'slime1', sp: 'slime', stage: st, x: -1152 + T.tx * 64 + 20, z: -1152 + T.tz * 64 + 20, cause: 'hunter' }] }, V1.tok);
+  await new Promise((res) => setTimeout(res, 20));
+  r = await call('/api/volcano'); ok(r.volcano.slimeKills === 1 && r.volcano.flow < 1 && r.volcano.chamber > 0, `a hunter's slime kill slows the lava (flow ${r.volcano.flow}, chamber ${r.volcano.chamber})`);
+  await volcano.slimeKilled(VOLCANO.KILLS_TO_STOP);
+  r = await call('/api/volcano'); ok(r.volcano.phase === 'stopped' && r.volcano.flow === 0 && r.volcano.chamber === 1, 'enough slime kills stop the lava; the magma chamber is full');
+  ok((await call('/api/volcano/phase', { phase: 'awakened' }, V1.tok)).status === 404, 'clients cannot set the event state');
+  // devours: one world counter, cooldown per hunter
+  for (let i = 0; i < 98; i++) { clock += 16000; await vol(V1.tok, 'devour'); }
+  const cd = await vol(V1.tok, 'devour'); ok(cd.counted === false && cd.why === 'cooldown', 'a hunter cannot count twice within the respawn cooldown');
+  r = await call('/api/volcano'); ok(r.volcano.devoured === 98, 'devour counter at 98');
+  clock += 16000; const race = await Promise.all([V2, V3, V4, V1].map((u) => vol(u.tok, 'devour')));
+  const victims = race.filter((x) => x.victim); r = await call('/api/volcano');
+  ok(victims.length === 1 && r.volcano.phase === 'awakened' && r.volcano.devoured === 100 && r.volcano.boss.hp === 100000, `100th devour (simultaneous arrivals) awakens it exactly once (victim ${r.volcano.victim?.name})`);
+  const victim = [V2, V3, V4, V1][race.findIndex((x) => x.victim)]; const other = [V2, V3, V4, V1].find((u) => u !== victim);
+  ok((await vol(other.tok, 'heartbeat', { alive: false })).victim === false && (await call('/api/volcano')).volcano.phase === 'awakened', "another hunter's death does not end the event");
+  // damage: idempotent, capped per second
+  let d = await vol(other.tok, 'damage', { events: [{ eid: 'd1', dmg: 2000 }, { eid: 'd1', dmg: 2000 }] });
+  ok(d.applied === 2000, 'boss damage applied once per event id');
+  d = await vol(other.tok, 'damage', { events: Array.from({ length: 10 }, (_, i) => ({ eid: 'x' + i, dmg: 2500 })) });
+  ok(d.applied <= VOLCANO.MAX_DPS * 3 - 2000 + 1, `damage is capped per second (applied ${d.applied})`);
+  // victim rules: logout (no heartbeat) → full reset
+  clock += VOLCANO.VICTIM_TIMEOUT + 1000; await volcano.tick(); r = await call('/api/volcano');
+  ok(r.volcano.phase === 'flowing' && r.volcano.slimeKills === 0 && r.volcano.devoured === 0 && r.volcano.flow === 1 && !r.volcano.boss, 'victim gone (no heartbeat) → the slime returns, lava flows, progress reset');
+  const awaken = async () => { await volcano.slimeKilled(VOLCANO.KILLS_TO_STOP); for (let i = 0; i < 100; i++) { clock += 16000; await vol(V1.tok, 'devour'); } };
+  await awaken(); ok((await call('/api/volcano', null, V1.tok)).volcano.victim?.you, 'awakened again: the 100th devourer is told they are the victim');
+  await vol(V1.tok, 'heartbeat', { alive: true, region: true }); ok((await call('/api/volcano')).volcano.phase === 'awakened', 'victim alive in the volcano region: the event continues');
+  await vol(V1.tok, 'heartbeat', { alive: true, region: false }); ok((await call('/api/volcano')).volcano.phase === 'flowing', 'victim leaves the volcano region → reset');
+  await awaken(); await vol(V1.tok, 'heartbeat', { alive: false }); ok((await call('/api/volcano')).volcano.phase === 'flowing', 'victim dies → reset');
+  await awaken(); await call('/api/logout', {}, V1.tok); ok((await call('/api/volcano')).volcano.phase === 'flowing', 'victim logs out → reset');
+  // defeat: rewards to every contributor, once
+  const V1b = await call('/api/login', { name: 'Volcanist', password: 'Volcanist-pass-123' }); V1.tok = V1b.token;
+  await awaken();
+  for (let k = 0; k < 60 && (await call('/api/volcano')).volcano.phase === 'awakened'; k++) { clock += 3000; await vol(V1.tok, 'heartbeat'); await vol(V1.tok, 'damage', { events: [{ eid: 'v' + k, dmg: 2500 }] }); await vol(V2.tok, 'damage', { events: [{ eid: 'w' + k, dmg: 2500 }] }); }
+  r = await call('/api/volcano'); const s1 = await call('/api/state', null, V1.tok), s2 = await call('/api/state', null, V2.tok), s3 = await call('/api/state', null, V3.tok);
+  ok(r.volcano.phase === 'defeated' && s1.state.box.vs_gel > 0 && s1.state.box.vs_core >= 1 && s2.state.box.vs_gel > 0 && !s3.state.box.vs_gel, 'defeated: rewards sent to the hunters who damaged it (victim gets a core); bystanders get nothing');
+  const g1 = s1.state.box.vs_gel; await vol(V2.tok, 'damage', { events: [{ eid: 'late', dmg: 100 }] }); ok((await call('/api/state', null, V1.tok)).state.box.vs_gel === g1, 'rewards are granted only once');
+  clock += VOLCANO.AFTERMATH + 1000; await volcano.tick(); r = await call('/api/volcano'); ok(r.volcano.phase === 'flowing' && r.volcano.cycle === 2, 'after the aftermath a new cycle begins');
+  await volcano.save(); const vrow = await store.getWorld('volcano'); ok(vrow && JSON.parse(vrow.data).cycle === 2, 'event state persisted in world_state');
 }
 
 // ---- island ecosystem (server/world.js, src/shared/ecosystem.js)
