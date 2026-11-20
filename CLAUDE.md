@@ -34,6 +34,7 @@ Read this first, then `PROGRESS.md` (what exists / what is next) and `IMPLEMENTA
     - `node tools/volcano-test.mjs`
     - `node tools/shot.mjs <png> "<query>"`
     - `node tools/coop-test.mjs` (co-op: the non-host's hits are applied by the host)
+    - `node tools/coop-island-test.mjs` (island co-op: every boss where the host has it, seen and felt by the client)
 - Design for iPad Safari: touch-only play, low render path (`?low=1`), per-frame work budgets.
 - Branching: work-in-progress goes to a feature branch. `main` auto-deploys GitHub Pages; the server deploys from Render (`render.yaml`).
 - The DB is Supabase Postgres in production and SQLite locally. Schema changes go in `supabase/schema.sql`, plus idempotent DDL in `server/store.js`. Use migrations; never drop user data.

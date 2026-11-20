@@ -634,6 +634,17 @@ Design and reasoning: `ECOLOGY.md` (Japanese).
 - Headless checks: light count 13 constant on an island walk; shader programs 57 → 65 (was → 160); context lost → message, restored → message gone and rendering resumes; a throwing frame does not stop the loop; a resting boss's meshes are hidden and come back when it wakes; double tap: second touchend cancelled, button clicked once.
 - All suites, island test (0 holes), volcano test passed.
 
+## Stage 8i: Co-op — a dragon seen and felt by one hunter only (2026-11-20)
+
+| Item | Status | Notes |
+|---|---|---|
+| Island bosses on co-op clients rest / wake from the HOST's position | ✅ | cause: a client decided rest/wake from its copy's own position, which froze when the copy went to rest; the host's roaming Flame dragons keep flying their circuits out of view, so one could attack the hunters on the host while every client copy still "rested" hundreds of metres away — not drawn, and its attacks never checked against the client hunter (= no damage). Now clients measure from `m.netPos` (the host's position from each snapshot, `src/net/client.js`), wake the copy there, and a resting copy follows the host (`src/field/islandBosses.js`) |
+| Slow clients keep boss attack windows on the host's clock | ✅ | `wyvern.js` / `brute.js` resync `actionTime` when > 0.35 s off (as `monster.js` already did); > 20 m behind → snap |
+
+### Stage 8i tests (2026-11-20)
+- `tools/coop-island-test.mjs` (new): 9 island bosses where the host has them on the client; a Flame dragon the host brings to the hunters wakes and is drawn on the client (12 m), its bite hurts the client (30 damage). The same test on the old code: dragon 607 m away on the client, not drawn, 0 damage.
+- All suites, `tools/coop-test.mjs`, island and volcano tests passed.
+
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
   - island content
