@@ -34,7 +34,7 @@ const home = (id) => HOMES.find((h) => h.id === id);
 }
 { // the valiant Varkhul attacks a Venom-fang dragon it comes across (in neutral ground)
   const v = boss('varkhul', 0, 300), d = boss('venom', 30, 300, 13000); const { R, run } = world([v, d]); run(10);
-  ok(v.rival === d && R.stats.grudges >= 1, 'Varkhul turns on a Venom-fang dragon', JSON.stringify(R.stats.byPair));
+  ok((R.stats.byPair['varkhul>venom'] || 0) >= 1, 'Varkhul turns on a Venom-fang dragon', JSON.stringify(R.stats.byPair));
   ok(d.rival === v || (d.retreatT || 0) > 0, 'the dragon answers (or backs off)');
 }
 { // a mated pair never fights

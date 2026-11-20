@@ -70,12 +70,14 @@ export async function createPlayer(game) {
     const s = P.respawnAt || world.spawn.player; P.respawnAt = null; P.position.set(s.x, world.getHeight(s.x, s.z), s.z); lastGround = P.position.y; lastX = s.x; lastZ = s.z;
     const m = game.monsters?.[0]; P.facing = m ? Math.atan2(m.position.x - s.x, m.position.z - s.z) : Math.PI;
   };
+  let lastAtk = '', lastAtkAt = -1e9; // last attack / charge started (sent in snapshots for the host's hit check)
   spawn();
 
   function setState(s, fade = 0.12) {
     P.state = s; t = 0; attachDone = false; animT = null;
     const clip = clipOf(s, P.cls); if (clip) view.play(clip, fade); else view.play('loco', fade);
     if (ATTACKS[s]) { hitSets = new Map(); hitCount = 0; swingFirstHit = false; trail.clear(); }
+    if (ATTACKS[s] || CHARGES[s]) { lastAtk = s; lastAtkAt = performance.now(); } // co-op: a short move (a quick shot) can fall between two snapshots
   }
   P.setState = setState;
   P.roll = { ...ROLL };
@@ -264,7 +266,7 @@ export async function createPlayer(game) {
     for (let i = 0; i < n; i++) {
       const a = (i - (n - 1) / 2) * spread, c = Math.cos(a), sn = Math.sin(a);
       const v = new THREE.Vector3(dir.x * c + dir.z * sn, dir.y + (spread ? (Math.random() - 0.5) * spread * 0.5 : 0), -dir.x * sn + dir.z * c).multiplyScalar(SH.speed);
-      arrows.push({ p: o.clone(), v, o: o.clone(), life: 1.6, mv, g: SH.gravity });
+      arrows.push({ p: o.clone(), v, o: o.clone(), life: 1.6, mv, g: SH.gravity, src: P.state }); // src: the move that fired it (co-op hit intents)
     }
     events.emit('sfx', { name: 'swing', position: o, volume: 0.55 });
   }
@@ -288,7 +290,7 @@ export async function createPlayer(game) {
             noteDamage(m, 'local', hb.part); const nrm = _cl.clone().sub(c).normalize();
             const res = m.receiveHit({ damage, part: hb.part, point: _cl.clone(), normal: nrm, attackerId: 'local', isCrit, element: el?.type, elementValue: el?.value || 0, mv: a.mv, motion: 'arrow', breakMul: C.breakMul });
             const dealt = res && typeof res === 'object' && res.damage != null ? res.damage : Math.round(damage);
-            events.emit('hit', { attacker: 'local', target: m, damage: dealt, part: hb.part, point: _cl.clone(), normal: nrm, isCrit, motion: 'arrow', level: 0 });
+            events.emit('hit', { attacker: 'local', target: m, damage: dealt, part: hb.part, point: _cl.clone(), normal: nrm, isCrit, motion: 'arrow', kind: 'shot', src: a.src, level: 0 });
             sparks.burst(_cl, nrm, 10, 0.6); done = true; break hitLoop;
           }
         }
@@ -309,7 +311,7 @@ export async function createPlayer(game) {
       if (!best || bd > r) continue;
       const damage = (C.dmgScale ?? 1) * base * G.atk * hornAtk() * M.atk; noteDamage(m, 'local', best.part); const pt = best.sphere.center.clone();
       const res = m.receiveHit({ damage, part: best.part, point: pt, normal: new THREE.Vector3(0, 1, 0), attackerId: 'local', mv: 0.3, motion, breakMul: C.breakMul, element: 'blast' });
-      events.emit('hit', { attacker: 'local', target: m, damage: res?.damage ?? Math.round(damage), part: best.part, point: pt, normal: new THREE.Vector3(0, 1, 0), motion, level: 0 }); n++;
+      events.emit('hit', { attacker: 'local', target: m, damage: res?.damage ?? Math.round(damage), part: best.part, point: pt, normal: new THREE.Vector3(0, 1, 0), motion, kind: 'blast', level: 0 }); n++;
     }
     world.spawnDust?.(center.clone(), 1.2 + r * 0.3); sparks.burst(center, new THREE.Vector3(0, 1, 0), 40, 2, 1);
     events.emit('sfx', { name: 'slam', position: center.clone(), volume: 0.9 }); events.emit('camera:shake', { intensity: 0.35 + r * 0.06, duration: 0.3 });
@@ -594,7 +596,8 @@ export async function createPlayer(game) {
     // scope (user request): the camera goes into the eye and zooms (camera.js rig.scopeK); the hunter's own model is hidden
     // while looking through it; the plain crosshair is only for the short moment before the scope is up
     const rig = game.cameraRig, sc = WEAPON_CLASSES[P.cls]?.scope; const scopeK = rig?.scopeK || 0;
-    aimHud(P.aiming && !(sc && scopeK > 0.55)); if (P.aimOn !== lastAimOn) { lastAimOn = P.aimOn; game.input?.touch?.setToggle?.('guard', !!P.aimOn); } // the AIM button stays lit while aiming (scopeUi ||= createScope()).set(sc ? scopeK : 0, sc?.reticle, sc?.zoom || 1);
+    aimHud(P.aiming && !(sc && scopeK > 0.55)); (scopeUi ||= createScope()).set(sc ? scopeK : 0, sc?.reticle, sc?.zoom || 1);
+    if (P.aimOn !== lastAimOn) { lastAimOn = P.aimOn; game.input?.touch?.setToggle?.('guard', !!P.aimOn); } // the AIM button stays lit while aiming
     if (!P.devoured && !P.dead) view.root.visible = !(rig?.scoped);
 
     // ailments (src/core/status.js): sleep / stun take over the hunter, flinch staggers, debuffs scale everything
@@ -880,7 +883,7 @@ export async function createPlayer(game) {
 
   P.serialize = () => ({ sa: superArmor ? 1 : 0, rd: P.ride?.active ? P.ride.sp : undefined, rf: P.ride?.flying ? 1 : undefined,
     p: [+P.position.x.toFixed(2), +P.position.y.toFixed(2), +P.position.z.toFixed(2)], f: +P.facing.toFixed(3), s: P.state, t: +t.toFixed(3),
-    hp: Math.round(P.hp), w: view.inHand ? 1 : 0, wc: P.cls, a: +amt.toFixed(2), c: P.chargeLevel, h: heavyLevel,
+    hp: Math.round(P.hp), w: view.inHand ? 1 : 0, wc: P.cls, la: performance.now() - lastAtkAt < 1500 ? lastAtk : undefined, a: +amt.toFixed(2), c: P.chargeLevel, h: heavyLevel,
   });
   // debug hooks for critics: freeze an exact animation moment
   P.debug = {

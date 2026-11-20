@@ -24,7 +24,7 @@
 //    Non-hosts also get 'monster:partBreak' / 'monster:died' / 'monster:roar' with {monster, part?, remote:true}
 //    relayed from the host; the monster's applyRemote should therefore NOT emit those itself.
 import { createRemoteHunter } from '../player/player.js';
-import { createHitValidator, MOTION_VALUES } from './hitcheck.js';
+import { createHitValidator, motionInfo } from './hitcheck.js';
 
 const SEND_HZ = 20, MONSTER_SEND_HZ = 15, INTERP_DELAY = 100, EXTRAP_CAP = 250, BUFFER_MAX = 30;
 const BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -109,12 +109,14 @@ function startOnline(game, net, params, remote = '') {
     // Send an INTENT, never damage: the host recomputes damage from the motion value table.
     const P = game.player;
     const mo = typeof e.motion === 'string' ? e.motion : P?.state;
-    if (!Object.prototype.hasOwnProperty.call(MOTION_VALUES, mo)) return;
+    const kd = e.kind === 'shot' || mo === 'arrow' ? 'shot' : e.kind === 'blast' ? 'blast' : 'melee'; const src = kd === 'shot' ? e.src : null;
+    if (!motionInfo(mo, e.level, kd, src)) return; // every weapon class's moves (hitcheck.js)
     let lv = e.level;
     if (lv == null && (mo === 'heavy' || mo === 'trueslash')) { try { lv = P.serialize?.().h; } catch { lv = 0; } }
     const out = { t: 'hit', mo, lv: (mo === 'heavy' || mo === 'trueslash') ? Math.max(0, Math.min(3, Math.trunc(num(lv)))) : 0,
       pt: partName(e.part), mi: Math.max(0, ti), sh: Math.round(Math.max(0, Math.min(1, num(P?.sharpness ?? 1))) * 100) / 100,
-      wm: Math.round(Math.max(0.5, Math.min(2.4, num((P?.gear?.atk ?? 1) * (P?.gear?.buffAtk ?? 1) * (P?.gear?.sharp ?? 1)))) * 100) / 100 }; // gear multiplier (server clamps)
+      wm: Math.round(Math.max(0.5, Math.min(2.4, num((P?.gear?.atk ?? 1) * (P?.gear?.buffAtk ?? 1) * (P?.gear?.sharp ?? 1)))) * 100) / 100, // gear multiplier (server clamps)
+      kd, src: src || undefined, wc: P?.cls };
     if (!e.point) return;
     out.p = [num(e.point.x), num(e.point.y), num(e.point.z)];
     if (clockOffset != null) out.ts = Math.round(performance.now() + clockOffset); // hit time on the server clock
@@ -204,7 +206,7 @@ function startOnline(game, net, params, remote = '') {
           const ss = safe(s) || {};
           r.buf.push({ t: lt, x: num(x[0]), y: num(x[1]), z: num(x[2]), f: num(x[3]), s: ss });
           // separate 3s history (raw, untrimmed by interpolation) for host-side hit validation
-          r.hist.push({ t: lt, x: num(x[0]), y: num(x[1]), z: num(x[2]), st: typeof ss.s === 'string' ? ss.s : '', h: num(ss.h) });
+          r.hist.push({ t: lt, x: num(x[0]), y: num(x[1]), z: num(x[2]), st: typeof ss.s === 'string' ? ss.s : '', h: num(ss.h), wc: typeof ss.wc === 'string' ? ss.wc : '', la: typeof ss.la === 'string' ? ss.la : '' });
           while (r.hist.length && lt - r.hist[0].t > 3000) r.hist.shift();
           if (r.buf.length > BUFFER_MAX) r.buf.splice(0, r.buf.length - BUFFER_MAX);
         }
@@ -215,7 +217,7 @@ function startOnline(game, net, params, remote = '') {
         if (!net.isHost || pendingHits.length > 64) return;
         const from = String(m.i), now = performance.now();
         const hitT = num(m.ts) && clockOffset != null ? num(m.ts) - clockOffset : now - net.rtt / 2;
-        pendingHits.push({ from, mo: m.mo, lv: Math.trunc(num(m.lv)), pt: typeof m.pt === 'string' ? m.pt : '', mi: Math.trunc(num(m.mi)),
+        pendingHits.push({ from, mo: m.mo, lv: Math.trunc(num(m.lv)), kd: typeof m.kd === 'string' ? m.kd : 'melee', src: typeof m.src === 'string' ? m.src : null, wc: typeof m.wc === 'string' ? m.wc : null, pt: typeof m.pt === 'string' ? m.pt : '', mi: Math.trunc(num(m.mi)),
           p: Array.isArray(m.p) ? m.p.slice(0, 3).map(num) : null, sh: num(m.sh), wm: num(m.wm ?? 1), t: hitT, arrive: now });
         return;
       }
@@ -268,7 +270,7 @@ function startOnline(game, net, params, remote = '') {
         }
       } catch (e) { console.warn('[net] getHitboxes', e); }
       const res = validator.check(h, { now, samples: r.hist, hitboxes, alive: mon.hp > 0 && mon.state !== 'dead' });
-      if (!res.ok) { if (res.suspicious) suspicious(h.from, res.reason); continue; }
+      if (!res.ok) { if (res.suspicious) suspicious(h.from, res.reason, `(${h.mo}${h.src ? '/' + h.src : ''})`); continue; }
       let part = h.pt;
       const hb0 = mon.getHitboxes?.()?.[0];
       if (hb0 && typeof hb0.part === 'object') part = (mon.parts || []).find((p) => p.name === part) || part;
@@ -280,11 +282,11 @@ function startOnline(game, net, params, remote = '') {
       game.events?.emit?.('net:hit', { from: h.from, damage: dealt, raw: res.damage, motion: h.mo, part: h.pt, point, isCrit: res.isCrit });
     }
   }
-  function suspicious(id, reason) {
+  function suspicious(id, reason, detail = '') {
     const key = id + ':' + reason, now = performance.now();
     if (now - (susLog.get(key) || -1e9) < 5000) return;
     susLog.set(key, now);
-    console.warn(`[net] rejected hit from ${id}: ${reason}`);
+    console.warn(`[net] rejected hit from ${id}: ${reason}${detail ? ' ' + detail : ''}`);
     tx({ t: 'sus', i: id, r: reason }); // server logs host reports
   }
 

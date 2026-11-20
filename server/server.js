@@ -56,7 +56,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
-import { motionValue, MAX_REACH } from '../src/net/hitcheck.js';
+import { motionInfo } from '../src/net/hitcheck.js';
 import { openStore } from './store.js';
 import { createApi } from './api.js';
 import { createWorld } from './world.js';
@@ -68,7 +68,7 @@ export const LIMITS = Object.freeze({
   MAX_MSG: 4096, ROOM_SIZE: 4, CHAT_LEN: 140, NAME_LEN: 16, ROOM_LEN: 24,
   MAX_CONN: 512, MAX_CONN_PER_IP: 16, STRIKES: 8,
   HEARTBEAT_MS: 5000, TIMEOUT_MS: 20000, PLAYER_HZ: 20, MONSTER_HZ: 15,
-  NUM_MAX: 1e6, HIT_RATE: 5, HIT_BURST: 6, SUS_LOG_MS: 10000,
+  NUM_MAX: 1e6, HIT_RATE: 14, HIT_BURST: 18, SUS_LOG_MS: 10000,
 });
 
 const MIME = {
@@ -363,12 +363,15 @@ export function startServer({ port = Number(process.env.PORT ?? 8080), host = pr
         c.hitBucket -= 1;
         const lv = Math.trunc(clampNum(msg.lv, 0, 3));
         const p = cleanVec(msg.p, 3);
-        if (motionValue(msg.mo, lv) == null || !p) { suspect(c, 'hit_malformed'); return strike(c, 'bad_hit'); }
+        const kd = msg.kd === 'shot' || msg.kd === 'blast' ? msg.kd : 'melee', src = kd === 'shot' ? cleanText(msg.src, 24) : null;
+        const info = motionInfo(msg.mo, lv, kd, src); // every weapon class's moves, projectiles and blasts (hitcheck.js)
+        if (!info || !p) { suspect(c, 'hit_malformed'); return strike(c, 'bad_hit'); }
         if (!c.x) return suspect(c, 'hit_without_position');
-        // coarse reach check vs. the attacker's latest relayed position (snapshots lag hits by <=~100ms)
+        // coarse reach check vs. the attacker's latest relayed position (snapshots lag hits by <=~100ms); projectiles fly far
         const reach = Math.hypot(c.x[0] - p[0], c.x[2] - p[2]);
-        if (reach > MAX_REACH + 3) return suspect(c, 'hit_out_of_reach', `dist=${reach.toFixed(1)}`);
-        const out = { t: 'hit', i: c.id, mo: msg.mo, lv, pt: cleanText(msg.pt, 24), mi: Math.trunc(clampNum(msg.mi, 0, 3)), p, sh: clampNum(msg.sh, 0, 1), wm: clampNum(msg.wm ?? 1, 0.5, 2.1) }; // gear multiplier: capped at the best legitimate gear (≈2.07)
+        if (reach > info.reach + 3) return suspect(c, 'hit_out_of_reach', `dist=${reach.toFixed(1)}`);
+        // mi: monster index — the island has 9 big monsters (was clamped to 0..3, so hits on the others went astray)
+        const out = { t: 'hit', i: c.id, mo: msg.mo, lv, kd, src: src || undefined, wc: cleanText(msg.wc, 16) || undefined, pt: cleanText(msg.pt, 24), mi: Math.trunc(clampNum(msg.mi, 0, 63)), p, sh: clampNum(msg.sh, 0, 1), wm: clampNum(msg.wm ?? 1, 0.5, 2.1) }; // gear multiplier: capped at the best legitimate gear (≈2.07)
         if (msg.ts != null) {
           const ts = clampNum(msg.ts, 0, 1e15);
           if (Math.abs(now - ts) > 5000) return suspect(c, 'hit_stale');
