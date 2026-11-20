@@ -605,6 +605,18 @@ Design and reasoning: `ECOLOGY.md` (Japanese).
 - `src/field/__rivalry.test.mjs`: the Varkhul-vs-Venom-fang check now asserts that a fight started (grudge or intrusion roll), not its end state; 8 runs passed.
 - All other suites, island and volcano tests passed.
 
+## Stage 8g: Mame Chishikii's material notes (2026-11-20)
+
+| Item | Status | Notes |
+|---|---|---|
+| Material sources derived from the real tables | ✅ | `src/shared/materialSources.js`: island gathering (`REGION_TABLE`, % per point type), boss-field points (`src/shared/fieldGather.js`, now also read by `src/field/gather.js`), body carves, part breaks, nests / juveniles (`LIFE`), the market. 206 materials, each with ≥ 1 source; Volcano Slime materials are never listed |
+| Sage dialogue choice 「素材の在りかを聞く」 → material notes panel | ✅ | `src/ui/town/sagePanel.js` (tabs: gathered / monster parts / eggs & juveniles; the sage's tip + every source with region, compass direction, point type, chance, the monster's home). Dialogue number keys now follow the shown numbers |
+| iPad layout of the panel | ❓ | uses the shared `tw-split` panel layout; checked in a headless browser only |
+
+### Stage 8g tests (2026-11-20)
+- `src/shared/__materials.test.mjs` (new): every material has a source, each listed once, hidden materials hidden, coal = ash plains ore 25 % / highlands 18 %, Varkhul horn = head break, every tip finished text in ja and en.
+- All other suites passed.
+
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
   - island content

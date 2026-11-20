@@ -60,7 +60,7 @@ export function dialogueFor(id, s, visits = 0, world = {}) {
     }
     case 'sage': { // Mame Chishikii: monster lore without names; the volcano line changes when the lava has stopped
       const stopped = world.volcano && (world.volcano.phase === 'stopped' || (world.volcano.flow ?? 1) <= 0);
-      return L([visits === 0 ? t('dlg.sage.hi') : '', t('dlg.sage.h' + (visits % SAGE_HINTS)), stopped ? t('dlg.sage.stopped') : t('dlg.sage.deep')], t('dlg.sage.more'));
+      return L([visits === 0 ? t('dlg.sage.hi') : '', t('dlg.sage.h' + (visits % SAGE_HINTS)), stopped ? t('dlg.sage.stopped') : t('dlg.sage.deep')], t('dlg.sage.more'), [{ id: 'mats', label: t('dlg.sage.mats') }]); // the material notes (src/ui/town/sagePanel.js)
     }
     default: return L(['…'], t('dlg.open'));
   }

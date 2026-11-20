@@ -16,6 +16,7 @@ import { createStoragePanel } from '../ui/town/storagePanel.js';
 import { createDockPanel } from '../ui/town/dockPanel.js';
 import { createMenuPanel } from '../ui/town/menuPanel.js';
 import { createTamerPanel } from '../ui/town/tamerPanel.js';
+import { createSagePanel } from '../ui/town/sagePanel.js';
 import { dialogueFor } from '../ui/town/dialogue.js';
 import { t, questName, itemName, serverMsg, npcName, facilityName } from '../shared/i18n.js';
 
@@ -114,7 +115,7 @@ export function createTownHud(game) {
     navigate(url, text) { leaving = true; const v = el('div', 'tw-voyage-fade', `<div><span class="tw-spin"></span><p>${esc(text || t('hud.settingSail'))}</p></div>`, root); requestAnimationFrame(() => v.classList.add('on')); setTimeout(() => { location.href = url; }, 900); },
     logout: async () => { closeWin(); await acct.logout(); },
   };
-  const panels = { quest: createQuestPanel(ctx), smith: createForgePanel(ctx), alchemy: createAlchemyPanel(ctx), shop: createMarketPanel(ctx), storage: createStoragePanel(ctx), dock: createDockPanel(ctx), menu: createMenuPanel(ctx), tamer: createTamerPanel(ctx) };
+  const panels = { quest: createQuestPanel(ctx), smith: createForgePanel(ctx), alchemy: createAlchemyPanel(ctx), shop: createMarketPanel(ctx), storage: createStoragePanel(ctx), dock: createDockPanel(ctx), menu: createMenuPanel(ctx), tamer: createTamerPanel(ctx), sage: createSagePanel(ctx) };
   const npcOf = (id) => (game.world?.interactables || []).find((i) => i.id === id)?.npc || '';
 
   function openPanel(id) {
@@ -176,7 +177,7 @@ export function createTownHud(game) {
     if (dlg.line < dlg.d.lines.length - 1) { dlg.line++; dlg.typed = 0; return; }
     choose('open');
   }
-  function choose(id) { const it = dlg?.it; if (!it) return; if (id === 'open' && it.id === 'sage') { closeDialogue(); openDialogue(it); return; } if (id === 'open') openPanel(it.id); else { closeDialogue(); restorePointer(); } }
+  function choose(id) { const it = dlg?.it; if (!it) return; if (id === 'mats') { openPanel('sage'); return; } if (id === 'open' && it.id === 'sage') { closeDialogue(); openDialogue(it); return; } if (id === 'open') openPanel(it.id); else { closeDialogue(); restorePointer(); } }
   function closeDialogue() { if (!dlg) return; const n = dlg.node; dlg = null; n.classList.remove('on'); setTimeout(() => n.remove(), 200); }
   function typeTick(dt) {
     if (!dlg) return; const line = dlg.d.lines[dlg.line] || ''; const last = dlg.line >= dlg.d.lines.length - 1;
@@ -202,8 +203,7 @@ export function createTownHud(game) {
     if (gate.open || leaving) return;
     if (e.code === 'Escape') { e.preventDefault(); if (win) closeWin(); else if (dlg) { closeDialogue(); restorePointer(); } else if (state()) openPanel('menu'); return; }
     if (dlg && (e.code === 'Enter' || e.code === 'Space')) { e.preventDefault(); advance(); }
-    if (dlg && e.code === 'Digit2') choose('leave');
-    if (dlg && e.code === 'Digit1') choose(dlg.d.choices[0].id);
+    const dn = /^Digit([1-9])$/.exec(e.code); if (dlg && dn && dlg.d.choices[+dn[1] - 1]) choose(dlg.d.choices[+dn[1] - 1].id); // the number shown on each choice
   });
   const blocked = () => gate.open || !!win || !!dlg || leaving || !!document.querySelector('.tw-modal-ov');
   const orig = game.input.poll.bind(game.input);

@@ -226,6 +226,8 @@
 .tw-mat { display: flex; align-items: center; gap: 0.7em; padding: 0.3em 0.6em 0.3em 0.35em; background: rgba(0, 0, 0, 0.28); border-left: 2px solid; font-size: 0.86em; }
 .tw-mat.ok { border-color: rgba(143, 227, 155, 0.7); } .tw-mat.no { border-color: rgba(255, 122, 107, 0.8); background: linear-gradient(90deg, rgba(120, 30, 20, 0.25), rgba(0, 0, 0, 0.25)); }
 .tw-mat-n { flex: 1; } .tw-mat-q { color: var(--parch-dim); font-weight: 600; } .tw-mat.ok .tw-mat-q b { color: var(--good); } .tw-mat.no .tw-mat-q b { color: var(--bad); }
+.sg-src > span { flex: 1; display: flex; flex-direction: column; gap: 0.1em; } .sg-src > span small { color: var(--parch-dim); font-size: 0.92em; } .sg-src > b { color: var(--gold); white-space: nowrap; }
+.sg-tip { font-style: normal; border-left: 2px solid var(--gold-lo); padding-left: 0.7em; }
 .tw-ok-mark { width: 1.1em; height: 1.1em; color: var(--good); } .tw-no-mark { font-style: normal; color: var(--bad); font-weight: 800; width: 1.1em; text-align: center; }
 .tw-cost { display: flex; align-items: center; gap: 0.8em; margin-top: 1em; padding: 0.6em 0.9em; border: 1px solid rgba(217, 182, 115, 0.25); background: rgba(0, 0, 0, 0.3); font-size: 0.9em; }
 .tw-cost > span:first-child { font: 700 0.75em var(--serif); letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); }

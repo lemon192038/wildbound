@@ -10,6 +10,16 @@ import { LINE_WEAPONS } from './lineGear.js';
 // 防具名は「シリーズ名＋部位」（例: エンバーハイドヘルム）。数値の桁区切りはそのまま、単位は「コイン」「秒」「分」。
 export default {
   ui: {
+    'sg.home2': '{mon}は{dest}や、火山島の{region}あたりにおるぞい。', 'sg.sep': '、', 'sg.d.rim': '海沿いの外周', 'dlg.sage.mats': '素材の在りかを聞く', 'sg.title': 'マメ・チシキーの素材帳', 'sg.tabGather': '採集素材', 'sg.tabMonster': 'モンスター素材', 'sg.tabLife': '卵・幼体',
+    'sg.choose': '知りたい素材を選ぶんじゃ。', 'sg.have': '所持 {n}', 'sg.where': '入手できる場所', 'sg.unknown': 'うーむ、それはわしにも分からんのう……',
+    'sg.tip.gather': '{item}なら、{region}の{kind}を探すとよいぞい。{dir}', 'sg.tip.field': '{item}は{dest}の{kind}で採れるぞい。',
+    'sg.tip.carve': '{item}は{mon}から剥ぎ取れるぞい。{home}', 'sg.tip.break': '{item}が欲しいなら、{mon}の{part}を壊すんじゃ！{home}',
+    'sg.tip.egg': '{item}は{mon}の巣から持ち帰るんじゃ。巣は{regions}にあることが多いぞい。親には気をつけるんじゃぞ！',
+    'sg.tip.juv': '{mon}の幼体は{regions}で見かけるぞい。倒せば剥ぎ取れるが……親が黙っておらんぞい。', 'sg.tip.shop': '{item}は商人ペルの店でも買えるぞい。',
+    'sg.dir': '島の{d}のほうじゃな。', 'sg.home': '{mon}は{region}あたりにおるぞい。',
+    'sg.src.gather': '火山島・{region}', 'sg.src.field': '{dest}', 'sg.src.carve': '{mon}の剥ぎ取り', 'sg.src.break': '{mon}の{part}破壊', 'sg.src.egg': '{mon}の巣', 'sg.src.juv': '{mon}の幼体',
+    'sg.src.shop': '港の市場', 'sg.price': '{c} コイン', 'sg.chance': '{p}%', 'sg.nestIn': '巣：{r}', 'sg.liveIn': '生息：{r}', 'sg.uses': '1回の出発で{n}回まで',
+    'sg.d.n': '北', 'sg.d.ne': '北東', 'sg.d.e': '東', 'sg.d.se': '南東', 'sg.d.s': '南', 'sg.d.sw': '南西', 'sg.d.w': '西', 'sg.d.nw': '北西', 'sg.d.c': '中央',
     armorPiece: '{set}{slot}',
     // 共通
     'c.stars': '★{n}', 'c.rarity': 'レア{r}', 'c.none': 'なし', 'c.noSkills': 'スキルなし', 'c.noSkillsLower': 'スキルなし', 'c.noMats': '素材は不要です。',
