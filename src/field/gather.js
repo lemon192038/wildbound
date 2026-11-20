@@ -5,16 +5,17 @@
 // are validated & capped (server/economy.js sanitizeReport) — the field only tracks what you picked.
 import * as THREE from 'three';
 import { t as tr } from '../shared/i18n.js';
+import { FIELD_GATHER as FG } from '../shared/fieldGather.js';
 
 const TYPES = {
-  herb: { items: [['sunpetal', 85], ['honey', 15]], uses: 3, label: 'Herb patch', color: 0xc8e070, glow: 0xfff0a0 },
-  mushroom: { items: [['glowcap', 100]], uses: 3, label: 'Glowcap cluster', color: 0x6ad0c0, glow: 0x80ffe0 },
-  lichen: { items: [['tidecap', 100]], uses: 3, label: 'Tidecap lichen', color: 0x4aa0e0, glow: 0x9ad8ff },
-  ore: { items: [['ironOre', 100]], uses: 3, label: 'Ore outcrop', color: 0x8a8a96, glow: 0xffffff },
-  crimson: { items: [['crimsonOre', 80], ['ironOre', 20]], uses: 3, label: 'Crimson vein', color: 0xa03a2a, glow: 0xff8a6a },
-  crystal: { items: [['stormquartz', 100]], uses: 2, label: 'Stormquartz crystal', color: 0x9ab8ff, glow: 0xc8e0ff },
-  hive: { items: [['honey', 100]], uses: 2, label: 'Wild hive', color: 0xd8a030, glow: 0xffd070 },
-  bones: { items: [['monsterBone', 100]], uses: 2, label: 'Bone pile', color: 0xe8e0c8, glow: 0xffffff },
+  herb: { items: FG.herb, uses: 3, label: 'Herb patch', color: 0xc8e070, glow: 0xfff0a0 },
+  mushroom: { items: FG.mushroom, uses: 3, label: 'Glowcap cluster', color: 0x6ad0c0, glow: 0x80ffe0 },
+  lichen: { items: FG.lichen, uses: 3, label: 'Tidecap lichen', color: 0x4aa0e0, glow: 0x9ad8ff },
+  ore: { items: FG.ore, uses: 3, label: 'Ore outcrop', color: 0x8a8a96, glow: 0xffffff },
+  crimson: { items: FG.crimson, uses: 3, label: 'Crimson vein', color: 0xa03a2a, glow: 0xff8a6a },
+  crystal: { items: FG.crystal, uses: 2, label: 'Stormquartz crystal', color: 0x9ab8ff, glow: 0xc8e0ff },
+  hive: { items: FG.hive, uses: 2, label: 'Wild hive', color: 0xd8a030, glow: 0xffd070 },
+  bones: { items: FG.bones, uses: 2, label: 'Bone pile', color: 0xe8e0c8, glow: 0xffffff },
 };
 const LAYOUT = { herb: 9, mushroom: 6, lichen: 5, ore: 6, crimson: 4, crystal: 3, hive: 2, bones: 3 };
 

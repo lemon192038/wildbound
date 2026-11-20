@@ -4,6 +4,16 @@
 // srv. server messages · touch. touch buttons. {name}-style placeholders are filled by t().
 export default {
   ui: {
+    'sg.home2': '{mon} roams {dest}, and the {region} on the Volcanic Island.', 'sg.sep': ', ', 'sg.d.rim': 'shore all around', 'dlg.sage.mats': 'Where do I find materials?', 'sg.title': "Mame Chishikii's Material Notes", 'sg.tabGather': 'Gathered', 'sg.tabMonster': 'Monster parts', 'sg.tabLife': 'Eggs & juveniles',
+    'sg.choose': 'Pick the material you want to know about.', 'sg.have': 'Owned {n}', 'sg.where': 'Where to get it', 'sg.unknown': 'Hmm, even I do not know that one…',
+    'sg.tip.gather': 'For {item}, search the {kind} of the {region}. {dir}', 'sg.tip.field': '{item} comes from the {kind} in {dest}.',
+    'sg.tip.carve': 'You can carve {item} from a {mon}. {home}', 'sg.tip.break': 'Want {item}? Break the {part} of a {mon}! {home}',
+    'sg.tip.egg': 'Bring {item} back from a {mon} nest. Nests are often in the {regions}. Mind the parents!',
+    'sg.tip.juv': 'Young {mon} are seen in the {regions}. You can carve one you defeat… but the parents will not stand for it.', 'sg.tip.shop': 'Merchant Pell sells {item} too.',
+    'sg.dir': 'That is to the {d} of the island.', 'sg.home': '{mon} roams around the {region}.',
+    'sg.src.gather': 'Volcanic Island · {region}', 'sg.src.field': '{dest}', 'sg.src.carve': 'Carve: {mon}', 'sg.src.break': 'Break: {mon} {part}', 'sg.src.egg': '{mon} nest', 'sg.src.juv': 'Juvenile {mon}',
+    'sg.src.shop': 'Harbour market', 'sg.price': '{c} coins', 'sg.chance': '{p}%', 'sg.nestIn': 'Nests: {r}', 'sg.liveIn': 'Lives: {r}', 'sg.uses': 'up to {n} per trip',
+    'sg.d.n': 'north', 'sg.d.ne': 'north-east', 'sg.d.e': 'east', 'sg.d.se': 'south-east', 'sg.d.s': 'south', 'sg.d.sw': 'south-west', 'sg.d.w': 'west', 'sg.d.nw': 'north-west', 'sg.d.c': 'centre',
     armorPiece: '{set} {slot}',
     // common
     'c.stars': '{n} stars', 'c.rarity': 'Rarity {r}', 'c.none': 'None', 'c.noSkills': 'No skills', 'c.noSkillsLower': 'no skills', 'c.noMats': 'No materials required.',
