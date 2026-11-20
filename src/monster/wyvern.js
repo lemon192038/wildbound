@@ -14,7 +14,7 @@ import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { createWyvernFx } from './wyvernFx.js';
 import { createPerception } from '../core/perception.js';
 import { senseProfile } from '../shared/senses.js';
-import { makePart, resolvePartHit, tickRegen, disabled } from '../core/parts.js';
+import { makePart, resolvePartHit, tickRegen, disabled, partSnapshot, applyPartSnapshot } from '../core/parts.js';
 
 export const S0 = 16; // source mesh units → metres (wingspan ≈ 16 m at scale 1)
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -450,9 +450,10 @@ export async function createWyvern(game, opts = {}) {
   }
 
   // ---------------------------------------------------------------- update
+  function regrown(n) { if (n === 'wings') m.grounded = false; events.emit('monster:partRegen', { monster: m, part: n }); } // host: tickRegen; clients: the part snapshot
   m.update = (dt, rawDt = dt) => {
     dt = Math.max(0, dt); rawDt = Math.max(0, rawDt); tAlive += dt; roarCd -= dt;
-    if (!m.remoteControlled && m.state !== 'dead' && dt > 0) for (const n of tickRegen(m.parts, dt, m.hp > m.maxHp * 0.5 ? 1 : 0.6)) { if (n === 'wings') m.grounded = false; events.emit('monster:partRegen', { monster: m, part: n }); }
+    if (!m.remoteControlled && m.state !== 'dead' && dt > 0) for (const n of tickRegen(m.parts, dt, m.hp > m.maxHp * 0.5 ? 1 : 0.6)) regrown(n);
     if (m.remoteControlled) remoteUpdate(dt);
     else if (m.state !== 'dead' || m.action) {
       const perc = m.perception, hs = hunters();
@@ -512,7 +513,7 @@ export async function createWyvern(game, opts = {}) {
   }
   m.serialize = () => ({
     k: 'wyvern', x: +m.position.x.toFixed(2), z: +m.position.z.toFixed(2), r: +wrapA(m.yaw).toFixed(3), al: +m.alt.toFixed(2), s: STATE_CODES.indexOf(m.state), a: m.actionName,
-    t: +m.actionTime.toFixed(3), q: m.actionSeq, h: Math.round(m.hp), b: m.parts.reduce((acc, p, i) => acc | (p.broken ? 1 << i : 0), 0), e: m.enraged ? 1 : 0, ex: m.exhausted ? 1 : 0,
+    t: +m.actionTime.toFixed(3), q: m.actionSeq, h: Math.round(m.hp), b: m.parts.reduce((acc, p, i) => acc | (p.broken ? 1 << i : 0), 0), e: m.enraged ? 1 : 0, ex: m.exhausted ? 1 : 0, pp: partSnapshot(m.parts),
     dv: m.diveIdx, dl: m.divesLeft,
     tx: m.target ? +m.target.position.x.toFixed(1) : 0, tz: m.target ? +m.target.position.z.toFixed(1) : 0, tg: m.target ? String(m.target.id ?? 'local') : '',
   });
@@ -521,7 +522,8 @@ export async function createWyvern(game, opts = {}) {
     if (!st || (st.k && st.k !== 'wyvern')) return;
     net.has = true; net.pos.set(st.x ?? m.position.x, 0, st.z ?? m.position.z); net.yaw = st.r ?? m.yaw; net.alt = st.al ?? net.alt;
     if (st.h != null) m.hp = st.h; if (st.e != null) m.enraged = !!st.e; if (st.ex != null) m.exhausted = !!st.ex; m.limping = m.hp < m.maxHp * 0.2; m.aggro = true;
-    if (st.b != null) m.parts.forEach((p, i) => { if (st.b & (1 << i) && !p.broken) applyBreak(p.name, false); });
+    if (st.pp) applyPartSnapshot(m.parts, st.pp, { onBreak: (n) => applyBreak(n, false), onRegrow: regrown });
+    else if (st.b != null) m.parts.forEach((p, i) => { if (st.b & (1 << i) && !p.broken) applyBreak(p.name, false); });
     if (st.tg) { const local = game.player && String(game.player.id ?? 'local') === st.tg; remoteLook.position.set(st.tx, groundAt(st.tx, st.tz), st.tz); m.target = local ? game.player : remoteLook; }
     if (st.q != null && st.q !== remoteSeq) {
       remoteSeq = st.q;

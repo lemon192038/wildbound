@@ -53,6 +53,11 @@ try {
     reset(); step(2 / 60, press('dodge')); let firstVuln = null, invulnSeen = false;
     for (let i = 1; i < 40; i++) { step(1 / 60); const before = P.hp; const hit = P.receiveHit({ damage: 1, from: { x: 0, y: 0, z: P.position.z + 2 } }); if (hit === false) invulnSeen = true; else if (invulnSeen) { firstVuln = i / 60; break; } else P.hp = P.maxHp; }
     check('i-frames end with the window (no lingering)', invulnSeen && firstVuln != null && Math.abs(firstVuln - P.roll.iEnd) < 0.05, { firstVuln });
+    // 3b) pack mercy: a hit from ANOTHER attacker while staggered knocks the hunter down, and a downed hunter is not hit
+    reset(); { const A = { id: 'boarA' }, B2 = { id: 'boarB' }; const hit = (src, z) => P.receiveHit({ damage: 5, knockback: 2, from: { x: 0, y: 0, z }, kind: 'physical', source: src });
+      hit(A, 3); step(0.05); const s1 = P.state, reel = P.reeling(); const r1 = hit(B2, 9); const s2 = P.state; step(0.3); const r2 = hit(A, 3); step(2.6); const after = P.reeling();
+      reset(); hit(A, 3); step(0.05); hit(A, 3); const same = P.state;
+      check('pack mercy: another attacker’s hit on a staggered hunter → knockdown, no hits while down; one attacker’s combo unchanged', s1 === 'hit' && reel && r1 === true && s2 === 'knockdown' && r2 === false && same === 'hit' && !after, { s1, reel, s2, r2, same, after }); }
     // 4) jump & land, plunge hits on landing
     reset(); step(0.05, press('jump')); const air = P.airborne, y = P.position.y; step(1.2);
     check('jump leaves the ground and lands', air && y > 0.1 && !P.airborne && P.position.y === 0, { air, y: +y.toFixed(2), state: P.state });

@@ -64,6 +64,7 @@ import { createVolcano } from './volcano.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// MAX_MSG: a host's snapshot of all 9 island bosses (with part states) is ~1.7 KB
 export const LIMITS = Object.freeze({
   MAX_MSG: 4096, ROOM_SIZE: 4, CHAT_LEN: 140, NAME_LEN: 16, ROOM_LEN: 24,
   MAX_CONN: 512, MAX_CONN_PER_IP: 16, STRIKES: 8,
@@ -349,7 +350,7 @@ export function startServer({ port = Number(process.env.PORT ?? 8080), host = pr
       }
       case 'm': {
         if (room.host !== c) return; // silently ignore stale host snapshots after migration
-        const arr = Array.isArray(msg.s) ? msg.s.slice(0, 4).map((s) => (isObj(s) ? sanitizeValue(s) : {})) : null;
+        const arr = Array.isArray(msg.s) ? msg.s.slice(0, 12).map((s) => (isObj(s) ? sanitizeValue(s) : {})) : null;
         if (!arr) return strike(c, 'bad_m');
         room.monster = arr; room.monsterDirty = true;
         return;

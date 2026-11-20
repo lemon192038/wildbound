@@ -65,6 +65,9 @@ export async function createPlayer(game) {
   let hitSets = new Map(), hitCount = 0, swingFirstHit = false, lastLevel = 0, attachDone = false, healLeft = 0, deadT = 0, itemKind = 'potion';
   let holdT = -1, parryReady = false, vy = 0, airborne = false, fallFrom = 0, plungeMv = 0.7, animT = null, pendingFlinch = 0, lastGround = 0, lastX = 0, lastZ = 0;
   let M = { atk: 1, def: 1, speed: 1, atkSpeed: 1, affinity: 0, critDmg: 1, elem: 1, elemRes: 1, heal: 1, stamRegen: 1 }, B = {};
+  let lastHitSrc = null; P.lastHurtAt = -99;
+  // reeling: staggered, stunned, downed or getting up, or hit in the last second — pack animals wait for their turn
+  P.reeling = () => /^(hit|stun|knockdown|getup)$/.test(P.state) || clock - P.lastHurtAt < 1;
   let slowT = 0, superArmor = false, sinceHit = 99, clock = 0, prevBlade = [], curBlade = [], speedNow = 0, footSide = 0, stunT = 0;
   const spawn = () => {
     const s = P.respawnAt || world.spawn.player; P.respawnAt = null; P.position.set(s.x, world.getHeight(s.x, s.z), s.z); lastGround = P.position.y; lastX = s.x; lastZ = s.z;
@@ -491,6 +494,11 @@ export async function createPlayer(game) {
   }
   P.receiveHit = ({ damage = 0, knockback = 0, from, kind, stun, source } = {}) => {
     if (P.dead || iframe > 0 || invuln > 0 || frozen) return false;
+    // Pack mercy (user report: a Crystal Boar herd / Magma Wolf pack charged a staggered hunter again and again, straight to
+    // camp): a hit from ANOTHER attacker while the hunter is still reeling from the last one knocks them down instead —
+    // and a downed hunter cannot be hit (then get-up i-frames). One attacker's own combos are unchanged.
+    const chain = (P.state === 'hit' || P.state === 'stun') && source && lastHitSrc && source !== lastHitSrc && kind !== 'roar';
+    P.justChained = false;
     if (P.ride?.active && !P.ride.sturdy) P.ride.dismount(P, 'thrown'); // constructs never fight: a hit throws the rider off (sturdy ones hold on)
     if (P.state === 'parry' && t <= C.parry && parryable(kind, source) && !B.silenced) {
       const to = from ? new THREE.Vector3(from.x - P.position.x, 0, from.z - P.position.z).normalize() : fwd(new THREE.Vector3());
@@ -525,9 +533,10 @@ export async function createPlayer(game) {
     P.redHp = Math.max(P.redHp, P.hp); P.hp = Math.max(0, P.hp - damage); P.recoverableHp = P.redHp; sinceHit = 0;
     events.emit('player:damaged', { amount: damage, source: from });
     events.emit('camera:shake', { intensity: clamp(damage / 60, 0.2, 0.9), duration: 0.35 });
-    P.facing = Math.atan2(-away.x, -away.z); stunT = 0; trail.clear();
+    P.facing = Math.atan2(-away.x, -away.z); stunT = 0; trail.clear(); lastHitSrc = source || null; P.lastHurtAt = clock;
     if (P.hp <= 0) { die(); vel.copy(away).multiplyScalar(3); return true; }
-    if (kb >= 10 || damage >= 38) { setState('knockdown', 0.05); vel.copy(away).multiplyScalar(Math.min(9, 3 + kb * 0.35)); }
+    if (chain) { game.status?.clear?.('stun'); P.justChained = true; } // the attacker's stun does not re-apply on a chained hit (src/fauna/herds.js)
+    if (kb >= 10 || damage >= 38 || chain) { setState('knockdown', 0.05); vel.copy(away).multiplyScalar(Math.min(9, 3 + kb * 0.35)); }
     else { setState('hit', 0.05); vel.copy(away).multiplyScalar(Math.max(1.5, kb * 0.5)); }
     return true;
   };
@@ -769,7 +778,7 @@ export async function createPlayer(game) {
       if (t >= Math.max(0.5, stunT)) { stunT = 0; setState('idle', 0.2); }
       else if (stunT <= 0.5 && t > 0.3 && take('dodge')) startDodge();
     } else if (s === 'knockdown') {
-      vel.multiplyScalar(Math.max(0, 1 - 4 * dt)); invuln = Math.max(invuln, t > 0.5 ? 0.1 : 0);
+      vel.multiplyScalar(Math.max(0, 1 - 4 * dt)); invuln = Math.max(invuln, 0.1); // downed = cannot be hit (was: only after 0.5 s, so a second charge landed on the fallen hunter)
       if (t >= 1.25 && (wishLen > 0.1 || t > 1.8 || take('dodge') || buffer)) { setState('getup', 0.12); invuln = 1.3; }
     } else if (s === 'getup') {
       if (t >= CLIPS.getup.dur) setState('idle', 0.2);

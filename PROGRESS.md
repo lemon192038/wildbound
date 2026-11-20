@@ -617,6 +617,23 @@ Design and reasoning: `ECOLOGY.md` (Japanese).
 - `src/shared/__materials.test.mjs` (new): every material has a source, each listed once, hidden materials hidden, coal = ash plains ore 25 % / highlands 18 %, Varkhul horn = head break, every tip finished text in ja and en.
 - All other suites passed.
 
+## Stage 8h: Co-op part status, black-screen stall, double-tap zoom, pack stunlock (2026-11-20)
+
+| Item | Status | Notes |
+|---|---|---|
+| Co-op: every hunter sees the part status | ✅ | the host sends `pp` (per part: HP % or −1−regrowth %) in each boss snapshot (`partSnapshot` / `applyPartSnapshot` in `src/core/parts.js`); clients mirror HP, breaks and regrowth (regrowth never reached clients before); the HUD part list (`.wb-parts`) works on clients |
+| Co-op: island bosses 5–9 synced | ✅ | the host only sent the first 4 monsters, so on clients bosses 5–9 stood frozen; now up to 12, matched by island id (`server/server.js` slice 12; snapshot of all 9 ≈ 1.7 KB) |
+| Black screen / long stall while new ground streams in | ✅ (headless) / ❓ iPad | cause found: resting/waking/spawning island bosses took their lights in and out of the scene, which makes three.js recompile every shader (103 extra programs on one walk, 4.4 s frames under software GL) — on iPad that stall can lose the WebGL context (black canvas). Now resting bosses move to an unrendered layer and boss lights use a fixed budget of 8 slots padded with dark lights (`src/field/islandBosses.js`): light count constant, 8 programs compiled on the same walk, worst frame 1.4 s. Plus: WebGL context loss is handled (restore, else a reload message — `src/core/engine.js`) and one throwing frame no longer stops the game loop (`src/main.js`) |
+| Double-tap zoom on iPad | ✅ (Chromium touch emulation) / ❓ iPad | `touch-action: manipulation` on every element (canvas / controls `none`), the second touchend of a quick double tap is cancelled and a tapped button still gets its click (`src/core/touch.js`) |
+| Crystal Boar herd / Magma Wolf pack stunlock | ✅ | herd: one rammer at a time, nobody starts a charge/gore/lunge on a reeling hunter (`P.reeling()`); player: a hit from another attacker while staggered/stunned knocks down instead (no re-stun), and a downed hunter cannot be hit (was: only after 0.5 s) |
+
+### Stage 8h tests (2026-11-20)
+- `tools/coop-test.mjs`: + client sees host part HP (37 % / 37 %), HUD shows it, break and regrowth mirrored — 3 runs in a row passed. Island room with 9 bosses: all 9 synced on the client, no rejected messages.
+- `src/fauna/__fauna.test.mjs`: + pack mercy (boar herd: 0 chained hits, ≤ 1 rammer; wolf pack: 0 chained). The same test on the old herd code: 14 chained hits, 4 boars ramming at once.
+- `src/player/__combat.test.mjs`: + another attacker's hit on a staggered hunter → knockdown, no hit while down, one attacker's combo unchanged.
+- Headless checks: light count 13 constant on an island walk; shader programs 57 → 65 (was → 160); context lost → message, restored → message gone and rendering resumes; a throwing frame does not stop the loop; a resting boss's meshes are hidden and come back when it wakes; double tap: second touchend cancelled, button clicked once.
+- All suites, island test (0 holes), volcano test passed.
+
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
   - island content

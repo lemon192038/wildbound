@@ -17,8 +17,12 @@ export function createHerdAI(ctx) {
   const TAU = Math.PI * 2;
   const groups = new Set(); let gid = 1;
   const face = (c, x, z, dt, rate = 3) => { c.yaw += Math.max(-rate * dt, Math.min(rate * dt, wrapA(Math.atan2(x - c.pos.x, z - c.pos.z) - c.yaw))); };
-  const hurtLocal = (h, a, from) => { if (!h?.local) return false; const ok = game.player.receiveHit?.({ damage: a.damage, knockback: a.knockback ?? 4, from: from.pos.clone(), source: from, kind: a.kind || 'physical' }); if (ok !== false && a.status) game.status?.apply?.(...a.status); return ok !== false; };
+  const hurtLocal = (h, a, from) => { if (!h?.local) return false; const ok = game.player.receiveHit?.({ damage: a.damage, knockback: a.knockback ?? 4, from: from.pos.clone(), source: from, kind: a.kind || 'physical' }); if (ok !== false && a.status && !game.player.justChained) game.status?.apply?.(...a.status); return ok !== false; };
   const alive = (g) => g.members.filter((m) => !m.dead);
+  // pack mercy: nobody starts a new attack on a hunter who is still reeling (staggered / stunned / down / getting up), and a
+  // herd sends one rammer at a time — the rest hold the ring (user report: chained charges sent the hunter to camp)
+  const reeling = (t) => t === game.player && !!game.player.reeling?.();
+  const ramming = (g, c, t) => alive(g).some((m) => m !== c && /^(paw|charge|gore)$/.test(m.ai) && (m.chargeAt === t || m.target === t));
   const bossNear = (p, r) => (game.monsters || []).some((m) => m.state !== 'dead' && m.position.distanceTo(p) < r);
   const posOf = (t) => t?.pos || t?.position;
 
@@ -138,7 +142,8 @@ export function createHerdAI(ctx) {
       }
       if (g.state === 'defend') {
         const d = tp.distanceTo(c.pos);
-        if (isLead || c.role === 'tusk' || (th === g.hostile && c.attackCd <= 0 && rnd() < dt * 0.6)) {
+        const wait = reeling(th) || ramming(g, c, th);
+        if (!wait && (isLead || c.role === 'tusk' || (th === g.hostile && c.attackCd <= 0 && rnd() < dt * 0.6))) {
           if (d < 2.4 * c.scale && c.attackCd <= 0 && !disabled(c.parts, 'gore')) { setAi(c, 'gore'); c.target = th; return; }
           if (d > 6 && d < 22 && c.attackCd <= 0 && !disabled(c.parts, 'charge')) { setAi(c, 'paw'); c.chargeAt = th; c.attackCd = 4; return; }
           if (disabled(c.parts, 'charge') && disabled(c.parts, 'gore')) { const a = Math.atan2(c.pos.x - tp.x, c.pos.z - tp.z); steer(c, c.pos.x + Math.sin(a) * 6, c.pos.z + Math.cos(a) * 6, S.runSpeed, dt, 2); c.mode = 3; return; } // can neither ram nor gore: falls back
@@ -150,7 +155,7 @@ export function createHerdAI(ctx) {
         const juv = alive(g).filter((m) => m.stage === 0); const mid = juv.length ? juv[0].pos : C;
         const idx = alive(g).filter((m) => m.stage > 0 && m !== lead(g)).indexOf(c); const a = Math.atan2(tp.x - mid.x, tp.z - mid.z) + (idx - 1) * 0.9;
         steer(c, mid.x + Math.sin(a) * 3.5, mid.z + Math.cos(a) * 3.5, S.runSpeed * 0.6, dt, 3); c.mode = 0; c.heat = 0.5;
-        if (d < 2.4 * c.scale && c.attackCd <= 0 && !disabled(c.parts, 'gore')) { setAi(c, 'gore'); c.target = th; }
+        if (!wait && d < 2.4 * c.scale && c.attackCd <= 0 && !disabled(c.parts, 'gore')) { setAi(c, 'gore'); c.target = th; }
       }
     }
   }
@@ -187,7 +192,7 @@ export function createHerdAI(ctx) {
       const d = steer(c, sx, sz, S.runSpeed, dt, 4); c.mode = d > 3 ? 3 : 1;
       if (d < 3) face(c, tp.x, tp.z, dt, 4);
       // attack turn: only a couple of wolves at once
-      const attacking = ring.filter((m) => m.ai === 'lunge').length;
+      const attacking = ring.filter((m) => m.ai === 'lunge').length + (reeling(t) ? 9 : 0); // no new lunge at a reeling hunter
       const tYaw = t === game.player ? game.player.facing : t.yaw || 0; const behind = Math.abs(wrapA(Math.atan2(c.pos.x - tp.x, c.pos.z - tp.z) - tYaw)) > 1.4;
       if (c.attackCd <= 0 && attacking < 2 && d < 4 && (behind || c === L || g.state === 'hunt') && !disabled(c.parts, 'lunge')) { setAi(c, 'lunge'); c.target = t; } // broken jaw: stays on the ring, harrying
     }

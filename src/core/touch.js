@@ -17,6 +17,7 @@ export class TouchControls {
     const css = document.createElement('style');
     css.textContent = `
       html,body{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;overscroll-behavior:none}
+      *{touch-action:manipulation} canvas,.tc-root,.tc-root *{touch-action:none} /* no double-tap zoom on any element (iOS ignores user-scalable=no); scroll lists keep their own pan-y */
       .tc-root{position:fixed;inset:0;z-index:5;display:none}
       .tc-root.tc-on{display:block}
       .tc-zone{position:absolute;top:0;bottom:0}
@@ -133,7 +134,17 @@ export class TouchControls {
     addEventListener('touchend', (e) => this.enabled && end(e));
     addEventListener('touchcancel', (e) => this.enabled && end(e));
     // Block iOS pinch-zoom / double-tap zoom.
-    for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+    for (const ev of ['gesturestart', 'gesturechange', 'gestureend', 'dblclick']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+    // Safari still zooms on a quick second tap (user report): cancel the second touchend of a double tap before Safari
+    // turns it into a zoom; a tapped button still gets its click (cancelling the touchend also cancels the synthetic click).
+    let lastEnd = 0;
+    document.addEventListener('touchend', (e) => {
+      const now = performance.now(); const quick = now - lastEnd < 350; lastEnd = now;
+      if (!quick || e.touches.length || e.changedTouches.length !== 1) return;
+      const tg = e.target instanceof Element ? e.target : null; if (tg?.closest('input,textarea,select,[contenteditable]')) return;
+      e.preventDefault();
+      const b = tg?.closest('button,a,label,[data-a],[data-c],[data-tab],[data-close],[role=button]'); if (b && !b.disabled) b.click();
+    }, { passive: false, capture: true });
   }
   show() { this.enabled = true; this.root.classList.add('tc-on'); }
   hide() { this.enabled = false; this.root.classList.remove('tc-on'); }

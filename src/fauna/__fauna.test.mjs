@@ -147,6 +147,25 @@ const alive = (f, sp) => f.list.filter((c) => !c.dead && (!sp || c.sp === sp));
   const m = g.members.find((x) => x.role === 'member' && x.stage === 2); player.position.set(C.x, 5, C.z - 30); m.receiveHit({ damage: 50, attackerId: 'local' }); step(0.4);
   ok(g.state === 'defend' && g.hostile, 'striking one boar turns the whole herd hostile');
 }
+{ // pack mercy (user report: a herd / pack chained charges on a staggered hunter → camp): one rammer at a time, nobody
+  // starts an attack on a reeling hunter
+  for (const sp of ['boar', 'wolf']) {
+    const { fauna, player, step } = setup(sp === 'boar' ? 'coast' : 'fungal');
+    player.position.set(0, 5, 0); step(0.2); for (const o of [...fauna.list]) { o.dead = true; o.corpseT = 0.01; } step(0.1);
+    let clock = 0, lastHurt = -99; const hits = [];
+    player.reeling = () => clock - lastHurt < 1.6; // stagger + the player's 1 s grace
+    player.receiveHit = ({ damage: d, source }) => { hits.push({ t: clock, by: source }); lastHurt = clock; return true; };
+    const g = sp === 'boar' ? fauna.spawnGroup('boar', 0, 40, [{ role: 'tusk', stage: 2 }, { role: 'member', stage: 2 }, { role: 'member', stage: 2 }, { role: 'member', stage: 2 }, { role: 'member', stage: 2 }])
+      : fauna.spawnGroup('wolf', 0, 40);
+    const C = g.center; player.position.set(C.x, 5, C.z - 9);
+    for (const m of g.members) m.receiveHit({ damage: 1, attackerId: 'local' }); // the whole group turns on the hunter
+    let maxRam = 0; for (let t = 0; t < 30; t += 1 / 30) { clock = t; fauna.update(1 / 30, 1 / 30); maxRam = Math.max(maxRam, g.members.filter((m) => !m.dead && /^(paw|charge|gore)$/.test(m.ai)).length); }
+    let chained = 0; for (let i = 1; i < hits.length; i++) if (hits[i].t - hits[i - 1].t < 1.0 && hits[i].by !== hits[i - 1].by) chained++;
+    ok(hits.length > 0, `${sp}: the group still attacks the hunter (${hits.length} hits in 30 s)`);
+    ok(chained === 0, `${sp}: no hit from another animal while the hunter reels (${chained} chained)`);
+    if (sp === 'boar') ok(maxRam <= 1, `boar herd rams one at a time (max ${maxRam} at once)`);
+  }
+}
 { // ecology: a wolf pack hunts an unguarded juvenile boar; the herd fights back
   const { fauna, player, step } = setup('fungal');
   player.position.set(0, 5, 0); step(0.2); for (const o of [...fauna.list]) { o.dead = true; o.corpseT = 0.01; } step(0.1);

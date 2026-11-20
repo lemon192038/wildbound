@@ -26,6 +26,7 @@
 import { createRemoteHunter } from '../player/player.js';
 import { createHitValidator, motionInfo } from './hitcheck.js';
 
+const MAX_MONSTERS = 12; // must match server/server.js 'm' slice
 const SEND_HZ = 20, MONSTER_SEND_HZ = 15, INTERP_DELAY = 100, EXTRAP_CAP = 250, BUFFER_MAX = 30;
 const BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
@@ -270,7 +271,7 @@ function startOnline(game, net, params, remote = '') {
         }
       } catch (e) { console.warn('[net] getHitboxes', e); }
       const res = validator.check(h, { now, samples: r.hist, hitboxes, alive: mon.hp > 0 && mon.state !== 'dead' });
-      if (!res.ok) { if (res.suspicious) suspicious(h.from, res.reason, `(${h.mo}${h.src ? '/' + h.src : ''})`); continue; }
+      if (!res.ok) { if (res.suspicious) { suspicious(h.from, res.reason, `(${h.mo}${h.src ? '/' + h.src : ''})`); net.lastReject = { reason: res.reason, t: Math.round(h.t), now: Math.round(now), hist: r.hist.slice(-40).map((x) => [Math.round(x.t - h.t), x.st, x.la || '']) }; } continue; } // net.lastReject: diagnostics (tools/coop-test.mjs)
       let part = h.pt;
       const hb0 = mon.getHitboxes?.()?.[0];
       if (hb0 && typeof hb0.part === 'object') part = (mon.parts || []).find((p) => p.name === part) || part;
@@ -291,8 +292,8 @@ function startOnline(game, net, params, remote = '') {
   }
 
   function applyMonsters(arr) {
-    for (let i = 0; i < arr.length && i < game.monsters.length; i++) {
-      const mon = game.monsters[i];
+    for (let i = 0; i < arr.length && i < MAX_MONSTERS; i++) {
+      const id = arr[i]?.id; const mon = id ? (game.monsters[i]?.islandId === id ? game.monsters[i] : game.monsters.find((x) => x.islandId === id)) : game.monsters[i]; // by island id when given (a boss that failed to load shifts the order)
       if (mon && typeof mon.applyRemote === 'function' && arr[i] && typeof arr[i] === 'object') {
         mon.remoteControlled = true;
         try { mon.applyRemote(safe(arr[i])); } catch (e) { console.warn('[net] monster.applyRemote', e); }
@@ -361,7 +362,7 @@ function startOnline(game, net, params, remote = '') {
     if (net.isHost && monsterAcc >= 1 / MONSTER_SEND_HZ) {
       monsterAcc %= 1 / MONSTER_SEND_HZ;
       if (remotes.size) { // nobody to send to: skip
-        const s = []; for (const mon of game.monsters.slice(0, 4)) { try { s.push(mon.serialize?.() ?? {}); } catch { s.push({}); } }
+        const s = []; for (const mon of game.monsters.slice(0, MAX_MONSTERS)) { let o; try { o = mon.serialize?.() ?? {}; } catch { o = {}; } if (o && mon.islandId) o.id = mon.islandId; s.push(o || {}); } // every island boss (was the first 4 only: bosses 5–9 froze on clients)
         tx({ t: 'm', s });
       }
     }

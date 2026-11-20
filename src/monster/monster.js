@@ -7,7 +7,7 @@ import { ACTIONS, COMBOS } from './attacks.js';
 import { createFx } from './fx.js';
 import { createPerception } from '../core/perception.js';
 import { senseProfile } from '../shared/senses.js';
-import { makePart, resolvePartHit, tickRegen, disabled } from '../core/parts.js';
+import { makePart, resolvePartHit, tickRegen, disabled, partSnapshot, applyPartSnapshot } from '../core/parts.js';
 
 const TAU = Math.PI * 2;
 const wrapA = (a) => { a = (a + Math.PI) % TAU; if (a < 0) a += TAU; return a - Math.PI; };
@@ -298,11 +298,12 @@ export async function createMonster(game) {
 
   // broken parts regrow on their own timers (well-fed/healthy → faster); visuals revert with them
   function regrowParts(dt) {
-    for (const name of tickRegen(m.parts, dt, m.hp > m.maxHp * 0.5 ? 1 : 0.6)) {
-      partByName(name)._applied = false;
-      if (name === 'forelegs') { const mm = rig.materials.memMat; mm.alphaMap = null; mm.needsUpdate = true; }
-      events.emit('monster:partRegen', { monster: m, part: name });
-    }
+    for (const name of tickRegen(m.parts, dt, m.hp > m.maxHp * 0.5 ? 1 : 0.6)) regrown(name);
+  }
+  function regrown(name) { // host: tickRegen; clients: the host's part snapshot
+    partByName(name)._applied = false;
+    if (name === 'forelegs') { const mm = rig.materials.memMat; mm.alphaMap = null; mm.needsUpdate = true; }
+    events.emit('monster:partRegen', { monster: m, part: name });
   }
   function aiUpdate(dt) {
     regrowParts(dt);
@@ -469,7 +470,7 @@ export async function createMonster(game) {
   // ---------- net sync ----------
   m.serialize = () => ({
     x: +m.position.x.toFixed(2), z: +m.position.z.toFixed(2), r: +wrapA(m.yaw).toFixed(3), s: STATE_CODES.indexOf(m.state), a: m.actionName,
-    t: +m.actionTime.toFixed(3), q: m.actionSeq, h: Math.round(m.hp), b: m.parts.reduce((acc, p, i) => acc | (p.broken ? 1 << i : 0), 0), e: m.enraged ? 1 : 0, st: Math.round(m.stamina), ex: m.exhausted ? 1 : 0,
+    t: +m.actionTime.toFixed(3), q: m.actionSeq, h: Math.round(m.hp), b: m.parts.reduce((acc, p, i) => acc | (p.broken ? 1 << i : 0), 0), pp: partSnapshot(m.parts), e: m.enraged ? 1 : 0, st: Math.round(m.stamina), ex: m.exhausted ? 1 : 0,
     tg: m.target ? String(m.target.id) : '', tx: m.target ? +m.target.position.x.toFixed(1) : 0, tz: m.target ? +m.target.position.z.toFixed(1) : 0,
   });
   let remoteSeq = -1;
@@ -481,7 +482,8 @@ export async function createMonster(game) {
     if (st.e != null) m.enraged = !!st.e;
     if (st.st != null) m.stamina = st.st;
     if (st.ex != null) m.exhausted = !!st.ex;
-    if (st.b != null) m.parts.forEach((p, i) => { if (st.b & (1 << i) && !p.broken) applyBreak(p.name, false); });
+    if (st.pp) applyPartSnapshot(m.parts, st.pp, { onBreak: (n) => applyBreak(n, false), onRegrow: regrown });
+    else if (st.b != null) m.parts.forEach((p, i) => { if (st.b & (1 << i) && !p.broken) applyBreak(p.name, false); });
     if (st.tg) {
       const local = game.player && String(game.player.id ?? 'local') === st.tg; remoteLook.position.set(st.tx, world.getHeight(st.tx, st.tz), st.tz);
       m.target = local ? { id: st.tg, position: game.player.position } : remoteLook;
