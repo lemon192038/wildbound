@@ -587,6 +587,24 @@ Design and reasoning: `ECOLOGY.md` (Japanese).
 - Built game (bosses stepped headless 60 s of game time): the real Varkhul and Venom-fang AIs fought — 17 blows, Varkhul 21000 → 15908, Venom-fang 13000 → 12283, no errors.
 - All other suites passed; island test 0 failed.
 
+## Stage 8f: Scope overlay fix, co-op hits from every player (2026-11-20)
+
+| Item | Status | Notes |
+|---|---|---|
+| Scope overlay shown when aiming | ✅ | the `createScope().set()` call in `player.js` had been swallowed by a trailing `//` comment; the weapons test now checks the `.wb-scope` overlay itself |
+| Co-op: non-host hits deal body and part damage | ✅ | `src/net/hitcheck.js` motion table now covers every weapon class (melee mv, per-projectile `shot` mv, shell/vial `blast`) from `CLASS_MOVES`; intents carry `kd` (melee/shot/blast), `src` (firing move), `wc` (class); class scale applied; projectiles reach 90 m with a −2.2 s state window; combo neighbours count as the same attack |
+| Relay (`server/server.js`) | ✅ | `mi` clamp 0..63 (was 0..3 — island bosses 4–8 were dropped), reach by move kind, rate 14/s burst 18 |
+| Snapshot `la` (last attack, 1.5 s) | ✅ | a quick shot can fall between two 20 Hz snapshots; the host also accepts the attack named in `la` |
+| Small fauna in co-op | ⬜ | still simulated per client (pre-existing) |
+| Real iPad / internet co-op | ❓ | verified with two headless browsers on a local server only |
+
+### Stage 8f tests (2026-11-20)
+- `tools/coop-test.mjs` (new; built dist, starts `server/server.js` on 8091): the non-host's sword hits and bow arrows from 14 m are applied by the host (HP and head part HP drop), no rejected hits — passed 4 runs in a row after the `la` fix.
+- `server/test.mjs` 75 passed: every melee class's first move, arrows from 41 m, unknown projectile, class mismatch, cannon-lance blast, `la` shot accepted / stronger shot rejected.
+- `src/player/__weapons.test.mjs`: scope overlay visible for all 5 ranged classes. One earlier run failed the melee balance ±10 % check (171 vs mean 157) on a slow frame; 6 later runs passed.
+- `src/field/__rivalry.test.mjs`: the Varkhul-vs-Venom-fang check now asserts that a fight started (grudge or intrusion roll), not its end state; 8 runs passed.
+- All other suites, island and volcano tests passed.
+
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
   - island content

@@ -138,12 +138,12 @@ try {
     for (const cls of ['bow', 'lightxbow', 'heavyxbow', 'pistol', 'machinegun']) {
       reset(cls); P.debug.setDrawn(false); P.facing = Math.PI; step(0.1); front(16); m.hits.length = 0; g.cameraRig.yaw = P.facing + Math.PI; g.cameraRig.pitch = 0.28;
       const camStep = (sec, inp) => step(sec, (i) => { g.cameraRig.update(1 / 60, {}); return typeof inp === 'function' ? inp(i) : inp; });
-      camStep(1.6, { guard: true }); const fov = g.camera.fov, k = g.cameraRig.scopeK, vis = P.view.root.visible, drawn = P.weaponDrawn, aim = P.aiming;
+      camStep(1.6, { guard: true }); const fov = g.camera.fov, k = g.cameraRig.scopeK, vis = P.view.root.visible, drawn = P.weaponDrawn, aim = P.aiming; camStep(0.05, { guard: true }); const scEl = document.querySelector('.wb-scope'); const overlay = !!scEl && scEl.style.display === 'block' && +scEl.style.opacity > 0.5; // the scope overlay itself is on screen
       const cp2 = P.crosshairPoint(); camStep(0.05, (i) => ({ guard: true, lightAttack: i === 0 })); camStep(1.2, { guard: true });
-      scopeRes[cls] = { drawn, aim, k: +k.toFixed(2), fov: +fov.toFixed(1), hidden: !vis, center: +cp2.distanceTo(m.position).toFixed(1), hits: m.hits.length };
+      scopeRes[cls] = { drawn, aim, overlay, k: +k.toFixed(2), fov: +fov.toFixed(1), hidden: !vis, center: +cp2.distanceTo(m.position).toFixed(1), hits: m.hits.length };
     }
     const zooms = Object.fromEntries(Object.keys(scopeRes).map((c) => [c, window.__WC?.[c]?.scope?.zoom]));
-    check('scope: all 5 ranged classes draw + aim from sheathed, scope up, model hidden, centre on the target, the shot hits', Object.values(scopeRes).every((r) => r.drawn && r.aim && r.k > 0.95 && r.hidden && r.center < 2 && r.hits >= 1), scopeRes);
+    check('scope: all 5 ranged classes draw + aim from sheathed, scope up, model hidden, centre on the target, the shot hits', Object.values(scopeRes).every((r) => r.drawn && r.aim && r.overlay && r.k > 0.95 && r.hidden && r.center < 2 && r.hits >= 1), scopeRes);
     check('scope zoom differs by weapon (heavy crossbow most, pistol least)', scopeRes.heavyxbow.fov < scopeRes.lightxbow.fov && scopeRes.lightxbow.fov < scopeRes.pistol.fov, { fov: Object.fromEntries(Object.entries(scopeRes).map(([c, r]) => [c, r.fov])) });
     { const P0 = P.aimOn; step(0.5, {}); const stays = P.aiming; step(0.1, (i) => (i === 0 ? { guard: true } : {})); // AIM is a toggle: it stays on without holding; a second press cancels
       check('AIM is a toggle: stays on after release, a second press cancels', P0 && stays && !P.aimOn, { P0, stays, after: P.aimOn }); }

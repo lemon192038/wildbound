@@ -121,11 +121,13 @@ try {
   b.send({ t: 'hit', mo: 'light2', pt: 'head', mi: 0, p: [1, 1, 0], ts: Date.now() - 60000 });
   await sleep(100);
   ok(a.msgs.filter((m) => m.t === 'hit').length === 1 && logs.some((l) => l.includes('reason=hit_stale')), 'stale hit dropped + logged');
+  { const n0 = a.msgs.length; b.send({ t: 'hit', mo: 'sw_1', pt: 'head', mi: 6, p: [1, 1, 0] }); b.send({ t: 'hit', mo: 'arrow', kd: 'shot', src: 'lx_shot', wc: 'lightxbow', pt: 'head', mi: 5, p: [40, 1, 0] }); await sleep(100);
+    const fw = a.msgs.slice(n0).filter((m) => m.t === 'hit'); ok(fw.some((m) => m.mi === 6 && m.mo === 'sw_1') && fw.some((m) => m.mi === 5 && m.kd === 'shot' && m.src === 'lx_shot'), 'relay forwards any class move and projectiles at range, to monsters beyond index 3 (island)'); }
   d.send({ t: 'p', x: [0, 0, 0, 0], s: {} }); await sleep(80);
-  for (let i = 0; i < 20; i++) d.send({ t: 'hit', mo: 'light1', pt: 'head', mi: 0, p: [1, 1, 0] });
+  for (let i = 0; i < 40; i++) d.send({ t: 'hit', mo: 'light1', pt: 'head', mi: 0, p: [1, 1, 0] }); // burst 18 (rapid-fire guns), then clamped
   await sleep(150);
   const dHits = a.msgs.filter((m) => m.t === 'hit' && m.i === wd.i).length;
-  ok(dHits <= 7 && dHits >= 5 && logs.some((l) => l.includes(`id=${wd.i}`) && l.includes('reason=hit_rate')), `hit flood clamped (${dHits}/20 forwarded) + logged`);
+  ok(dHits <= 21 && dHits >= 17 && logs.some((l) => l.includes(`id=${wd.i}`) && l.includes('reason=hit_rate')), `hit flood clamped (${dHits}/40 forwarded) + logged`);
   a.send({ t: 'sus', i: wb.i, r: 'dps_cap' }); b.send({ t: 'sus', i: wc.i, r: 'framed' });
   await sleep(100);
   ok(logs.some((l) => l.includes('host_rejected:dps_cap') && l.includes(`reporter=${wa.i}`)) && !logs.some((l) => l.includes('framed')),
@@ -190,6 +192,9 @@ try {
     ok(v.check(H(), ctx()).reason === 'duplicate_part', 'same part twice in one swing rejected');
     ok(v.check(H({ mo: 'god' }), ctx()).reason === 'bad_motion', 'unknown motion rejected');
     ok(v.check(H({ from: 'y', mo: 'light3' }), ctx()).reason === 'state_mismatch', 'motion not in attacker state history rejected');
+    { const sm = samples('idle').map((x) => ({ ...x, la: 'bw_quick', wc: 'bow' }));
+      ok(v.check(H({ from: 'q', mo: 'arrow', kd: 'shot', src: 'bw_quick', wc: 'bow', p: [1.2, 1.4, 0] }), ctx({ samples: sm })).ok, 'quick shot missed by every snapshot state but named in la (last attack) accepted');
+      ok(v.check(H({ from: 'q2', mo: 'arrow', kd: 'shot', src: 'hx_cannon2', wc: 'bow' }), ctx({ samples: sm })).reason === 'state_mismatch', 'la naming another move does not cover a stronger shot'); }
     ok(v.check(H({ from: 'y', mo: 'heavy', lv: 3 }), ctx({ samples: samples('heavy', 1) })).reason === 'charge_mismatch', 'claimed charge level above observed rejected');
     r = v.check(H({ from: 'y', mo: 'heavy', lv: 1 }), ctx({ samples: samples('heavy', 1) }));
     ok(r.ok && Math.abs(r.damage - 0.72 * ATTACK_POWER * 1.2) < 1e-9, 'heavy lv1 accepted with lv1 motion value');
@@ -209,6 +214,19 @@ try {
     }
     const dps = dmg / 10, legit = motionValue('heavy', 3) * ATTACK_POWER * 1.2;
     ok(dps <= DPS_RATE + DPS_BURST / 10 + 1, `per-player DPS capped: ${accepted}/100 spoofed heavies accepted, ${dps.toFixed(0)} dmg/s (uncapped would be ${(legit * 10).toFixed(0)})`);
+    // every weapon class (co-op bug: only the great sword's moves were in the table, so other classes never dealt damage)
+    { const { CLASS_MOVES, WEAPON_CLASSES } = await import('../src/shared/weaponClasses.js'); const v3 = createHitValidator({ rand: () => 0.5 });
+      const firsts = Object.entries(WEAPON_CLASSES).map(([cls, C]) => [cls, C.light]).filter(([, mv]) => mv && (CLASS_MOVES[mv]?.mv > 0 || Array.isArray(CLASS_MOVES[mv]?.mv)));
+      let okN = 0; for (const [cls, mo] of firsts) { const r3 = v3.check(H({ from: 'm' + cls, mo, wc: cls }), ctx({ samples: samples(mo) })); if (r3.ok && r3.damage > 0) okN++; }
+      ok(okN === firsts.length, `every melee class's first move is accepted and deals damage (${okN}/${firsts.length})`);
+      const sh = (o = {}) => H({ from: 'bow', mo: 'arrow', kd: 'shot', src: 'bw_quick', wc: 'bow', p: [41.2, 1.4, 0], ...o });
+      const far = [{ part: 'head', x: 42, y: 1.5, z: 0, r: 1 }];
+      let r4 = v3.check(sh(), ctx({ samples: samples('bw_quick'), hitboxes: far }));
+      ok(r4.ok && r4.damage > 0, `an arrow from 41 m is accepted (${r4.damage?.toFixed(1)} dmg, class scale applied)`);
+      ok(v3.check(sh({ from: 'bow2', src: 'god' }), ctx({ samples: samples('bw_quick'), hitboxes: far })).reason === 'bad_motion', 'a projectile from an unknown move is rejected');
+      ok(v3.check(sh({ from: 'bow3', wc: 'heavyxbow' }), ctx({ samples: samples('bw_quick').map((x) => ({ ...x, wc: 'bow' })), hitboxes: far })).reason === 'class_mismatch', 'a hit claiming another weapon class than the attacker holds is rejected');
+      const r5 = v3.check(H({ from: 'cl', mo: 'cl_shell', kd: 'blast', wc: 'cannonlance' }), ctx({ samples: samples('cl_shell') }));
+      ok(r5.ok && r5.damage > 0, 'a cannon-lance shell blast is accepted'); }
   }
 
   console.log('shutdown');
