@@ -16,7 +16,7 @@ import { buildBrute, growthTexture } from './bruteModel.js';
 import { createWyvernFx } from './wyvernFx.js';
 import { createPerception } from '../core/perception.js';
 import { senseProfile } from '../shared/senses.js';
-import { makePart, resolvePartHit, tickRegen, disabled } from '../core/parts.js';
+import { makePart, resolvePartHit, tickRegen, disabled, partSnapshot, applyPartSnapshot } from '../core/parts.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -430,7 +430,7 @@ export async function createBrute(game) {
   }
   m.serialize = () => ({
     k: 'brute', x: +m.position.x.toFixed(2), z: +m.position.z.toFixed(2), r: +wrapA(m.yaw).toFixed(3), s: STATE_CODES.indexOf(m.state), a: m.actionName,
-    t: +m.actionTime.toFixed(3), q: m.actionSeq, h: Math.round(m.hp), b: m.parts.reduce((acc, p, i) => acc | (p.broken ? 1 << i : 0), 0), e: m.enraged ? 1 : 0,
+    t: +m.actionTime.toFixed(3), q: m.actionSeq, h: Math.round(m.hp), b: m.parts.reduce((acc, p, i) => acc | (p.broken ? 1 << i : 0), 0), e: m.enraged ? 1 : 0, pp: partSnapshot(m.parts),
     ht: GROWTH_PARTS.map((p) => Math.round(m.heat[p] * 100)), sz: GROWTH_PARTS.map((p) => Math.round(m.size[p] * 100)), dc: GROWTH_PARTS.map((p) => m.detachCount[p]),
     f: m.final ? 1 : 0, cx: +m.ringCenter.x.toFixed(1), cz: +m.ringCenter.z.toFixed(1),
     tx: m.target ? +m.target.position.x.toFixed(1) : 0, tz: m.target ? +m.target.position.z.toFixed(1) : 0, tg: m.target ? String(m.target.id ?? 'local') : '',
@@ -440,7 +440,8 @@ export async function createBrute(game) {
     if (!st || (st.k && st.k !== 'brute')) return;
     net.has = true; net.pos.set(st.x ?? m.position.x, 0, st.z ?? m.position.z); net.yaw = st.r ?? m.yaw; m.aggro = true;
     if (st.h != null) m.hp = st.h; if (st.e != null) m.enraged = !!st.e; m.limping = m.hp < m.maxHp * 0.15;
-    if (st.b != null) m.parts.forEach((p, i) => { p.broken = !!(st.b & (1 << i)); });
+    if (st.pp) applyPartSnapshot(m.parts, st.pp, { onRegrow: (n) => events.emit('monster:partRegen', { monster: m, part: n }) });
+    else if (st.b != null) m.parts.forEach((p, i) => { p.broken = !!(st.b & (1 << i)); });
     GROWTH_PARTS.forEach((p, i) => {
       if (Array.isArray(st.dc) && st.dc[i] > seenDetach[p]) { seenDetach[p] = st.dc[i]; detach(p, false); }
       if (Array.isArray(st.ht)) m.heat[p] = clamp(st.ht[i] / 100, 0, 1); if (Array.isArray(st.sz)) m.size[p] = clamp(st.sz[i] / 100, 0, 1);

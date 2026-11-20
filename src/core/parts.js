@@ -37,6 +37,21 @@ export function tickRegen(parts, dt, factor = 1) {
   return out;
 }
 
+// Co-op (user request: every hunter sees the part status). The host sends one small int per part in its monster
+// snapshot: intact → part HP 0..100 %; broken → -1 - regrowth 0..100 %. Clients mirror HP, breaks AND regrowth (their AI
+// never ticks regrowth, so without this a part the host regrew stayed broken on every other screen).
+export function partSnapshot(parts) {
+  return parts.map((p) => (p.broken ? -1 - (p.regen ? Math.min(100, Math.round((p.regenT / p.regen) * 100)) : 0) : Math.max(0, Math.min(100, Math.round((p.hp / (p.maxHp || 1)) * 100)))));
+}
+export function applyPartSnapshot(parts, snap, { onBreak, onRegrow } = {}) {
+  if (!Array.isArray(snap)) return;
+  parts.forEach((p, i) => {
+    const v = snap[i]; if (typeof v !== 'number' || !Number.isFinite(v)) return;
+    if (v < 0) { if (!p.broken) (onBreak ? onBreak(p.name) : (p.broken = true)); p.broken = true; p.hp = 0; p.regenT = p.regen ? (Math.min(100, -1 - v) / 100) * p.regen : 0; }
+    else { if (p.broken) { p.broken = false; p.scar = true; onRegrow?.(p.name); } p.hp = (Math.min(100, v) / 100) * (p.maxHp || 0); p.regenT = 0; }
+  });
+}
+
 export const disabled = (parts, ability) => parts.some((p) => p.broken && p.disables.includes(ability));
 
 // A blunt blade glances off very hard parts. Heavy (charged) swings bite harder.

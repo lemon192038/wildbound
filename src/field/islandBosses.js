@@ -39,6 +39,7 @@ export function createIslandBosses(game, homes) {
         m.kind = kind; m.islandId = id; m.islandHome = new THREE.Vector3(home[0], 0, home[1]);
         if (game.net?.connected && !game.net.isHost) m.remoteControlled = true; // the host simulates every boss
         game.monsters.push(m); state.loaded++;
+        setResting(m, true); budgetLights(); // its lights take budget slots in the same frame (the light count never changes)
         game.bootTimings[`boss_${id}`] = Math.round(performance.now() - t0);
       } catch (e) { state.failed++; log.error('boss-spawn', `${kind} failed to spawn: ${e.message}`, e); }
       await new Promise((r) => requestAnimationFrame(() => r())); // one boss per frame batch
@@ -54,17 +55,44 @@ export function createIslandBosses(game, homes) {
     const gl = Math.hypot(gx, gz) || 1, k = Math.min(4 - sd, 2.5); p.x += (gx / gl) * k; p.z += (gz / gl) * k;
   }
 
+  // A far boss rests: it is not drawn and its AI is not stepped. It used to be hidden with .visible = false, which also
+  // took its lights (fx flashes, glows) out of the scene: three.js then recompiled EVERY shader whenever a boss rested,
+  // woke or spawned (the number of lights is part of each program) — a multi-second stall on iPad that can lose the
+  // WebGL context (= the black screen while new ground streams in). Now:
+  //   • a resting boss's meshes move to an unrendered layer (their own .visible flags stay the AI's business);
+  //   • boss lights share a FIXED budget of point-light slots: awake bosses (nearest first) use real slots, the rest of
+  //     the budget is filled by dark placeholder lights, so the scene's light count never changes.
+  const REST_LAYER = 31, LIGHT_SLOTS = 8;
+  const pad = []; for (let i = 0; i < LIGHT_SLOTS; i++) { const L = new THREE.PointLight(0x000000, 0, 1, 2); L.name = 'boss-light-pad'; L.userData.global = true; game.scene.add(L); pad.push(L); }
+  const lightsOf = (m) => (m._lights ||= [m.object3d, ...(m.islandExtras || [])].flatMap((r) => { const l = []; r.traverse((o) => { if (o.isPointLight) l.push(o); }); return l; }));
+  function budgetLights() {
+    const P = game.player?.position; const d = (m) => (P ? Math.hypot(P.x - m.position.x, P.z - m.position.z) : 0);
+    let used = 0;
+    for (const m of [...game.monsters].filter((x) => x.object3d).sort((a, b) => (!!a._resting - !!b._resting) || d(a) - d(b))) {
+      for (const L of lightsOf(m)) { const on = !m._resting && used < LIGHT_SLOTS; if (on) used++; L.visible = on; }
+    }
+    pad.forEach((L, i) => { L.visible = i < LIGHT_SLOTS - used; });
+  }
+  function setResting(m, rest) {
+    m._resting = rest;
+    for (const root of [m.object3d, ...(m.islandExtras || [])]) root.traverse((o) => {
+      if (o.isLight) return;
+      if (rest) { if (o.userData._restMask == null) o.userData._restMask = o.layers.mask; o.layers.set(REST_LAYER); }
+      else if (o.userData._restMask != null) { o.layers.mask = o.userData._restMask; o.userData._restMask = null; }
+    });
+  }
   function update(dt, rawDt) {
-    const hs = hunters();
+    const hs = hunters(); let restChanged = false;
     for (const m of game.monsters) {
       let d = Infinity; for (const h of hs) d = Math.min(d, Math.hypot(h.x - m.position.x, h.z - m.position.z));
       const on = state.active.has(m) ? d < AI_FAR : d < AI_NEAR;
       if (on) state.active.add(m); else state.active.delete(m);
-      if (m.object3d && m.object3d.visible !== on) { m.object3d.visible = on; for (const o of m.islandExtras || []) o.visible = on; }
+      if (m.object3d && !!m._resting === on) { setResting(m, !on); restChanged = true; }
       if (!on) continue;
       m.update(dt, rawDt);
       if (!m.remoteControlled && m.state !== 'dead') keepOffLava(m);
     }
+    if (restChanged) budgetLights();
   }
 
   // HUD focus: an engaged boss within 150 m, else the nearest boss within 70 m.

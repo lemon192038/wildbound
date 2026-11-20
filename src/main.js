@@ -49,13 +49,16 @@ let loader = null;
 
 function startLoop(step) {
   let last = performance.now();
+  let errAt = -1e9;
   function frame(now) {
-    const { dt, rawDt } = engine.tick(Math.max(0, (now - last) / 1000)); last = now;
-    const input = game.input.poll();
-    game.time = engine.elapsed;
-    step(dt, rawDt, input);
-    engine.render();
-    requestAnimationFrame(frame);
+    requestAnimationFrame(frame); // first: one bad frame must never stop the game (it froze for good before)
+    try {
+      const { dt, rawDt } = engine.tick(Math.max(0, (now - last) / 1000)); last = now;
+      const input = game.input.poll();
+      game.time = engine.elapsed;
+      step(dt, rawDt, input);
+      engine.render();
+    } catch (e) { last = now; if (now - errAt > 5000) { errAt = now; console.error('[frame]', e); } }
   }
   requestAnimationFrame(frame);
   window.__ready = true; bootMark('firstFrame');

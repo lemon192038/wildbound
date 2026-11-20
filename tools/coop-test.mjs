@@ -20,7 +20,7 @@ try {
   const snap = () => A.evaluate(() => { const m = window.__game.monsters[0]; return { hp: m.hp, parts: Object.fromEntries(m.parts.map((p) => [p.name, p.hp])), nh: window.__nh.map((e) => e.motion) }; });
   async function attack(cls, dist, sec) {
     return B.evaluate(async ({ cls, dist, sec }) => { const g = window.__game, P = g.player, m = g.monsters[0], w = (ms) => new Promise((r) => setTimeout(r, ms));
-      P.setWeaponClass(cls); await w(300);
+      P.setWeaponClass(cls); P.receiveHit = () => false; await w(300); // the boss may still swing at the client: keep the test about the client's own hits
       const place = () => { const hb = m.getHitboxes().reduce((a, b) => (b.sphere.radius > a.sphere.radius ? b : a)); const c = hb.sphere.center; const x = c.x + hb.sphere.radius + dist;
         P.position.set(x, g.world.getHeight(x, c.z), c.z); P.facing = Math.atan2(c.x - P.position.x, c.z - P.position.z); P.lockTarget = m; };
       let hits = 0; const off = g.events.on('hit', (e) => { if (e.attacker === 'local') hits++; });
@@ -34,7 +34,21 @@ try {
   const ha = await attack('bow', 14, 24); console.log('  client after bow:', JSON.stringify(await B.evaluate(() => ({ ...window.__dbg, ammo: window.__game.player.res?.ammo, lock: !!window.__game.player.lockTarget })))); await A.waitForTimeout(5000); const s2 = await snap();
   const arrows = s2.nh.filter((m) => m === 'arrow').length; const partDmg = Object.keys(s1.parts).filter((k) => s2.parts[k] < s1.parts[k]);
   ok(ha > 0 && arrows > 0 && (s2.hp < s1.hp || partDmg.length), `client arrows (${ha}) from 14 m are applied by the host (${arrows} accepted; parts hurt: ${partDmg.join(', ') || '—'})`);
-  ok(!errs.length, 'no page errors / rejected hits', JSON.stringify(errs.slice(0, 5)));
+  // part status is shared (user request): the client's copy shows the host's part HP, breaks and regrowth
+  const partsOf = (pg) => pg.evaluate(() => Object.fromEntries(window.__game.monsters[0].parts.filter((p) => p.breakable).map((p) => [p.name, [Math.round((p.hp / p.maxHp) * 100), p.broken ? 1 : 0]])));
+  await A.evaluate(() => { const m = window.__game.monsters[0]; const t = m.parts.find((p) => p.breakable && p.name === 'tail') || m.parts.find((p) => p.breakable); t.hp = t.maxHp * 0.37; window.__tp = t.name; });
+  await B.waitForFunction((n) => { const p = window.__game.monsters[0].parts.find((x) => x.name === n); return p && p.hp / p.maxHp < 0.5; }, await A.evaluate(() => window.__tp), { timeout: 10000 }).catch(() => null); let hp = await partsOf(A), cp = await partsOf(B); const tn = await A.evaluate(() => window.__tp);
+  ok(Math.abs(hp[tn][0] - cp[tn][0]) <= 1 && cp[tn][0] < 50, `client sees the host's part HP (${tn}: host ${hp[tn][0]} % / client ${cp[tn][0]} %)`);
+  await B.waitForFunction(() => /wb-pt-heavy|wb-pt-hurt/.test(document.querySelector('.wb-parts')?.innerHTML || ''), null, { timeout: 8000 }).catch(() => null); // the HUD redraws on the client's (slow, headless) frames
+  const hud = await B.evaluate(() => { const e = document.querySelector('.wb-parts'); return { n: document.querySelectorAll('.wb-parts').length, hidden: e?.classList.contains('wb-hidden'), html: (e?.innerHTML || '').replace(/<[^>]+>/g, ' ').slice(0, 160), cls: [...(e?.querySelectorAll('.wb-pt') || [])].map((x) => x.className).join(' ') }; });
+  ok(!hud.hidden && /wb-pt-heavy|wb-pt-hurt/.test(hud.cls), 'the client HUD part list shows the damaged part', JSON.stringify(hud));
+  await A.evaluate(() => { const m = window.__game.monsters[0]; m.receiveHit({ damage: 1e5, part: window.__tp, attackerId: 'local', motion: 'heavy', point: m.position.clone() }); });
+  await B.waitForFunction((n) => window.__game.monsters[0].parts.find((p) => p.name === n)?.broken, tn, { timeout: 10000 }).catch(() => null); cp = await partsOf(B); hp = await partsOf(A);
+  ok(hp[tn][1] === 1 && cp[tn][1] === 1, `a break on the host shows on the client (${tn})`, JSON.stringify({ host: hp[tn], client: cp[tn] }));
+  await A.evaluate(() => { const p = window.__game.monsters[0].parts.find((x) => x.name === window.__tp); p.broken = false; p.regenT = 0; p.hp = p.maxHp * 0.6; }); // what tickRegen does (the host's AI is frozen in this test)
+  await B.waitForFunction((n) => !window.__game.monsters[0].parts.find((p) => p.name === n)?.broken, tn, { timeout: 10000 }).catch(() => null); cp = await partsOf(B); hp = await partsOf(A);
+  ok(hp[tn][1] === 0 && cp[tn][1] === 0, `the part regrows on the client too (${tn})`, JSON.stringify({ host: hp[tn], client: cp[tn] }));
+  ok(!errs.length, 'no page errors / rejected hits', JSON.stringify(errs.slice(0, 5)) + (errs.length ? ' ' + JSON.stringify(await A.evaluate(() => window.__game.net.lastReject)) : ''));
 } catch (e) { fails++; console.log('ERROR', e.message); }
 await b.close(); srv.kill(); fs.rmSync(dbDir, { recursive: true, force: true });
 console.log(fails ? `${fails} co-op tests FAILED` : 'all co-op tests passed');
