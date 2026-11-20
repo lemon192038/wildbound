@@ -13,8 +13,8 @@ import { LIFE, LINEAGE } from '../shared/lifecycle.js';
 import { ECO } from '../shared/ecosystem.js';
 
 const TAU = Math.PI * 2;
-export function createEcologyAI({ game, F, W, rnd, setAi, steer, nearestOf, nearestHunter, ground }) {
-  const Ls = {}; let dragons = [], scanT = 0; const stats = { dragonReact: 0, huddle: 0, bask: 0, juvHome: 0, juvRun: 0 };
+export function createEcologyAI({ game, F, W, rnd, setAi, steer, nearestOf, nearestHunter, ground, nestsNear = () => [], provoke = () => {} }) {
+  const Ls = {}; let dragons = [], scanT = 0; const stats = { dragonReact: 0, huddle: 0, bask: 0, juvHome: 0, juvRun: 0, nestSit: 0, nestDefend: 0, mob: 0 };
   const flying = (m) => m.kind === 'wyvern' && m.state !== 'dead' && m.position.y - W.getHeight(m.position.x, m.position.z) > 4;
   function tick(dt) { if ((scanT -= dt) > 0) return; scanT = 0.5; dragons = (game.monsters || []).filter(flying); }
   const nearDragon = (c, r) => { let best = null, bd = r; for (const m of dragons) { const d = Math.hypot(m.position.x - c.pos.x, m.position.z - c.pos.z); if (d < bd) { bd = d; best = m; } } return best; };
@@ -77,9 +77,29 @@ export function createEcologyAI({ game, F, W, rnd, setAi, steer, nearestOf, near
     if (h && dH < 25) { c.yaw += Math.atan2(Math.sin(Math.atan2(h.pos.x - c.pos.x, h.pos.z - c.pos.z) - c.yaw), Math.cos(Math.atan2(h.pos.x - c.pos.x, h.pos.z - c.pos.z) - c.yaw)) * Math.min(1, dt * 3); c.move = 0; c.mode = 2; if (dH < 6) c.aggroT = Math.max(c.aggroT || 0, 6); return true; }
     return false;
   }
+  // females of most species keep near their eggs (user request): a female whose species has a clutch within 45 m sits
+  // within ~10 m of it; a hunter coming within 16 m of the eggs is met head-on (species that fight attack — temperament)
+  function nestSitter(c, dt) {
+    if (!c.female || c.stage < 2 || c.group || c.sp === 'snake' || c.sp === 'slime' || c.sp === 'beetle') return false;
+    if (!c.nestRef || c.nestRef.n <= 0 || (c.nestT = (c.nestT || 0) - dt) <= 0) { c.nestT = 3; c.nestRef = nestsNear(c.home.x, c.home.z, 45, c.sp)[0] || null; }
+    const q = c.nestRef; if (!q) return false;
+    const [h] = nearestHunter(q.x, q.z); const dHn = h ? Math.hypot(h.pos.x - q.x, h.pos.z - q.z) : Infinity;
+    if (dHn < 16) { stats.nestDefend++; provoke(c, 12); return false; } // let its own fighting AI take the hunter on
+    const d = Math.hypot(c.pos.x - q.x, c.pos.z - q.z);
+    if (d > 10) { steer(c, q.x, q.z, (c.S.speed || 1.5), dt, 3); stats.nestSit++; return true; }
+    if (c.ai === 'ambush' || c.ai === 'patrol' || c.ai === 'roam' || c.ai === 'feed') { c.move = 0; c.mode = 2; stats.nestSit++; return true; }
+    return false;
+  }
+  // Ash Birds mob an egg thief: swoop low around the hunter, screeching, for a while (no damage — they drive it off)
+  function mob(c, dt) {
+    if (c.sp !== 'bird' || !(c.mobT > 0)) return false; c.mobT -= dt; const [h] = nearestHunter(c.pos.x, c.pos.z); if (!h) return false;
+    c.mobA = (c.mobA ?? rnd() * 6.28) + dt * 1.6; const r = 6 + 2 * Math.sin(c.mobA * 0.7);
+    c.altT = 3.5 + Math.sin(c.mobA * 2) * 1.5; c.alt += (c.altT - c.alt) * Math.min(1, dt * 2); steer(c, h.pos.x + Math.cos(c.mobA) * r, h.pos.z + Math.sin(c.mobA) * r, c.S.speed, dt, 5); c.mode = 0; c.ai = 'mob'; stats.mob++; return true;
+  }
   function react(c, dt) {
+    if (mob(c, dt)) return true;
     if (busy(c)) return false;
-    return dragonReaction(c, dt) || juvenile(c, dt) || guard(c, dt) || bask(c, dt);
+    return dragonReaction(c, dt) || juvenile(c, dt) || guard(c, dt) || nestSitter(c, dt) || bask(c, dt);
   }
   return { tick, react, stats, get dragons() { return dragons; } };
 }

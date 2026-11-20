@@ -206,6 +206,8 @@ async function bootIsland({ quest = false } = {}) {
   game.broods = createBroods(game, bosses.homes); game.addUpdater((dt) => game.broods.update(dt));
   const { createDragonLife } = await import('./field/dragonLife.js');
   game.dragonLife = createDragonLife(game, bosses.homes, bosses.isActive); game.addUpdater((dt) => game.dragonLife.update(dt));
+  const { createBossRivalry } = await import('./field/bossRivalry.js'); // big monsters vs each other (territory, temperament, threat)
+  game.bossRivalry = createBossRivalry(game, bosses.homes, bosses.isActive); game.addUpdater((dt) => game.bossRivalry.update(dt));
   game.eggs = createEggs(game, { expedition });
   if (game.campAt) { const { buildCamp } = await import('./field/campProps.js'); buildCamp(game, game.campAt); }
   const toTown = () => { const u = new URL(location.href); const k = new URLSearchParams(); for (const n of ['low', 'hq', 'touch', 'lang']) if (u.searchParams.has(n)) k.set(n, u.searchParams.get(n)); k.set('mode', 'town'); location.href = `${u.pathname}?${k}`; };

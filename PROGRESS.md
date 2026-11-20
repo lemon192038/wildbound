@@ -566,6 +566,27 @@ Design and reasoning: `ECOLOGY.md` (Japanese).
 - Scope screenshots (test bench): light crossbow, heavy crossbow, bow.
 - All other suites passed. Island test: 0 failed. `tools/volcano-test.mjs`: the first run after a fresh build failed again, the next 5 passed (same pattern as stage 8b; likely cold-start timing, unconfirmed).
 
+## Stage 8e: Big-monster rivalry, temperament, territories, egg theft, AIM toggle, Cindral tier (2026-11-20)
+
+| Item | Status | Notes |
+|---|---|---|
+| Cindral harder: its quests need HR 5–6 (★6–7, were HR 3–4), Ashfang Wastes rec. HR 5; every Cindral-material weapon is rarity 6 with the rarity-6 attack (768 → 864), its armour rarity 6, defence 60 | ✅ | `gamedata.js` post-pass |
+| AIM is a toggle: one press aims, the next cancels (keyboard Q, pad LT, touch AIM — the button stays lit); the view can be swiped while aiming; dodge / knockdown / sheathe / mount / class change end it | ✅ | `player.js` (`P.aimOn`), `touch.setToggle` |
+| Vast, separated big-monster territories (radius 230–240 m, homes on a ring around the crater, no two territories overlap; mated Flame ♂ share the Venom-fang ♀'s ground) — no more being caught between two big monsters | ✅ | `shared/territories.js`; Varkhul south (fungal edge below the heartland), Cindral east, Gorvath north |
+| Temperament for every monster (22): aggression, boldness, territoriality, caution, nest devotion + a label shown on the sea chart (e.g. Varkhul 勇猛, Gorvath 不動, Cindaryl 冷酷, Venom-fang 慎重) | ✅ | `shared/temperament.js` |
+| Big monsters vs each other: intrusion on the ground inside a territory is challenged by territorial owners up to it; the valiant Varkhul attacks Venom-fang dragons it meets; a hunter who brings two together is weighed against the other monster (threat = damage the hunter dealt vs power × temperament × whose ground) and they may turn on each other; the loser breaks off by its caution and retreats; mates join in; mated pairs never fight | ✅ | `src/field/bossRivalry.js`, `m.rival` hook in monster.js / wyvern.js / brute.js; blows use the bosses' own attack hitboxes |
+| Egg theft: every adult of the species within 90 m reacts by temperament — most attack (lizards, drakes, moles, golems, slimes, herds), Ash Birds mob the thief, timid beetles hide; big nests: the owner and her mate come from up to 400 m (other big monsters do not care) | ✅ | `fauna.js eggTaken/provoke`, `broods.js callParent` |
+| Females keep near their eggs: half the adults are females; a female with a clutch of her species within 45 m sits by it and meets a hunter coming within 16 m; a Venom-fang female with eggs patrols within ~40 m of them | ✅ | `ecology.js nestSitter`, `dragonLife.js` |
+| Fixed on the way: "recently attacked" (`aggroT`) never wore off for most species (only slimes) — one hit kept them in fight mode for good | ✅ | |
+
+### Stage 8e tests (2026-11-20)
+- `src/field/__rivalry.test.mjs` (new): territories never overlap (closest gap 25 m), all ≥ 220 m; temperaments; Varkhul vs Venom-fang; mated pair never fights; Gorvath challenges a dragon landing on his ground but not one flying high; a hunter-drawn Varkhul in Cindaryl's ground is turned on unless the hunter has hurt her badly; blows land; the cautious loser retreats.
+- `src/fauna/__fauna.test.mjs`: female keeps by her eggs; both lizards attack the egg thief; a beetle hides; birds mob low — all passed (3 runs).
+- `src/field/__dragons.test.mjs`: a Venom-fang female with eggs stays within 31 m of them.
+- `src/player/__weapons.test.mjs`: AIM toggle; touch tap AIM + right-side swipe turns the scope view.
+- Built game (bosses stepped headless 60 s of game time): the real Varkhul and Venom-fang AIs fought — 17 blows, Varkhul 21000 → 15908, Venom-fang 13000 → 12283, no errors.
+- All other suites passed; island test 0 failed.
+
 ## Not started (see IMPLEMENTATION_PLAN.md)
 - **Stages 2–9:**
   - island content

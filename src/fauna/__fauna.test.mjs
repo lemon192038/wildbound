@@ -271,5 +271,18 @@ const alive = (f, sp) => f.list.filter((c) => !c.dead && (!sp || c.sp === sp));
   const nest = { sp: 'boar', n: 2, x: C.x + 3, z: C.z, y: 5 }; player.position.set(C.x + 6, 5, C.z); fauna.eggTaken(nest);
   ok(nest.n === 1 && g.hostile === player, 'taking a boar egg makes the herd hostile');
 }
+{ // egg theft (user request: most species react hypersensitively); females keep near their eggs
+  const { fauna, player, step } = setup('canyon'); step(1); for (const o of alive(fauna)) { o.dead = true; o.corpseT = 0.01; } step(0.1);
+  const nest = { sp: 'lizard', n: 3, x: 40, z: 40, y: 5 }; fauna.props.set(999999, { nests: [nest], bones: [] });
+  const L1 = fauna.spawnOne('lizard', 60, 40, 2), L2 = fauna.spawnOne('lizard', 40, 75, 2); const fem = [L1, L2].find((c) => c.female) || L1; fem.female = true;
+  player.position.set(120, 5, 40); step(14); // she walks back at her own pace (~2 m/s)
+  ok(Math.hypot(fem.pos.x - nest.x, fem.pos.z - nest.z) < 12 && fauna.ecology.stats.nestSit > 0, `a female Fire Lizard keeps near her eggs (${Math.hypot(fem.pos.x - nest.x, fem.pos.z - nest.z).toFixed(1)} m)`);
+  player.position.set(nest.x + 2, 5, nest.z); fauna.eggTaken(nest); step(0.3);
+  ok([L1, L2].every((c) => c.aggroT > 20 && ['fight', 'bite', 'tail', 'fire', 'charge', 'threat'].includes(c.ai)), `both lizards turn on the egg thief (${L1.ai}, ${L2.ai})`);
+  const b = fauna.spawnOne('beetle', 45, 45, 2); step(0.1); const bn = { sp: 'beetle', n: 2, x: 44, z: 44, y: 5 }; fauna.eggTaken(bn); step(0.1);
+  ok(['burrow', 'burrowed'].includes(b.ai), `a timid Magma Beetle hides instead (${b.ai})`);
+  const bird = fauna.spawnOne('bird', 50, 40, 2); step(0.1); const nb = { sp: 'bird', n: 2, x: 48, z: 40, y: 5 }; fauna.eggTaken(nb); step(3);
+  ok(bird.ai === 'mob' && Math.hypot(bird.pos.x - player.position.x, bird.pos.z - player.position.z) < 14 && bird.alt < 8, `Ash Birds mob the thief, low (${bird.ai}, alt ${bird.alt.toFixed(1)})`);
+}
 console.log(fails ? `${fails} FAILED` : 'all fauna tests passed');
 process.exit(fails ? 1 : 0);

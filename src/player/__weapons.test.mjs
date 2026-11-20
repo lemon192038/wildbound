@@ -145,7 +145,9 @@ try {
     const zooms = Object.fromEntries(Object.keys(scopeRes).map((c) => [c, window.__WC?.[c]?.scope?.zoom]));
     check('scope: all 5 ranged classes draw + aim from sheathed, scope up, model hidden, centre on the target, the shot hits', Object.values(scopeRes).every((r) => r.drawn && r.aim && r.k > 0.95 && r.hidden && r.center < 2 && r.hits >= 1), scopeRes);
     check('scope zoom differs by weapon (heavy crossbow most, pistol least)', scopeRes.heavyxbow.fov < scopeRes.lightxbow.fov && scopeRes.lightxbow.fov < scopeRes.pistol.fov, { fov: Object.fromEntries(Object.entries(scopeRes).map(([c, r]) => [c, r.fov])) });
-    step(0.1, {}); for (let i = 0; i < 30; i++) g.cameraRig.update(1 / 60, {}); step(0.05, {}); check('releasing AIM leaves the scope and shows the hunter again', g.cameraRig.scopeK < 0.2 && P.view.root.visible, { k: +g.cameraRig.scopeK.toFixed(2) });
+    { const P0 = P.aimOn; step(0.5, {}); const stays = P.aiming; step(0.1, (i) => (i === 0 ? { guard: true } : {})); // AIM is a toggle: it stays on without holding; a second press cancels
+      check('AIM is a toggle: stays on after release, a second press cancels', P0 && stays && !P.aimOn, { P0, stays, after: P.aimOn }); }
+    step(0.1, {}); for (let i = 0; i < 30; i++) g.cameraRig.update(1 / 60, {}); step(0.05, {}); check('cancelling AIM leaves the scope and shows the hunter again', g.cameraRig.scopeK < 0.2 && P.view.root.visible, { k: +g.cameraRig.scopeK.toFixed(2) });
     { // touch: while scoped the ATTACK button stays on top (the scope sits under the touch controls) and fires
       const { TouchControls } = await import('/src/core/touch.js'); const tc = g.input.touch || (g.input.touch = new TouchControls()); tc.show();
       reset('lightxbow'); P.debug.setDrawn(false); step(0.1); front(14); m.hits.length = 0; g.cameraRig.yaw = P.facing + Math.PI; g.cameraRig.pitch = 0.28;
@@ -154,6 +156,16 @@ try {
       const onTop = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === atk;
       camStep(0.05, (i) => ({ guard: true, lightAttack: i === 0 })); camStep(1, { guard: true });
       check('touch: the ATTACK button stays visible on top of the scope and fires while aiming', onTop && g.cameraRig.scopeK > 0.9 && m.hits.length >= 1, { onTop, hits: m.hits.length });
+      // AIM toggle by touch: tap AIM once (finger lifted) → aiming stays on; swipe the right side → the scope turns
+      { reset('heavyxbow'); P.debug.setDrawn(true); step(0.1); g.cameraRig.yaw = P.facing + Math.PI; const aimB = [...tc.root.querySelectorAll('.tc-btn')].find((b) => b.dataset.act === 'guard');
+        const TE = (el, type, touches) => el.dispatchEvent(new TouchEvent(type, { cancelable: true, bubbles: true, touches, changedTouches: touches, targetTouches: touches }));
+        TE(aimB, 'touchstart', []); step(0.05, () => g.input.poll()); TE(aimB, 'touchend', []); step(0.3, () => g.input.poll()); for (let i = 0; i < 30; i++) g.cameraRig.update(1 / 60, {});
+        const aimed = P.aiming, y0 = g.cameraRig.yaw; const zone = tc.root.querySelector('.tc-right'); const zr = zone.getBoundingClientRect();
+        const mk = (x, y) => new Touch({ identifier: 7, target: zone, clientX: x, clientY: y });
+        TE(zone, 'touchstart', [mk(zr.left + 100, zr.top + 200)]); for (let i = 1; i <= 10; i++) { TE(zone, 'touchmove', [mk(zr.left + 100 + i * 12, zr.top + 200)]); const inp = g.input.poll(); step(1 / 60, inp); g.cameraRig.update(1 / 60, inp); }
+        TE(zone, 'touchend', [mk(zr.left + 220, zr.top + 200)]);
+        check('touch: one tap on AIM keeps aiming hands-free, and a swipe turns the scope view', aimed && P.aiming && Math.abs(g.cameraRig.yaw - y0) > 0.01, { aimed, yawTurn: +(g.cameraRig.yaw - y0).toFixed(3) });
+        step(0.05, (i) => (i === 0 ? { guard: true } : {})); }
       // the context button (carve / gather / egg) is shared: a module may only clear its own label
       tc.setAction('採集'); tc.clearAction('剥取'); const kept = tc.actBtn.style.display !== 'none'; tc.clearAction('採集');
       check('touch: one module cannot hide another module\'s context button (gathering stays tappable)', kept && tc.actBtn.style.display === 'none');

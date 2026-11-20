@@ -63,7 +63,8 @@ export function createPredatorAI(ctx) {
     const inTerr = h && Math.hypot(h.pos.x - c.home.x, h.pos.z - c.home.z) < S.territory;
     const senses = h && (dH < S.senses.sight || dH < S.senses.hearing * noiseOf(h));
     if (c.ai === 'fight') {
-      if (!h || dH > S.giveUp || homeD > S.territory * 1.5 || c.hp < c.maxHp * S.fleeHp) { setAi(c, c.hp < c.maxHp * S.fleeHp ? 'flee' : 'return'); return; }
+      const prov = c.aggroT > 0; // provoked (its eggs were taken): chases much further from home
+      if (!h || dH > (prov ? 70 : S.giveUp) || homeD > S.territory * (prov ? 3 : 1.5) || c.hp < c.maxHp * S.fleeHp) { setAi(c, c.hp < c.maxHp * S.fleeHp ? 'flee' : 'return'); return; }
       const ang = Math.abs(wrapA(Math.atan2(h.pos.x - c.pos.x, h.pos.z - c.pos.z) - c.yaw));
       if (c.cd <= 0) {
         const canTail = !disabled(c.parts, 'tail'), canBite = !disabled(c.parts, 'bite');

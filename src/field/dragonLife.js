@@ -86,7 +86,8 @@ export function createDragonLife(game, homes, isActive) {
         wander(m, _g, d > 30 ? L.alt : 3.6, d > 30 ? L.speed * 1.2 : 5, { turn: 1.2 }); if (d < 8) { s.landed = (s.landed || 0) + dt; if (s.landed > 10) { stats.provisions++; s.mode = 'patrol'; s.t = 0; s.landed = 0; } } break;
       }
       default: { // patrol: long sky circuits (roamer) / a ground beat around the nest (resident)
-        if (!s.wp || Math.hypot(s.wp.x - m.position.x, s.wp.z - m.position.z) < (L.role === 'roamer' ? 25 : 6) || s.t > 120) { s.wp = L.role === 'roamer' ? landPoint(s.home.x, s.home.z, 100, L.range) : landPoint(s.home.x, s.home.z, 10, L.range * 0.8); s.t = 0; stats.patrolLegs++; }
+        const myNest = L.role === 'resident' ? game.broods?.nests?.find((n) => n.home === s.id && n.eggs > 0) : null; // a female with eggs sits close to them
+        if (!s.wp || Math.hypot(s.wp.x - m.position.x, s.wp.z - m.position.z) < (L.role === 'roamer' ? 25 : 6) || s.t > 120) { s.wp = L.role === 'roamer' ? landPoint(s.home.x, s.home.z, 100, L.range) : myNest ? landPoint(myNest.x, myNest.z, 6, 40) : landPoint(s.home.x, s.home.z, 10, L.range * 0.8); s.t = 0; stats.patrolLegs++; }
         wander(m, s.wp, L.role === 'roamer' ? L.alt : 3.6, L.speed);
         if (s.hunger > 0.45 && Math.floor(s.t * 2) !== Math.floor((s.t - dt) * 2)) { const p = pickPrey(m, s); if (p) { s.prey = p; s.mode = 'stoop'; s.t = 0; stats.stoops++; } }
       }

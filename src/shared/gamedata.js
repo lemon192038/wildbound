@@ -111,6 +111,11 @@ export const WEAPONS = {
 for (const [k, v] of Object.entries(ISLAND_WEAPONS)) { const { ja, jaEffect, ...def } = v; WEAPONS[k] = def; } // island gear (stage 5b)
 for (const [k, v] of Object.entries(CLASS_WEAPONS)) { const { ja, jaEffect, ...def } = v; WEAPONS[k] = def; } // other weapon classes
 for (const [k, v] of Object.entries(LINE_WEAPONS)) { const { ja, jaEffect, ...def } = v; WEAPONS[k] = def; } // material lines: ~10 per class (src/shared/lineGear.js)
+// Cindral, the Ashwing (user request): a harder quarry — its quests need HR 5–6 (above) and everything made from its
+// materials (cw_*) is rarity 6 (weapons get the rarity-6 attack through the balance pass below; armour the rarity-6 defence).
+{ const cw = Object.values(WEAPONS).filter((d) => Object.keys(d.craft?.mats || {}).some((m) => m.startsWith('cw_')));
+  const r6 = Object.values(WEAPONS).filter((d) => d.rarity === 6 && !cw.includes(d)); const base6 = r6.reduce((x, d) => x + d.levels[0].attack, 0) / Math.max(1, r6.length);
+  for (const d of cw) { const up = Math.round(base6 - d.levels[0].attack); d.rarity = 6; if (up > 0) d.levels = d.levels.map((L) => ({ ...L, attack: L.attack + up })); } }
 // Balance (user request): weapons of the same rarity should hit about equally hard. Each weapon's offset from its rarity's
 // mean base attack is cut to 30 % (its upgrade growth is kept), so rarity, element and affinity decide most of the
 // difference. (Damage differences between CLASSES are evened out in weaponClasses.js DMG_SCALE.)
@@ -208,13 +213,13 @@ export const QUESTS = {
   q_survey_unbroken: { name: 'Survey: Unbroken', type: 'survey', stars: 3, reqHR: 2, monster: 'varkhul', timeLimit: 1800, maxFaints: 1, minClear: 90, prereq: ['q_vk1'],
     desc: 'Prove your discipline: slay Varkhul within 15 minutes without fainting once.',
     objectives: [{ k: 'slay' }, { k: 'noFaint' }, { k: 'within', s: 900 }], coins: 2200, xp: 380, rewards: [['crimsonOre', 2, 100], ['vk_gem', 1, 8]] },
-  q_cw1: { name: 'Ashes on the Wind', type: 'slay', stars: 4, reqHR: 3, monster: 'wyvern', timeLimit: 3000, maxFaints: 3, minClear: 120, prereq: ['q_vk1'],
+  q_cw1: { name: 'Ashes on the Wind', type: 'slay', stars: 6, reqHR: 5, monster: 'wyvern', timeLimit: 3000, maxFaints: 3, minClear: 120, prereq: ['q_vk1'],
     desc: 'Ships are being bombed off the coast by a winged terror. Slay Cindral, the Ashwing.',
     objectives: [{ k: 'slay' }], coins: 2600, xp: 520, rewards: [['cw_scale', 2, 100], ['megaPotion', 1, 100]] },
-  q_survey_wings: { name: 'Survey: Clipped Wings', type: 'survey', stars: 4, reqHR: 3, monster: 'wyvern', timeLimit: 3000, maxFaints: 3, minClear: 120, prereq: ['q_cw1'],
+  q_survey_wings: { name: 'Survey: Clipped Wings', type: 'survey', stars: 6, reqHR: 5, monster: 'wyvern', timeLimit: 3000, maxFaints: 3, minClear: 120, prereq: ['q_cw1'],
     desc: 'Scholars need samples. Break Cindral\'s wings and tail, then slay it.',
     objectives: [{ k: 'break', parts: ['wings', 'tail'] }, { k: 'slay' }], coins: 3200, xp: 600, rewards: [['cw_membrane', 1, 100], ['cw_barb', 1, 100]] },
-  q_cw_hunt: { name: 'Grounding the Ashwing', type: 'hunt', stars: 5, reqHR: 4, monster: 'wyvern', timeLimit: 3000, maxFaints: 3, minClear: 120, prereq: ['q_cw1'],
+  q_cw_hunt: { name: 'Grounding the Ashwing', type: 'hunt', stars: 7, reqHR: 6, monster: 'wyvern', timeLimit: 3000, maxFaints: 3, minClear: 120, prereq: ['q_cw1'],
     desc: 'Slay or capture Cindral before the trade fleet sails.',
     objectives: [{ k: 'slayOrCapture' }], coins: 3600, xp: 700, rewards: [['cw_gland', 2, 100], ['cw_gem', 1, 5]] },
   q_elite_vk: { name: 'Tempered Emberhide', type: 'elite', stars: 5, reqHR: 4, monster: 'varkhul', tempered: 1.6, timeLimit: 3000, maxFaints: 2, minClear: 150, prereq: ['q_vk_hunt'],
@@ -306,3 +311,6 @@ export const MONSTER_INFO = {
     traits: ['Growths turn critical when heated or struck', 'Hitting a hot growth makes it drop and explode (blastblight)', 'Water/ice weapons cool the growths', 'Below 35%: seals the arena — final stand', 'Burns itself with its own blasts'],
     attacks: ['Fist slam / double slam', 'Sweeping backhand', 'Brow slam', 'Leap slam', 'Tail swipe', 'Charge', 'Cinder sea pools', 'Cataclysm — chained detonation of every pool'] },
 };
+// Cindral's armour (rarity 6, see the weapons note above) and its old field's recommended HR — after everything is defined
+for (const a of Object.values(ARMOR)) if (a.set === 'ashwing') { a.rarity = 6; a.def = Math.max(a.def, 60); a.perLv = Math.max(a.perLv || 0, 4); }
+DESTINATIONS.ashfang_wastes.recHR = 5; DESTINATIONS.ashfang_wastes.danger = 6;

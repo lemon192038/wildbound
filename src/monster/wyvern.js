@@ -111,9 +111,11 @@ export async function createWyvern(game, opts = {}) {
   function hunters() {
     const list = []; if (game.player && !game.player.dead && !game.player.unseen) list.push(game.player);
     for (const r of game.remotePlayers?.values?.() || []) if (r.position) list.push(r);
+    if (m.rival && m.rival.state !== 'dead') list.push(m.rival); // another big monster (src/field/bossRivalry.js)
     return list;
   }
   function pickTarget() {
+    if (m.rival && m.rival.state !== 'dead') { m.target = m.rival; return; } // fighting another big monster
     let best = null, bs = -1e9;
     for (const h of hunters()) { const d = h.position.distanceTo(m.position); const th = m.threat.get(String(h.id ?? 'local')) || 0; const s = -d + Math.min(22, th / 120) + (h === m.target ? 4 : 0); if (s > bs) { bs = s; best = h; } }
     m.target = best;

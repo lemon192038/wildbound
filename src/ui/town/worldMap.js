@@ -15,6 +15,7 @@ import { paintWorldMap, MAP_W, MAP_H, GEO, routeFor, catmull, drawShip } from '.
 import { habitatSites, chartPos } from '../../shared/habitats.js';
 import { createIslandField } from '../../world/island/islandField.js';
 import { SPECIES } from '../../fauna/species.js';
+import { TEMPERAMENT } from '../../shared/temperament.js';
 // every monster's habitat (群生地) on the Volcanic Island, placed on the chart (user request: pick one and sail there)
 let HAB = null;
 const habitats = () => (HAB ||= habitatSites(createIslandField(1337)).map((h) => ({ ...h, key: 'hab:' + h.id, map: chartPos(h.x, h.z) })));
@@ -291,6 +292,7 @@ export function createWorldMap(ctx) {
     return `<div class="wm-d-scroll tw-scroll">
       <header class="wm-d-hero noimg"><button class="wm-d-x" data-wm="close" aria-label="${esc(t('hud.close'))}">${glyph('close')}</button>
         <div class="wm-d-title"><small>${esc(t('wm.island'))} · ${esc(t('region.' + H.region))}</small><h2>${esc(monsterName(H.monster))}</h2>${epi ? `<p class="wm-dim">${esc(epi)}</p>` : ''}</div></header>
+      ${TEMPERAMENT[H.monster] ? `<div class="wm-d-stats"><div><span>${esc(t('wm.temper'))}</span><b>${esc(TEMPERAMENT[H.monster].label[ja ? 1 : 0])}</b></div></div>` : ''}
       <p class="wm-d-desc">${esc(t(H.kind === 'boss' ? 'wm.habBoss' : 'wm.habFauna', { m: monsterShort(H.monster) }))}</p>
       <p class="wm-dim">${esc(t('wm.habCamp'))}</p>
     </div><footer class="wm-d-foot">${foot}</footer>`;

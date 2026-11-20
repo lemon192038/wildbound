@@ -139,6 +139,7 @@ export class TouchControls {
   hide() { this.enabled = false; this.root.classList.remove('tc-on'); }
   // Contextual action button; pass null to hide it.
   // several field modules share the context button (carve / gather / egg / talk): each clears only ITS label
+  setToggle(act, on) { const b = [...this.root.querySelectorAll('.tc-btn')].find((x) => x.dataset.act === act); b?.classList.toggle('tc-armed', !!on); }
   clearAction(label) { if (this._act === label) this.setAction(null); }
   setAction(label) { if (this._act === label) return; this._act = label; this.actBtn.style.display = label ? 'flex' : 'none'; if (label) this.actBtn.textContent = label; }
   // Town mode: hide combat buttons (keeps stick, look, MENU and the context action).

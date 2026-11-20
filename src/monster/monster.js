@@ -94,9 +94,11 @@ export async function createMonster(game) {
   const hunters = () => {
     const list = []; if (game.player && !(game.player.hp <= 0) && !game.player.unseen) list.push({ id: game.player.id ?? 'local', position: game.player.position, state: game.player.state, local: true });
     if (game.remotePlayers) for (const [id, r] of game.remotePlayers) { const p = r.position || r.object3d?.position; if (p && !(r.hp <= 0)) list.push({ id, position: p, state: r.state }); }
+    if (m.rival && m.rival.state !== 'dead') list.push(m.rivalRef ||= { id: 'rival', position: m.rival.position, get state() { return m.rival?.state || 'dead'; }, isRival: true }); // another big monster (src/field/bossRivalry.js)
     return list;
   };
   const pickTarget = () => {
+    if (m.rival && m.rival.state !== 'dead') { m.target = m.rivalRef ||= { id: 'rival', position: m.rival.position, get state() { return m.rival?.state || 'dead'; }, isRival: true }; return; } // fighting another big monster
     let best = null, bd = Infinity;
     for (const h of hunters()) { const d = h.position.distanceTo(m.position) - Math.min(22, (m.threat.get(String(h.id)) || 0) * 0.05) - (h.id === m.lastAttacker ? 2 : 0) - (m.target && h.id === m.target.id ? 3 : 0); if (d < bd) { bd = d; best = h; } }
     m.target = best;

@@ -72,13 +72,15 @@ export function createBroods(game, homes) {
     };
     return c;
   }
-  // the guarding parent (or any adult of the lineage close by) turns on the hunter
+  // the nest's owner and its mate (user request: hypersensitive to egg theft) come for the thief from far away (400 m);
+  // other big monsters of the lineage do not care about someone else's clutch
   function callParent(N) {
     const P = game.player; if (!P || P.unseen) return;
+    const owner = N.home, mate = homes.find((h) => h.id === owner)?.mate;
     for (const m of game.monsters || []) {
-      if (m.state === 'dead') continue; const id = m.islandId || m.kind; const lin = (id === 'varkhul' ? 'varkhul' : id === 'brute' ? 'brute' : 'dragon');
-      if (lin !== N.lineage || Math.hypot(m.position.x - N.x, m.position.z - N.z) > 220) continue;
-      m.perception?.engage?.(P); m.aggro = true; m.target = P; m.guardNest = N; game.events?.emit?.('brood:alarm', { monster: m, nest: N.id });
+      if (m.state === 'dead') continue; const id = m.islandId || m.kind; if (id !== owner && id !== mate) continue;
+      if (Math.hypot(m.position.x - N.x, m.position.z - N.z) > 400) continue;
+      m.rival = null; m.perception?.engage?.(P); m.aggro = true; m.target = P; m.guardNest = N; m.wander = null; game.events?.emit?.('brood:alarm', { monster: m, nest: N.id });
     }
   }
   function die(c) {

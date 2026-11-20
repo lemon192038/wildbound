@@ -18,6 +18,7 @@ import { makePart, resolvePartHit, tickRegen, disabled, pickTargetPart } from '.
 import { createFaunaRender } from './faunaRender.js';
 import { createEcoClient } from './ecoClient.js';
 import { ECO, ABUNDANCE } from '../shared/ecosystem.js';
+import { temperOf } from '../shared/temperament.js';
 import { createPredatorAI } from './predators.js';
 import { createHerdAI } from './herds.js';
 import { createEarthAI } from './earthkin.js';
@@ -166,6 +167,7 @@ export function createFauna(game) {
     if (sp === 'bird') { c.alt = S.altitude[0] + rnd() * (S.altitude[1] - S.altitude[0]); c.altT = c.alt; c.ai = 'soar'; c.orbit = { r: 40 + rnd() * 70, dir: rnd() < 0.5 ? 1 : -1, a: rnd() * TAU }; } // wide soaring circles over the home ground
     Object.assign(c, opts.extra || {});
     c.homeAi = c.ai; c.mem = { hit: 0, kin: 0, nest: 0, young: 0, motion: {}, elem: {}, w: 0 }; c.wary = 0;
+    c.female = stage >= 2 && !c.role && ((c.id * 2654435761) >>> 0) % 2 === 0; // half the adults are females (they keep near their nests)
     attach(c); list.push(c); stats.spawned++;
     return c;
   }
@@ -276,9 +278,30 @@ export function createFauna(game) {
   // nearest dry ground beside lava within 14 m (snake egg banks)
   function lavaBank(x, z) { for (let r = 2; r < 14; r += 2) for (let i = 0; i < 8; i++) { const a = (i / 8) * TAU, px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; const sd = F.lava(px, pz, Ls).sd; if (sd > 1.5 && sd < 5 && W.canWalk(px, pz)) return [px, pz]; } return null; }
   // eggs.js took one egg from a nest: one fewer drawn; the parents near it are alarmed (guarding species turn hostile)
+  // Egg theft (user request: most species react hypersensitively). Every adult of the species within 90 m learns of it;
+  // how it answers follows its temperament (temperament.js `nest`): most turn on the thief, timid ones flee.
   function eggTaken(q) {
-    q.n = Math.max(0, q.n - 1); propsDirty = true;
-    for (const o of near(_pp.set(q.x, 0, q.z), 60)) if (!o.dead && o.sp === q.sp && o.stage >= 2) { o.mem.nest += 2; applyWary(o); o.aggroT = 12; if (o.group) o.group.hostile = game.player; else if ((ECO[o.sp]?.protect || 0) >= 0.3) o.guardT = 20; }
+    q.n = Math.max(0, q.n - 1); propsDirty = true; stats.eggAlarms = (stats.eggAlarms || 0) + 1;
+    for (const o of near(_pp.set(q.x, 0, q.z), 90)) {
+      if (o.dead || o.sp !== q.sp || o.stage < 2 || o.isBrood) continue;
+      const T = temperOf(o.role && o.role !== 'member' ? o.role : o.sp); o.mem.nest += 3; applyWary(o);
+      if (T.nest < 0.5) { if (o.sp === 'beetle') setAi(o, 'burrow'); continue; }   // timid: hides
+      provoke(o, 25 + 25 * T.nest); stats.eggProvoked = (stats.eggProvoked || 0) + 1;
+    }
+  }
+  // make a creature turn on the local hunter, the way its species fights
+  function provoke(o, sec) {
+    o.aggroT = Math.max(o.aggroT || 0, sec); o.hunter = game.player; o.guardT = 0;
+    if (o.group) { o.group.hostile = game.player; return; }
+    switch (o.sp) {
+      case 'lizard': case 'drake': setAi(o, 'fight'); o.engaged = true; break;
+      case 'golem': o.hostile = true; if (o.ai === 'dormant' || o.ai === 'settle' || o.ai === 'return') setAi(o, 'rising'); break;
+      case 'mole': o.under = false; setAi(o, 'fight'); o.surfT = 30; break;
+      case 'slime': setAi(o, 'angry'); break;
+      case 'bird': o.mobT = sec; if (o.alt < 1) setAi(o, 'takeoff'); break;   // mobs the thief from the air
+      case 'snake': o.huntH = true; break;
+      default: break;
+    }
   }
   function removeEcoProps(k) { if (props.delete(k)) propsDirty = true; }
   const _pm = new THREE.Matrix4(), _pq = new THREE.Quaternion(), _pe = new THREE.Euler(), _ps = new THREE.Vector3(), _pp = new THREE.Vector3();
@@ -455,7 +478,7 @@ export function createFauna(game) {
   const EARTH = createEarthAI({ game, W, rnd, setAi, steer: (...a) => steer(...a), nearestOf: (...a) => nearestOf(...a), nearestHunter, noiseOf, die, shoot: (...a) => shoot(...a), ground, wrapA, pickSpot, okSpot: (...a) => okSpot(...a) });
   const countNear = (c, r, f) => { hash.query(c.pos.x, c.pos.z, r, _q); let n = 0; for (const o of _q) if (o !== c && f(o) && o.pos.distanceTo(c.pos) < r) n++; return n; };
   const PRED = createPredatorAI({ countNear, game, W, F, rnd, setAi, steer: (...a) => steer(...a), nearestOf: (...a) => nearestOf(...a), nearestHunter, noiseOf, die, shoot, ground, wrapA, pickSpot });
-  const ECOAI = createEcologyAI({ game, F, W, rnd, setAi, steer: (...a) => steer(...a), nearestOf: (...a) => nearestOf(...a), nearestHunter, ground });
+  const ECOAI = createEcologyAI({ game, F, W, rnd, setAi, steer: (...a) => steer(...a), nearestOf: (...a) => nearestOf(...a), nearestHunter, ground, nestsNear: (x, z, r, sp) => { const out = []; for (const T of props.values()) for (const q of T.nests) if (q.sp === sp && q.n > 0 && Math.hypot(q.x - x, q.z - z) < r) out.push(q); return out; }, provoke: (o, s) => provoke(o, s) });
   function steer(c, tx, tz, speed, dt, turn = 3) {
     if (c.breakMask & BREAK_BIT.legs) speed *= 0.45; // crippled leg
     const dx = tx - c.pos.x, dz = tz - c.pos.z, d = Math.hypot(dx, dz); if (d < 0.2) { c.move = 0; return d; }
@@ -498,7 +521,7 @@ export function createFauna(game) {
 
   function thinkSlime(c, dt) {
     const S = c.S; const [h, dH] = nearestHunter(c.pos.x, c.pos.z);
-    c.cd -= dt; c.aggroT -= dt;
+    c.cd -= dt;
     if (c.ai === 'flee') { c.fleeT -= dt; const a = c.yaw; steer(c, c.pos.x + Math.sin(a) * 5, c.pos.z + Math.cos(a) * 5, S.speed * 2.2, dt, 1); if (c.fleeT <= 0) setAi(c, 'roam'); return; }
     if (c.ai === 'spit') { c.mode = 2; c.move = 0; if (c.t > 0.6 && !c.fired) { c.fired = true; if (h) spit(c, h); } if (c.t > 1.1) { c.fired = false; c.mode = 0; setAi(c, 'angry'); } return; }
     if (c.ai === 'slam') { c.mode = 2; const tgt = c.target; if (tgt) steer(c, tgt[0], tgt[1], 6, dt, 6); if (c.t > 0.5) { if (h?.local && dH < 1.6 * c.scale + 0.6) game.player.receiveHit?.({ damage: 5, knockback: 5, from: c.pos.clone(), source: c, kind: 'aoe' }); c.mode = 0; c.cd = 2.5; setAi(c, 'angry'); } return; }
@@ -632,7 +655,7 @@ export function createFauna(game) {
       const [, d] = nearestHunter(c.pos.x, c.pos.z);
       c.acc += dt; if (d > LOD_NEAR && (frame + c.id) % 4) continue; const fullDt = c.acc, sdt = Math.min(c.acc, 0.25); c.acc = 0;
       if (c.breakMask) for (const n of tickRegen(c.parts, fullDt, (c.hunger < 0.5 ? 1.2 : 0.7) * (c.hp > c.maxHp * 0.5 ? 1 : 0.6))) { c.breakMask &= ~(BREAK_BIT[n] || 0); game.events?.emit?.('fauna:partRegen', { creature: c, part: n }); }
-      c.t += sdt; c.flash = Math.max(0, c.flash - sdt * 4); c.heat = Math.max(0, c.heat - sdt); c.burstCd -= sdt;
+      c.t += sdt; c.flash = Math.max(0, c.flash - sdt * 4); c.aggroT = Math.max(0, (c.aggroT || 0) - sdt); // 'recently attacked / provoked' wears off (every species) c.heat = Math.max(0, c.heat - sdt); c.burstCd -= sdt;
       if (c.staggerT > 0) { c.staggerT -= sdt; c.move = 0; c.hitDone = true; } // parried: reeling, no attack lands
       else if (c.dodgeT > 0) { c.dodgeT -= sdt; const nx = c.pos.x + c.dodgeDir[0] * 7 * sdt, nz = c.pos.z + c.dodgeDir[1] * 7 * sdt; if (okSpot(nx, nz, c.sp)) { c.pos.x = nx; c.pos.z = nz; } c.move = 1; }
       else if (game.volcanoRampage && rampage(c, sdt)) { /* the Volcano Slime is awake (src/field/volcano.js) */ }

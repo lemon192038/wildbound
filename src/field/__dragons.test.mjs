@@ -60,6 +60,11 @@ const critter = (sp, x, z, extra = {}) => ({ sp, pos: new THREE.Vector3(x, 20, z
   ok(maxR < DRAGON_LIFE.venom.range + 20, `she never leaves her ground (${maxR.toFixed(0)} m ≤ ${DRAGON_LIFE.venom.range})`);
   ok(m.position.y - 20 < 8, 'she keeps to the ground (low)');
 }
+{ // a Venom-fang female with eggs keeps close to her clutch (user request: females guard near the eggs)
+  const m = dragon('venom', 300, 0); const nest = { home: 'venom', x: 360, z: 20, eggs: 2 }; const { run } = world([m], [], [nest]);
+  let maxD = 0; for (let i = 0; i < 120; i++) { run(1); if (i > 15) maxD = Math.max(maxD, Math.hypot(m.position.x - nest.x, m.position.z - nest.z)); }
+  ok(maxD < 50, `she keeps within ${maxD.toFixed(0)} m of her eggs`);
+}
 { // a dragon that notices a hunter is left to its boss AI
   const m = dragon('flame', 0, 0); const { run } = world([m]); run(1); m.aggro = true; run(0.2);
   ok(m.wander === null, 'aggro: the ecology driver lets go');

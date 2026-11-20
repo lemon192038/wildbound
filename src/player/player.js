@@ -89,6 +89,7 @@ export async function createPlayer(game) {
   const guardOk = () => !!C.guard && !(P.cls === 'bulwarkaxe' && RES.mode === 'axe');
   function setMode(m) { RES.mode = m; view.setWeaponMode?.(m); events.emit('player:mode', { mode: m }); }
   P.setWeaponClass = (id) => {
+    P.aimOn = false;
     if (!WEAPON_CLASSES[id]) id = 'greatsword'; if (id === P.cls && view.cls) return;
     P.cls = id; C = classOf(id); view.setWeaponClass(id); P.roll.dist = C.roll; focus = 0; focusLv = 0;
     RES.mode = C.modes ? Object.keys(C.modes)[0] : null; RES.gauge = 1; RES.energy = 0; RES.vials = 0; RES.ammo = C.ammo?.clip || 0; RES.heat = 0; RES.lock = 0; RES.notes = []; RES.melodies = [];
@@ -248,7 +249,7 @@ export async function createPlayer(game) {
     return crosshairPoint();
   }
   let aimEl = null;
-  let scopeUi = null;
+  let scopeUi = null, lastAimOn = false;
   function aimHud(on) {
     if (typeof document === 'undefined') return; if (!aimEl && !on) return;
     if (!aimEl) { aimEl = document.createElement('div'); aimEl.style.cssText = 'position:fixed;left:50%;top:50%;width:30px;height:30px;margin:-15px 0 0 -15px;z-index:12;pointer-events:none;background:radial-gradient(circle,#ffe2a0 0 2px,transparent 3px),linear-gradient(#ffe2a0,#ffe2a0) center/2px 9px no-repeat,linear-gradient(90deg,#ffe2a0,#ffe2a0) center/9px 2px no-repeat;border:2px solid rgba(255,226,160,.85);border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,.7)'; (document.getElementById('ui-root') || document.body).appendChild(aimEl); }
@@ -548,10 +549,10 @@ export async function createPlayer(game) {
 
   // ---------------- riding (src/tame/ride.js) ----------------
   P.ride = null; P.unseen = false; P.lavaSafe = false;
-  P.onMount = () => { ropeRelease('mount'); P.weaponDrawn = false; view.setInHand(false); parryReady = false; holdT = -1; airborne = false; vy = 0; vel.set(0, 0, 0); setState('idle', 0.05); P.lockTarget = null; P.lockPart = null; trail.clear(); };
+  P.onMount = () => { P.aimOn = false; ropeRelease('mount'); P.weaponDrawn = false; view.setInHand(false); parryReady = false; holdT = -1; airborne = false; vy = 0; vel.set(0, 0, 0); setState('idle', 0.05); P.lockTarget = null; P.lockPart = null; trail.clear(); };
   P.onDismount = (thrown) => { airborne = false; vy = 0; vel.set(0, 0, 0); lastGround = P.position.y; setState(thrown ? 'knockdown' : 'idle', 0.08); if (thrown) invuln = Math.max(invuln, 0.6); };
   // ---------------- update ----------------
-  let lastDt = 1 / 60, prevGuard = false;
+  let lastDt = 1 / 60, prevGuard = false, prevAimG = false; P.aimOn = false;
   P.update = (dt, input, rawDt = dt) => {
     sparks.update(rawDt);
     if (slowT > 0 && (slowT -= rawDt) <= 0) game.engine.timeScale = 1;
@@ -584,11 +585,16 @@ export async function createPlayer(game) {
     if (P.lockTarget && (P.lockTarget.hp <= 0 || P.lockTarget.state === 'dead' || P.lockTarget.dead) && !autoplay) { P.lockTarget = null; P.lockPart = null; }
     // ranged aiming: hold GUARD (Q / LT / touch AIM) with a bow or a gun drawn — over-the-shoulder camera, crosshair, shots go
     // exactly where the crosshair points (src/player/camera.js reads P.aiming)
-    P.aiming = C.dmg === 'ranged' && P.weaponDrawn && !!inp.guard && !P.dead && !airborne && !['dodge', 'hit', 'knockdown', 'getup', 'sheathe', 'draw', 'ropeFire', 'ropePull'].includes(P.state);
+    // AIM is a toggle (user request): one press aims, the next cancels — the thumb is free to swipe the view meanwhile.
+    // Dodging, being knocked down, sheathing, dying or switching to a melee class also ends it.
+    const gNow = !!inp.guard, aimEdge = gNow && !prevAimG; prevAimG = gNow;
+    if (C.dmg !== 'ranged' || P.dead || ['dodge', 'hit', 'knockdown', 'sheathe'].includes(P.state)) P.aimOn = false;
+    else if (aimEdge) P.aimOn = !P.aimOn;
+    P.aiming = !!P.aimOn && P.weaponDrawn && !P.dead && !airborne && !['dodge', 'hit', 'knockdown', 'getup', 'sheathe', 'draw', 'ropeFire', 'ropePull'].includes(P.state);
     // scope (user request): the camera goes into the eye and zooms (camera.js rig.scopeK); the hunter's own model is hidden
     // while looking through it; the plain crosshair is only for the short moment before the scope is up
     const rig = game.cameraRig, sc = WEAPON_CLASSES[P.cls]?.scope; const scopeK = rig?.scopeK || 0;
-    aimHud(P.aiming && !(sc && scopeK > 0.55)); (scopeUi ||= createScope()).set(sc ? scopeK : 0, sc?.reticle, sc?.zoom || 1);
+    aimHud(P.aiming && !(sc && scopeK > 0.55)); if (P.aimOn !== lastAimOn) { lastAimOn = P.aimOn; game.input?.touch?.setToggle?.('guard', !!P.aimOn); } // the AIM button stays lit while aiming (scopeUi ||= createScope()).set(sc ? scopeK : 0, sc?.reticle, sc?.zoom || 1);
     if (!P.devoured && !P.dead) view.root.visible = !(rig?.scoped);
 
     // ailments (src/core/status.js): sleep / stun take over the hunter, flinch staggers, debuffs scale everything
@@ -642,7 +648,7 @@ export async function createPlayer(game) {
       else if (guardEdge && P.weaponDrawn && C.guardAction === 'perform') startMove('hr_perform');
       else if (guardEdge && P.weaponDrawn && C.guardAction === 'switch') { if (RES.mode === 'axe' && RES.gauge < 0.3) events.emit('player:lowGauge', {}); else startMove('sx_morph'); }
       else if (guardEdge && P.weaponDrawn && P.cls === 'bulwarkaxe' && RES.mode === 'axe') startMove('ba_morph');
-      else if (inp.guard && C.dmg === 'ranged' && !P.weaponDrawn) setState('draw'); // AIM with a bow / gun sheathed: draw it and aim
+      else if (P.aimOn && C.dmg === 'ranged' && !P.weaponDrawn) setState('draw'); // AIM with a bow / gun sheathed: draw it and aim
       else if (inp.guard && guardOk() && P.weaponDrawn) setState('guard', 0.1);
       else if (inp.guard && guardOk() && !P.weaponDrawn) { queued = 'guard'; setState('draw'); }
       else {
