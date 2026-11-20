@@ -84,11 +84,18 @@ export function createIslandBosses(game, homes) {
   function update(dt, rawDt) {
     const hs = hunters(); let restChanged = false;
     for (const m of game.monsters) {
-      let d = Infinity; for (const h of hs) d = Math.min(d, Math.hypot(h.x - m.position.x, h.z - m.position.z));
+      // co-op client: the host moves its bosses even while this copy rests (a roaming Flame dragon flies its circuit), so
+      // measure from where the HOST has it — this copy's own position froze when it went to rest (user report: the
+      // dragon attacked one hunter while the other saw nothing and took no damage)
+      const at = m.remoteControlled && m.netPos ? m.netPos : m.position;
+      let d = Infinity; for (const h of hs) d = Math.min(d, Math.hypot(h.x - at.x, h.z - at.z));
       const on = state.active.has(m) ? d < AI_FAR : d < AI_NEAR;
       if (on) state.active.add(m); else state.active.delete(m);
-      if (m.object3d && !!m._resting === on) { setResting(m, !on); restChanged = true; }
-      if (!on) continue;
+      if (m.object3d && !!m._resting === on) {
+        if (on && m.remoteControlled && m.netPos) { m.position.x = m.netPos.x; m.position.z = m.netPos.z; } // wake where the host has it, not slide in from far away
+        setResting(m, !on); restChanged = true;
+      }
+      if (!on) { if (m.remoteControlled && m.netPos) { m.position.x = m.netPos.x; m.position.z = m.netPos.z; } continue; } // a resting copy still stands where the host has it (map pins, distance checks)
       m.update(dt, rawDt);
       if (!m.remoteControlled && m.state !== 'dead') keepOffLava(m);
     }

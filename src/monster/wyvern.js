@@ -507,6 +507,7 @@ export async function createWyvern(game, opts = {}) {
   // ---------------------------------------------------------------- net sync
   const net = { pos: new THREE.Vector3(), yaw: 0, alt: HOVER, has: false };
   function remoteUpdate(dt) {
+    if (net.has && (net.pos.x - m.position.x) ** 2 + (net.pos.z - m.position.z) ** 2 > 400) { m.position.x = net.pos.x; m.position.z = net.pos.z; } // > 20 m behind the host: snap (as monster.js)
     if (net.has) { m.position.x = lerp(m.position.x, net.pos.x, Math.min(1, dt * 8)); m.position.z = lerp(m.position.z, net.pos.z, Math.min(1, dt * 8)); m.yaw += wrapA(net.yaw - m.yaw) * Math.min(1, dt * 8); if (!m.action) m.alt = lerp(m.alt, net.alt, Math.min(1, dt * 6)); }
     if (m.action) { m.actionTime += dt; m.action.update(m.actionTime, dt); if (m.actionTime >= m.action.dur && m.actionName !== 'death') { m.action = null; m.actionName = ''; neckYawOverride = null; } }
     if (dt > 0) checkPlayerHits();
@@ -528,7 +529,7 @@ export async function createWyvern(game, opts = {}) {
     if (st.q != null && st.q !== remoteSeq) {
       remoteSeq = st.q;
       if (st.a && ACTIONS[st.a]) { m.diveIdx = st.dv ?? 0; m.divesLeft = st.dl ?? 0; m.actionSeq = st.q - 1; startAction(st.a, st.t || 0); }
-    }
+    } else if (st.a && st.a === m.actionName && m.action && st.t != null && Math.abs(m.actionTime - st.t) > 0.35) m.actionTime = st.t; // a slow client's copy drifts: keep its attack windows on the host's clock (as monster.js)
     const s = STATE_CODES[st.s]; if (s === 'dead' && m.actionName !== 'death') startAction('death'); if (s && !m.action) m.state = s;
     m.actionSeq = st.q ?? m.actionSeq;
   };

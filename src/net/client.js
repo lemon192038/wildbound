@@ -297,6 +297,7 @@ function startOnline(game, net, params, remote = '') {
       if (mon && typeof mon.applyRemote === 'function' && arr[i] && typeof arr[i] === 'object') {
         mon.remoteControlled = true;
         try { mon.applyRemote(safe(arr[i])); } catch (e) { console.warn('[net] monster.applyRemote', e); }
+        const st = arr[i]; if (Number.isFinite(st.x) && Number.isFinite(st.z)) (mon.netPos ||= { x: 0, z: 0 }, mon.netPos.x = st.x, mon.netPos.z = st.z); // where the HOST has it (islandBosses rest/wake on clients)
       }
     }
   }
